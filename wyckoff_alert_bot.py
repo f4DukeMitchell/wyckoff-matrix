@@ -1,4 +1,4 @@
-﻿import time
+import time
 import datetime
 import smtplib
 import yfinance as yf
@@ -55,7 +55,7 @@ last_alerted = {ticker: 0 for ticker in TICKERS}
 
 def send_email_alert(ticker, action, price, sl, tp, regime, options_flow=None):
     subject = f"WYCKOFF ALERT: {action} on {ticker}"
-    body = f"\""
+    body = f"""
     Wyckoff Institutional Terminal Alert
     ------------------------------------
     TICKER: {ticker} ({INTERVAL})
@@ -67,21 +67,21 @@ def send_email_alert(ticker, action, price, sl, tp, regime, options_flow=None):
     
     REGIME: {regime}
     TIME: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-    "\""
+    """
     
     if options_flow:
-        body += f"\""
+        body += f"""
     OPTIONS FLOW INTEL
     ------------------------------------
     Sentiment: {options_flow.get('net_sentiment', 'N/A')}
     Put/Call Ratio: {options_flow.get('put_call_ratio', 'N/A')} ({options_flow.get('put_call_label', 'N/A')})
     Gamma Wall (Magnet Target): ${options_flow.get('gamma_wall', 'N/A')}
     Max Pain: ${options_flow.get('max_pain', 'N/A')}
-    "\""
+    """
 
-    body += "\""
+    body += """
     *Stalk the entry. Manage your risk.*
-    "\""
+    """
     
     msg = MIMEMultipart()
     msg['From'] = GMAIL_USER
