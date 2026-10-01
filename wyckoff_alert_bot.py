@@ -1,0 +1,277 @@
+import time
+import datetime
+import smtplib
+import yfinance as yf
+import pandas as pd
+import numpy as np
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import subprocess
+import os
+
+# ==========================================
+# 🛑 USER CONFIGURATION REQUIRED 🛑
+# ==========================================
+GMAIL_USER = "f4dukemitchell@gmail.com"           # <-- Replace with your Gmail address
+GMAIL_APP_PASSWORD = "aakv dgpp wfwx nhua"      # <-- Replace with your 16-character App Password
+DESTINATION_EMAIL = "matt.smith@pga.com"    # <-- Where you want the alerts sent (can be the same as above)
+
+TICKERS = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "BRK-B", "LLY", "AVGO", "JPM", "V"]
+INTERVAL = "5m"
+PERIOD = "5d"
+LOOKBACK = 200        # Intraday Phase B lookback
+SL_BUFFER = 0.01      # 1% stop loss buffer for intraday volatility
+VOL_LIMIT = 1.2       # Intraday volume threshold
+# ==========================================
+
+# Dictionary to prevent spamming the same alert multiple times in a row
+last_alerted = {ticker: 0 for ticker in TICKERS}
+
+def send_email_alert(ticker, action, price, sl, tp, regime):
+    subject = f"🚨 WYCKOFF ALERT: {action} on {ticker}"
+    body = f"""
+    Wyckoff Institutional Terminal Alert
+    ------------------------------------
+    TICKER: {ticker} ({INTERVAL})
+    ACTION: {action}
+    
+    ENTRY PRICE: ${price:.2f}
+    STOP LOSS:   ${sl:.2f}
+    TAKE PROFIT: ${tp:.2f}
+    
+    REGIME: {regime}
+    TIME: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    
+    *Stalk the entry. Manage your risk.*
+    """
+    
+    msg = MIMEMultipart()
+    msg['From'] = GMAIL_USER
+    msg['To'] = DESTINATION_EMAIL
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain', 'utf-8'))
+    
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+        text = msg.as_string()
+        server.sendmail(GMAIL_USER, DESTINATION_EMAIL, text)
+        server.quit()
+        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ✉️ EMAIL SENT: {action} on {ticker}")
+    except Exception as e:
+        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ❌ ERROR SENDING EMAIL. Did you enter your 16-character App Password correctly? Error: {e}")
+
+def get_supertrend(high, low, close, length, multiplier):
+    tr0 = np.abs(high - low)
+    tr1 = np.abs(high - np.roll(close, 1))
+    tr2 = np.abs(low - np.roll(close, 1))
+    tr = np.maximum(tr0, np.maximum(tr1, tr2))
+    tr[0] = 0
+    atr = np.zeros_like(close)
+    if len(close) > length:
+        atr[length] = np.mean(tr[1:length+1])
+        for i in range(length+1, len(close)):
+            atr[i] = (atr[i-1] * (length - 1) + tr[i]) / length
+    hl2 = (high + low) / 2
+    upperband = hl2 + (multiplier * atr)
+    lowerband = hl2 - (multiplier * atr)
+    in_uptrend = np.ones(len(close), dtype=bool)
+    for i in range(1, len(close)):
+        if close[i] > upperband[i-1]: in_uptrend[i] = True
+        elif close[i] < lowerband[i-1]: in_uptrend[i] = False
+        else:
+            in_uptrend[i] = in_uptrend[i-1]
+            if in_uptrend[i] and lowerband[i] < lowerband[i-1]: lowerband[i] = lowerband[i-1]
+            if not in_uptrend[i] and upperband[i] > upperband[i-1]: upperband[i] = upperband[i-1]
+    return in_uptrend
+
+def scan_market():
+    print(f"\n[{datetime.datetime.now().strftime('%H:%M:%S')}] 📡 Scanning {len(TICKERS)} tickers for Phase C exhaustion...")
+    
+    # Bulk download is faster and prevents rate limits
+    data = yf.download(TICKERS, period=PERIOD, interval=INTERVAL, group_by='ticker', progress=False)
+    
+    for ticker in TICKERS:
+        try:
+            df = data[ticker].dropna() if len(TICKERS) > 1 else data.dropna()
+            if df.empty or len(df) < LOOKBACK:
+                continue
+                
+            highs = df['High'].values
+            lows = df['Low'].values
+            closes = df['Close'].values
+            vols = df['Volume'].values
+            
+            u1 = get_supertrend(highs, lows, closes, 1, 1.0)
+            u9 = get_supertrend(highs, lows, closes, 9, 9.0)
+            u14 = get_supertrend(highs, lows, closes, 14, 14.0)
+            
+            vol_sma = pd.Series(vols).rolling(20, min_periods=1).mean().values
+            rel_vol = np.where(vol_sma > 0, vols / vol_sma, 1.0)
+            
+            range_high = pd.Series(highs).rolling(LOOKBACK, min_periods=20).max().shift(1).values
+            range_low = pd.Series(lows).rolling(LOOKBACK, min_periods=20).min().shift(1).values
+            
+            curr = len(df) - 1
+            if pd.isna(range_high[curr]): continue
+            
+            c_below = (lows[curr] < range_low[curr]) or (lows[curr-1] < range_low[curr-1])
+            c_above = (highs[curr] > range_high[curr]) or (highs[curr-1] > range_high[curr-1])
+            vol_dry = rel_vol[curr] < VOL_LIMIT
+            
+            is_spring = c_below and u1[curr] and not u1[curr-1] and not u9[curr] and vol_dry
+            is_utad = c_above and not u1[curr] and u1[curr-1] and u9[curr] and vol_dry
+            
+            current_time = time.time()
+            
+            # If signal fired AND we haven't alerted this ticker in the last 15 minutes (900 seconds)
+            if is_spring and (current_time - last_alerted[ticker] > 900):
+                price = closes[curr]
+                sl = min(lows[curr], lows[curr-1]) * (1.0 - SL_BUFFER)
+                tp = range_low[curr] + ((range_high[curr] - range_low[curr]) * 0.5)
+                regime = "BEARISH (Seeking Reversal)" if not u9[curr] and not u14[curr] else "MIXED"
+                
+                send_email_alert(ticker, "LONG (SPRING)", price, sl, tp, regime)
+                last_alerted[ticker] = current_time
+                
+            elif is_utad and (current_time - last_alerted[ticker] > 900):
+                price = closes[curr]
+                sl = max(highs[curr], highs[curr-1]) * (1.0 + SL_BUFFER)
+                tp = range_high[curr] - ((range_high[curr] - range_low[curr]) * 0.5)
+                regime = "BULLISH (Seeking Reversal)" if u9[curr] and u14[curr] else "MIXED"
+                
+                send_email_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime)
+                last_alerted[ticker] = current_time
+                
+        except Exception as e:
+            pass # Silently skip errors on individual tickers to keep the loop alive
+
+last_report_date = None
+reports_sent = {"morning": False, "lunch": False, "power": False}
+
+def send_market_report(session_name):
+    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] 📝 Generating {session_name} Report...")
+    data = yf.download(TICKERS, period="10d", interval=INTERVAL, group_by='ticker', progress=False)
+    
+    exhausted = []
+    for ticker in TICKERS:
+        try:
+            df = data[ticker].dropna() if len(TICKERS) > 1 else data.dropna()
+            if df.empty or len(df) < LOOKBACK: continue
+            
+            highs, lows, closes = df['High'].values, df['Low'].values, df['Close'].values
+            u9 = get_supertrend(highs, lows, closes, 9, 9.0)
+            u14 = get_supertrend(highs, lows, closes, 14, 14.0)
+            
+            is_bull = u9[-1] and u14[-1]
+            is_bear = not u9[-1] and not u14[-1]
+            bars = 0
+            if is_bull or is_bear:
+                for i in range(len(u9)-1, -1, -1):
+                    if (is_bull and u9[i] and u14[i]) or (is_bear and not u9[i] and not u14[i]): bars += 1
+                    else: break
+                    
+            if bars >= 20:
+                regime = "BULLISH" if is_bull else "BEARISH"
+                target = "UTAD (Short)" if is_bull else "SPRING (Long)"
+                exhausted.append((ticker, regime, bars, target))
+        except: pass
+            
+    exhausted.sort(key=lambda x: x[2], reverse=True)
+    
+    body = f"📊 WYCKOFF MARKET RADAR: {session_name}\n"
+    body += "------------------------------------------------------\n"
+    body += "Here are the most structurally exhausted stocks to stalk right now:\n\n"
+    
+    if not exhausted:
+        body += "No stocks are currently showing significant exhaustion (>= 20 bars).\n"
+    else:
+        for t in exhausted[:5]:
+            body += f"- {t[0]}: {t[1]} Regime ({t[2]} bars exhausted). Stalk for {t[3]}.\n"
+            
+    body += "\nReminder: Wait for the Micro Spark (1,1) to confirm the entry!\n"
+    
+    msg = MIMEMultipart()
+    msg['From'] = GMAIL_USER
+    msg['To'] = DESTINATION_EMAIL
+    msg['Subject'] = f"📊 WYCKOFF RADAR: {session_name} Update"
+    msg.attach(MIMEText(body, 'plain', 'utf-8'))
+    
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+        server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
+        server.quit()
+        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ✉️ {session_name} REPORT SENT!")
+    except Exception as e:
+        print(f"Error sending report: {e}")
+
+def send_ai_progress_report():
+    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Running Daily AI Report via Subprocess...")
+    try:
+        result = subprocess.run(["python", "wyckoff_ml_engine.py"], capture_output=True, text=True, env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+        output = result.stdout
+        
+        if "WHAT CAUSES WYCKOFF TRADES TO FAIL?" in output:
+            ai_text = output.split("WHAT CAUSES WYCKOFF TRADES TO FAIL? (FEATURE IMPORTANCE)")[1]
+        else:
+            ai_text = "\n" + output
+            
+        body = "DAILY WYCKOFF AI PROGRESS REPORT\n"
+        body += "--------------------------------------\n"
+        body += "The Machine Learning model just re-trained itself on the latest 60 days of market data.\n\n"
+        body += "WHAT CAUSES WYCKOFF TRADES TO FAIL?" + ai_text
+        
+        msg = MIMEMultipart()
+        msg['From'] = GMAIL_USER
+        msg['To'] = DESTINATION_EMAIL
+        msg['Subject'] = "WYCKOFF AI: Daily Progress Report"
+        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+        
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+        server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
+        server.quit()
+        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] AI Progress Report Sent!")
+    except Exception as e:
+        print(f"Error sending AI report: {e}")
+
+if __name__ == "__main__":
+    print("========================================")
+    print("🦅 WYCKOFF LIVE ALERT BOT INITIALIZED 🦅")
+    print("========================================")
+    print(f"Targeting: {len(TICKERS)} Mega-Cap Stocks")
+    print(f"Interval: {INTERVAL}")
+    print("Bot is now running in the background. Press Ctrl+C to stop.\n")
+    
+    while True:
+        scan_market()
+        
+        now = datetime.datetime.now()
+        current_date = now.date()
+        
+        if last_report_date != current_date:
+            reports_sent = {"morning": False, "lunch": False, "power": False, "ai": False}
+            last_report_date = current_date
+            
+        # 9:15 AM
+        if now.hour == 9 and 15 <= now.minute < 30 and not reports_sent["morning"]:
+            send_market_report("Pre-Market (9:15 AM)")
+            reports_sent["morning"] = True
+        # 12:30 PM
+        elif now.hour == 12 and 30 <= now.minute < 45 and not reports_sent["lunch"]:
+            send_market_report("Mid-Day (12:30 PM)")
+            reports_sent["lunch"] = True
+        # 2:45 PM
+        elif now.hour == 14 and 45 <= now.minute < 59 and not reports_sent["power"]:
+            send_market_report("Power Hour (2:45 PM)")
+            reports_sent["power"] = True
+        # 4:15 PM (Post-Market AI Training)
+        elif now.hour == 16 and 15 <= now.minute < 30 and not reports_sent.get("ai", False):
+            send_ai_progress_report()
+            reports_sent["ai"] = True
+            
+        time.sleep(300)

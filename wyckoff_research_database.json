@@ -1,0 +1,634 @@
+{
+  "database_version": "1.0",
+  "created": "2026-10-01T10:10:00-04:00",
+  "description": "Wyckoff Institutional Research Database - Stores per-ticker structural analysis, trade outcomes, regime data, and algorithmic performance to feed into the Time-in-Regime Exhaustion Engine and Watchlist Scanner.",
+  "user_supertrend_settings": {
+    "micro": {
+      "atr_length": 1,
+      "factor": 1.0,
+      "role": "Immediate order flow / entry trigger spark"
+    },
+    "structural": {
+      "atr_length": 3,
+      "factor": 3.0,
+      "role": "Swing horizon / 3-5 day momentum"
+    },
+    "macro": {
+      "atr_length": 9,
+      "factor": 9.0,
+      "role": "Multi-week institutional positioning"
+    },
+    "anchor": {
+      "atr_length": 14,
+      "factor": 14.0,
+      "role": "Dominant regime floor/ceiling"
+    }
+  },
+  "user_trading_philosophy": {
+    "core_thesis": "Contrarian Mean-Reversion via Wyckoff Exhaustion",
+    "bullish_setup": "Extended time in DDDD (100% Bear Saturation) with volume dry-up signals institutional accumulation \u2192 Buy the Spring",
+    "bearish_setup": "Extended time in UUUU (100% Bull Saturation) with volume dry-up signals institutional distribution \u2192 Short the UTAD",
+    "time_requirement": "Regime must persist for minimum threshold bars before reversal signals are valid",
+    "key_principle": "Never fight a fresh impulse. Only trade the reversal after the Cause (time + volume exhaustion) has been fully built."
+  },
+  "tickers_analyzed": [
+    {
+      "symbol": "AMC",
+      "exchange": "NYSE",
+      "timeframe": "1D",
+      "analysis_date": "2026-09-30",
+      "wyckoff_phase": "Phase E (Markup)",
+      "cascade_state": "U | U | U | U",
+      "bull_confluence": 100,
+      "bear_confluence": 0,
+      "algo_record": {
+        "wins": 17,
+        "losses": 8,
+        "win_rate_pct": 68.0
+      },
+      "net_pnl_pct": 195.54,
+      "profit_factor": 2.28,
+      "regime_assessment": "Strong institutional accumulation completed. Phase E markup in progress.",
+      "key_lessons": [
+        "100% Bull Confluence validated the long-only bias",
+        "Dynamic breakeven at TP1 protected winners from reverting to losses",
+        "The pivot-based range engine correctly identified structural swing boundaries"
+      ],
+      "algo_performance_grade": "A",
+      "time_in_regime_data": {
+        "dominant_regime": "BULL",
+        "estimated_bars_in_regime": 45,
+        "volume_at_extremes": "Dry (supply exhausted at lows)"
+      }
+    },
+    {
+      "symbol": "NKE",
+      "exchange": "NYSE",
+      "timeframe": "1D",
+      "analysis_date": "2026-09-30",
+      "wyckoff_phase": "Phase E (Markdown)",
+      "cascade_state": "D | D | D | D",
+      "bull_confluence": 0,
+      "bear_confluence": 100,
+      "algo_record": {
+        "wins": 0,
+        "losses": 52,
+        "win_rate_pct": 0.0
+      },
+      "net_pnl_pct": -104.0,
+      "profit_factor": 0.0,
+      "regime_assessment": "Relentless institutional markdown. Algorithm repeatedly caught falling knives by buying raw Springs in a bear trend.",
+      "key_lessons": [
+        "DDDD regime on daily = Phase E Markdown, do NOT buy Springs until regime exhausts",
+        "Micro ST (1,1) flickers green on dead-cat bounces \u2014 not a valid reversal signal in isolation",
+        "The Macro Trend Filter (blocking longs when Anchor+Macro are red) would have eliminated all 52 losses",
+        "Volume dry-up at lows in a markdown is NOT accumulation \u2014 it is just absence of buyers"
+      ],
+      "algo_performance_grade": "F",
+      "failure_patterns": [
+        "Counter-trend knife-catching in Phase E Markdown",
+        "No regime duration filter",
+        "Micro ST false-flicker triggering premature entries"
+      ],
+      "time_in_regime_data": {
+        "dominant_regime": "BEAR",
+        "estimated_bars_in_regime": 200,
+        "volume_at_extremes": "Mixed \u2014 no true capitulation climax observed"
+      }
+    },
+    {
+      "symbol": "NKE",
+      "exchange": "NYSE",
+      "timeframe": "5m",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase C \u2192 Phase D (JAC / Jump Across the Creek)",
+      "cascade_state": "D|D|D|D \u2192 U|U|U|U (flipped at 9:30 AM open)",
+      "bull_confluence": 100,
+      "bear_confluence": 0,
+      "algo_record": {
+        "wins": null,
+        "losses": null,
+        "win_rate_pct": null
+      },
+      "net_pnl_pct": null,
+      "regime_assessment": "Textbook intraday Wyckoff cycle: overnight markdown shakeout to $34.80, premarket volume exhaustion (0.07x RV), opening bell JAC on 11.5x climactic volume.",
+      "key_lessons": [
+        "Predicted the Opening Squeeze Trap to $35.40 eight minutes before the bell",
+        "Volume dry-up from 2.5x \u2192 0.37x \u2192 0.07x confirmed supply exhaustion before the JAC",
+        "The algo did NOT fire an arrow because Macro Trend Filter blocked longs in DDDD \u2014 but the HUD data allowed manual identification",
+        "User entered at $35.49, rode the JAC to $35.80+, exited at $35.74 for +$0.25/share profit",
+        "The HUD (Setup Radar, RV, VSA Signature) provided real-time institutional intelligence beyond the arrow signals"
+      ],
+      "algo_performance_grade": "B+",
+      "live_trade": {
+        "entry": 35.49,
+        "exit": 35.74,
+        "pnl_per_share": 0.25,
+        "direction": "LONG",
+        "signal_source": "Manual HUD read (not algo arrow)",
+        "key_hud_metrics_at_entry": {
+          "rel_volume": 0.07,
+          "vsa_signature": "SUPPLY/DEMAND TEST",
+          "setup_radar": "HOT: -0.2% to SPRING",
+          "cascade": "D | D | D | D"
+        }
+      },
+      "time_in_regime_data": {
+        "dominant_regime": "BEAR",
+        "estimated_bars_in_regime": 50,
+        "volume_at_extremes": "Extreme dry-up (0.07x) confirming supply exhaustion"
+      }
+    },
+    {
+      "symbol": "U",
+      "exchange": "NYSE",
+      "name": "Unity Software Inc.",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase E (Markup) \u2014 approaching range ceiling",
+      "cascade_state": "U | D | U | U",
+      "bull_confluence": 75,
+      "bear_confluence": 25,
+      "algo_record": {
+        "wins": 2,
+        "losses": 7,
+        "win_rate_pct": 22.0
+      },
+      "net_pnl_pct": 89.93,
+      "profit_factor": 3.2,
+      "regime_assessment": "Complete Wyckoff lifecycle traced over 2+ years. Massive 12-month Phase B base ($16-$30). Phase C Spring triggered the reversal. Phase E markup now approaching $44.57 ceiling.",
+      "key_lessons": [
+        "22% win rate with +89.93% net PnL proves the core Wyckoff structural thesis is sound",
+        "5 of 7 losses were premature Phase B entries before the Cause was built",
+        "2 losses were counter-trend trades fighting an emerging markup",
+        "The 2 wins caught the real Phase C \u2192 Phase E runner and produced enormous returns",
+        "Time-in-Regime Engine would have blocked 5-6 of the 7 losses while preserving both winners",
+        "Projected improved record with Time-in-Regime: 2W-0L to 2W-1L with same +89.93% gains"
+      ],
+      "algo_performance_grade": "B-",
+      "failure_patterns": [
+        "Premature Phase B entries (insufficient bars in regime)",
+        "Counter-trend trades during Phase D transition",
+        "Micro ST noise flicker entries during range rotation"
+      ],
+      "current_hud_snapshot": {
+        "phase_context": "Phase C (SPRING)",
+        "setup_radar": "BASE (2b in range)",
+        "vsa_signature": "SUPPLY/DEMAND TEST",
+        "rel_volume": 0.06,
+        "trading_range_hl": "44.57 / 40.22",
+        "atr_volatility": 1.99
+      },
+      "time_in_regime_data": {
+        "dominant_regime": "BULL",
+        "estimated_bars_in_regime": 35,
+        "volume_at_extremes": "Dry (0.06x) \u2014 consistent with healthy Phase E markup (no sellers)"
+      }
+    },
+    {
+      "symbol": "DIS",
+      "exchange": "NYSE",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase E (Markdown)",
+      "cascade_state": "D | D | D | D",
+      "bull_confluence": 0,
+      "bear_confluence": 100,
+      "algo_record": {
+        "wins": 49,
+        "losses": 71,
+        "win_rate_pct": 40.8
+      },
+      "net_pnl_pct": -145.75,
+      "regime_assessment": "Brutal Phase E markdown. Algo bled capital trying to catch falling knives before supply exhaustion.",
+      "failure_patterns": [
+        "Knife-catching in active markdown",
+        "Ignoring regime duration"
+      ],
+      "v8_engine_action": "BLOCKED - Wait for 20+ bars of DDDD saturation and true volume dry-up before allowing longs."
+    },
+    {
+      "symbol": "TSLA",
+      "exchange": "NASDAQ",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase B (Volatile Range)",
+      "cascade_state": "D | U | D | U",
+      "bull_confluence": 50,
+      "bear_confluence": 50,
+      "algo_record": {
+        "wins": 10,
+        "losses": 14,
+        "win_rate_pct": 41.7
+      },
+      "net_pnl_pct": -91.52,
+      "regime_assessment": "Fractured cascade. Anchor and Macro disagree. Classic Phase B chop zone.",
+      "failure_patterns": [
+        "Trading inside fractured regimes",
+        "Chopped in middle of wide range"
+      ],
+      "v8_engine_action": "BLOCKED - Anchor and Macro disagree. Timer stays at zero until institutional alignment is achieved."
+    },
+    {
+      "symbol": "GME",
+      "exchange": "NYSE",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase C (Approaching UTAD)",
+      "cascade_state": "U | U | U | U",
+      "bull_confluence": 100,
+      "bear_confluence": 0,
+      "algo_record": {
+        "wins": 21,
+        "losses": 25,
+        "win_rate_pct": 45.7
+      },
+      "net_pnl_pct": -189.6,
+      "regime_assessment": "Prime exhaustion short setup forming. Price near ceiling ($25.25), 100% bull saturated, demand completely exhausted (0.16x RV).",
+      "key_lessons": [
+        "Perfect example of user's 'Short the UUUU after time' philosophy."
+      ],
+      "v8_engine_action": "ARMED - Wait for regime timer threshold, then fire short on confirmed Micro red flip."
+    },
+    {
+      "symbol": "ARKK",
+      "exchange": "CBOE",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase A (Building Base)",
+      "cascade_state": "D | U | U | U",
+      "bull_confluence": 75,
+      "bear_confluence": 25,
+      "algo_record": {
+        "wins": 8,
+        "losses": 10,
+        "win_rate_pct": 44.4
+      },
+      "net_pnl_pct": 13.36,
+      "regime_assessment": "Fractured regime following a run-up. High base formation.",
+      "failure_patterns": [
+        "Chop in fractured regime"
+      ],
+      "v8_engine_action": "BLOCKED - Anchor (D) and Macro (U) disagree. Timer inactive."
+    },
+    {
+      "symbol": "BAESY",
+      "exchange": "OTC",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase B (Mature Range)",
+      "cascade_state": "D | D | U | U",
+      "bull_confluence": 50,
+      "bear_confluence": 50,
+      "algo_record": {
+        "wins": 27,
+        "losses": 25,
+        "win_rate_pct": 51.9
+      },
+      "net_pnl_pct": 18.47,
+      "regime_assessment": "Aligned Bear regime testing bottom of massive range ($101.1). Dry volume (0.49x).",
+      "v8_engine_action": "TIMING - Regime is D|D. Timer is active. Waiting for threshold + Micro hold to confirm Spring."
+    },
+    {
+      "symbol": "GOOG",
+      "exchange": "NASDAQ",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase B (Mature Range)",
+      "cascade_state": "D | U | U | U",
+      "bull_confluence": 75,
+      "bear_confluence": 25,
+      "algo_record": {
+        "wins": 4,
+        "losses": 18,
+        "win_rate_pct": 18.2
+      },
+      "net_pnl_pct": -116.56,
+      "regime_assessment": "The ultimate Phase B meat grinder. Massive chop.",
+      "failure_patterns": [
+        "Bleeding out in Phase B chop",
+        "Trading without Anchor/Macro alignment"
+      ],
+      "key_lessons": [
+        "Fractured heavy lines (D|U) guarantee whipsaw losses. Avoid entirely."
+      ],
+      "v8_engine_action": "BLOCKED - Completely bypasses the chop zone due to Anchor/Macro misalignment."
+    },
+    {
+      "symbol": "HOOD",
+      "exchange": "NASDAQ",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase B (Mature Range)",
+      "cascade_state": "D | U | U | U",
+      "bull_confluence": 75,
+      "bear_confluence": 25,
+      "algo_record": {
+        "wins": 1,
+        "losses": 1,
+        "win_rate_pct": 50.0
+      },
+      "net_pnl_pct": -20.28,
+      "regime_assessment": "V-shaped recovery into choppy consolidation.",
+      "v8_engine_action": "BLOCKED - Anchor and Macro disagree."
+    },
+    {
+      "symbol": "KO",
+      "exchange": "NYSE",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase A (Building Base) - Breakdown",
+      "cascade_state": "D | D | U | U",
+      "bull_confluence": 50,
+      "bear_confluence": 50,
+      "algo_record": {
+        "wins": 52,
+        "losses": 54,
+        "win_rate_pct": 49.1
+      },
+      "net_pnl_pct": -4.85,
+      "regime_assessment": "Aligned Bear regime breaking down to new lows. Active markdown.",
+      "v8_engine_action": "TIMING - Regime is D|D. Timer is active. Blocking longs until time threshold is met and volume exhausts at new lows."
+    },
+    {
+      "symbol": "MSTR",
+      "exchange": "NASDAQ",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase A (Building Base)",
+      "cascade_state": "D | U | U | U",
+      "bull_confluence": 75,
+      "bear_confluence": 25,
+      "algo_record": {
+        "wins": 28,
+        "losses": 20,
+        "win_rate_pct": 58.3
+      },
+      "net_pnl_pct": 319.21,
+      "regime_assessment": "Fractured regime but massively profitable due to extreme ATR and momentum.",
+      "key_lessons": [
+        "Extreme volatility can overcome structural chop, but strict alignment rules still demand a block."
+      ],
+      "v8_engine_action": "BLOCKED - Waiting for Anchor (D) to flip and align with Macro (U)."
+    },
+    {
+      "symbol": "SSO",
+      "exchange": "AMEX",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase B (Mature Range)",
+      "cascade_state": "D | D | U | U",
+      "bull_confluence": 50,
+      "bear_confluence": 50,
+      "algo_record": {
+        "wins": 15,
+        "losses": 20,
+        "win_rate_pct": 42.9
+      },
+      "net_pnl_pct": 22.08,
+      "regime_assessment": "Aligned Bear regime chopping at the bottom of the range.",
+      "v8_engine_action": "TIMING - Regime is D|D. Timer active. Waiting for threshold to allow Spring setups."
+    },
+    {
+      "symbol": "SOXS",
+      "exchange": "AMEX",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase A (Building Base)",
+      "cascade_state": "U | D | D | D",
+      "bull_confluence": 25,
+      "bear_confluence": 75,
+      "algo_record": {
+        "wins": 13,
+        "losses": 13,
+        "win_rate_pct": 50.0
+      },
+      "net_pnl_pct": 11.96,
+      "regime_assessment": "Relentless leveraged decay. Fractured heavy lines.",
+      "v8_engine_action": "BLOCKED - Anchor (U) and Macro (D) disagree."
+    },
+    {
+      "symbol": "SLV",
+      "exchange": "AMEX",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase A (Building Base)",
+      "cascade_state": "D | D | D | U",
+      "bull_confluence": 25,
+      "bear_confluence": 75,
+      "algo_record": {
+        "wins": 20,
+        "losses": 19,
+        "win_rate_pct": 51.3
+      },
+      "net_pnl_pct": 25.08,
+      "regime_assessment": "Aligned Bear regime breaking to new lows.",
+      "v8_engine_action": "TIMING - Regime is D|D. Timer is active in markdown phase. Waiting for saturation."
+    },
+    {
+      "symbol": "USOIL",
+      "exchange": "CFD",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase B (Mature Range)",
+      "cascade_state": "D | U | U | U",
+      "bull_confluence": 75,
+      "bear_confluence": 25,
+      "algo_record": {
+        "wins": 2,
+        "losses": 9,
+        "win_rate_pct": 18.2
+      },
+      "net_pnl_pct": -47.85,
+      "regime_assessment": "Classic Phase B meat grinder. Terrible performance in fractured state.",
+      "failure_patterns": [
+        "Bleeding out in Phase B chop"
+      ],
+      "v8_engine_action": "BLOCKED - Anchor and Macro disagree. Perfectly side-steps the chop."
+    },
+    {
+      "symbol": "CVX",
+      "exchange": "NYSE",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase B (Mature Range)",
+      "cascade_state": "U | U | U | U",
+      "bull_confluence": 100,
+      "bear_confluence": 0,
+      "algo_record": {
+        "wins": 66,
+        "losses": 53,
+        "win_rate_pct": 55.5
+      },
+      "net_pnl_pct": 20.79,
+      "regime_assessment": "100% Bull saturated, but pulling back toward range lows.",
+      "v8_engine_action": "BLOCKED - Longs are forbidden in UUUU saturation. Waiting for push to highs for UTAD short."
+    },
+    {
+      "symbol": "MSFT",
+      "exchange": "NASDAQ",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase B (Mature Range) - Approaching UTAD",
+      "cascade_state": "U | U | U | U",
+      "bull_confluence": 100,
+      "bear_confluence": 0,
+      "algo_record": {
+        "wins": 31,
+        "losses": 38,
+        "win_rate_pct": 44.9
+      },
+      "net_pnl_pct": -47.05,
+      "regime_assessment": "Prime Bearish Exhaustion setup. Price at ceiling, volume dry, 100% bull saturated.",
+      "key_lessons": [
+        "Textbook setup for the 'Short the UUUU' exhaustion philosophy."
+      ],
+      "v8_engine_action": "ARMED - Timer active. Waiting for threshold + Micro red flip to fire Short."
+    },
+    {
+      "symbol": "META",
+      "exchange": "NASDAQ",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase A (Building Base)",
+      "cascade_state": "D | U | U | U",
+      "bull_confluence": 75,
+      "bear_confluence": 25,
+      "algo_record": {
+        "wins": 11,
+        "losses": 18,
+        "win_rate_pct": 37.9
+      },
+      "net_pnl_pct": -93.3,
+      "regime_assessment": "V-recovery creating a fractured institutional regime. High chop risk.",
+      "failure_patterns": [
+        "Trading inside fractured regimes"
+      ],
+      "v8_engine_action": "BLOCKED - Anchor (D) and Macro (U) disagree. Timer locked at zero."
+    },
+    {
+      "symbol": "NVDA",
+      "exchange": "NASDAQ",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase B (Mature Range)",
+      "cascade_state": "U | U | U | U",
+      "bull_confluence": 100,
+      "bear_confluence": 0,
+      "algo_record": {
+        "wins": 23,
+        "losses": 24,
+        "win_rate_pct": 48.9
+      },
+      "net_pnl_pct": 35.97,
+      "regime_assessment": "100% Bull saturated. Pulling back from local highs.",
+      "v8_engine_action": "BLOCKED - Longs forbidden in UUUU saturation. Waiting for push to highs for UTAD short."
+    },
+    {
+      "symbol": "GOOGL",
+      "exchange": "NASDAQ",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase B (Mature Range)",
+      "cascade_state": "D | U | U | U",
+      "bull_confluence": 75,
+      "bear_confluence": 25,
+      "algo_record": {
+        "wins": 19,
+        "losses": 21,
+        "win_rate_pct": 47.5
+      },
+      "net_pnl_pct": -73.19,
+      "regime_assessment": "Fractured regime mirroring GOOG. Classic meat grinder chop.",
+      "v8_engine_action": "BLOCKED - Anchor (D) and Macro (U) disagree. Timer locked at zero."
+    },
+    {
+      "symbol": "BRK.B",
+      "exchange": "NYSE",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase A (Building Base) - Breakdown Sweep",
+      "cascade_state": "D | D | U | U",
+      "bull_confluence": 50,
+      "bear_confluence": 50,
+      "algo_record": {
+        "wins": 30,
+        "losses": 25,
+        "win_rate_pct": 54.5
+      },
+      "net_pnl_pct": 51.53,
+      "regime_assessment": "Aligned Bear regime sweeping below range lows with dead volume (0.30x).",
+      "key_lessons": [
+        "Prime setup for 'Buy the DDDD after time' philosophy."
+      ],
+      "v8_engine_action": "TIMING/ARMED - Regime is D|D. Waiting for threshold + Micro green hold to fire Spring Long."
+    },
+    {
+      "symbol": "XOM",
+      "exchange": "NYSE",
+      "timeframe": "1D",
+      "analysis_date": "2026-10-01",
+      "wyckoff_phase": "Phase B (Mature Range) - Approaching UTAD",
+      "cascade_state": "U | U | U | U",
+      "bull_confluence": 100,
+      "bear_confluence": 0,
+      "algo_record": {
+        "wins": 64,
+        "losses": 48,
+        "win_rate_pct": 57.1
+      },
+      "net_pnl_pct": 74.01,
+      "regime_assessment": "100% Bull saturated. Dead volume at the absolute ceiling. Prime exhaustion.",
+      "key_lessons": [
+        "Identical bearish exhaustion profile to MSFT."
+      ],
+      "v8_engine_action": "ARMED - Timer active for Bull exhaustion. Waiting for threshold + Micro red flip to fire Short."
+    }
+  ],
+  "engine_design_parameters": {
+    "pillar_1_regime_saturation": "Anchor (14,14) + Macro (9,9) must both be same direction",
+    "pillar_2_time_in_position": {
+      "method": "Anchor+Macro regime duration counter with slow decay (not hard reset) on mixed states",
+      "default_minimum_bars": 20,
+      "daily_equivalent": "3-4 weeks",
+      "5min_equivalent": "~2 hours"
+    },
+    "pillar_3_volume_exhaustion": {
+      "method": "3-bar rolling average of Rel-Volume near range extremes",
+      "threshold": 0.7,
+      "critical_dry_up": 0.5
+    },
+    "pillar_4_trigger_spark": {
+      "options_considered": [
+        "Instant Micro flip",
+        "Structural confirmation",
+        "Confirmed Micro Hold (2-3 bars)"
+      ],
+      "pending_user_decision": true
+    }
+  },
+  "automated_snapshot_pipeline": {
+    "spec_file": "snapshot_pipeline_spec.json",
+    "status": "DESIGNED - Awaiting Phase 2 implementation",
+    "collection_intervals": [
+      "5m (intraday)",
+      "1h (hourly)",
+      "EOD (daily)",
+      "manual"
+    ],
+    "composite_score_system": {
+      "pillar_1_regime": "0-25 points (Anchor+Macro alignment)",
+      "pillar_2_time": "0-25 points (bars in regime vs threshold)",
+      "pillar_3_volume": "0-25 points (volume exhaustion at extremes)",
+      "pillar_4_spark": "0-25 points (Micro ST flip + hold confirmation)",
+      "total": "0-100 (higher = more imminent reversal setup)"
+    },
+    "alert_priority_levels": [
+      "CRITICAL: All 4 pillars aligned (score 90-100) = Trade NOW",
+      "HIGH: 3 pillars aligned, 1 approaching (score 70-89) = Active Watch",
+      "MEDIUM: Regime exhausted but no volume/spark yet (score 40-69) = On Radar",
+      "LOW: Regime building, not yet exhausted (score 0-39) = Background Monitor"
+    ]
+  },
+  "last_updated": "2026-10-01T10:13:00-04:00"
+}
