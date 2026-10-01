@@ -646,8 +646,8 @@ with tab_trades:
                 <div style='font-size: 12px; color: #888;'>Per Trade</div>
             </div>""", unsafe_allow_html=True)
         with sc4:
-            best = stats.get('best_trade', ('N/A', 0))
-            worst = stats.get('worst_trade', ('N/A', 0))
+            best = stats.get('best_trade') or ('N/A', 0)
+            worst = stats.get('worst_trade') or ('N/A', 0)
             st.markdown(f"""<div class='intel-card'>
                 <div style='font-size: 11px; color: #888;'>BEST / WORST</div>
                 <div style='font-size: 14px; color: {TV_GREEN};'>Best: {best[0]} ({best[1]:+.1f}R)</div>
