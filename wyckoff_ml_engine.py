@@ -7,7 +7,12 @@ from sklearn.metrics import classification_report, accuracy_score
 import warnings
 warnings.filterwarnings('ignore')
 
-TICKERS = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "BRK-B", "LLY", "AVGO", "JPM", "V"]
+import json
+try:
+    with open("all_tickers.json", "r") as f:
+        TICKERS = json.load(f)[:100] # Use top 100 for ML to prevent memory crash
+except:
+    TICKERS = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "BRK-B", "LLY", "AVGO", "JPM", "V"]
 INTERVAL = "5m"
 PERIOD = "60d"
 

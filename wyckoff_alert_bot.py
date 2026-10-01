@@ -16,7 +16,14 @@ GMAIL_USER = "f4dukemitchell@gmail.com"           # <-- Replace with your Gmail 
 GMAIL_APP_PASSWORD = "aakv dgpp wfwx nhua"      # <-- Replace with your 16-character App Password
 DESTINATION_EMAIL = "matt.smith@pga.com"    # <-- Where you want the alerts sent (can be the same as above)
 
-TICKERS = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "BRK-B", "LLY", "AVGO", "JPM", "V"]
+import json
+import os
+
+try:
+    with open("all_tickers.json", "r") as f:
+        TICKERS = json.load(f)
+except:
+    TICKERS = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "BRK-B", "LLY", "AVGO", "JPM", "V"]
 INTERVAL = "5m"
 PERIOD = "5d"
 LOOKBACK = 200        # Intraday Phase B lookback
@@ -208,6 +215,65 @@ def send_market_report(session_name):
     except Exception as e:
         print(f"Error sending report: {e}")
 
+def send_daily_recap():
+    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Generating Daily Recap & Tomorrow's Watchlist...")
+    data = yf.download(TICKERS, period="10d", interval=INTERVAL, group_by='ticker', progress=False)
+    
+    exhausted = []
+    for ticker in TICKERS:
+        try:
+            df = data[ticker].dropna() if len(TICKERS) > 1 else data.dropna()
+            if df.empty or len(df) < LOOKBACK: continue
+            
+            highs, lows, closes = df['High'].values, df['Low'].values, df['Close'].values
+            u9 = get_supertrend(highs, lows, closes, 9, 9.0)
+            u14 = get_supertrend(highs, lows, closes, 14, 14.0)
+            
+            is_bull = u9[-1] and u14[-1]
+            is_bear = not u9[-1] and not u14[-1]
+            bars = 0
+            if is_bull or is_bear:
+                for i in range(len(u9)-1, -1, -1):
+                    if (is_bull and u9[i] and u14[i]) or (is_bear and not u9[i] and not u14[i]): bars += 1
+                    else: break
+                    
+            if bars >= 20:
+                regime = "BULLISH" if is_bull else "BEARISH"
+                target = "UTAD (Short)" if is_bull else "SPRING (Long)"
+                exhausted.append((ticker, regime, bars, target))
+        except: pass
+            
+    exhausted.sort(key=lambda x: x[2], reverse=True)
+    
+    body = "END OF DAY WYCKOFF RECAP & WATCHLIST FOR TOMORROW\n"
+    body += "=================================================\n\n"
+    body += "The market has closed. Here is your Wyckoff alignment for tomorrow's open:\n\n"
+    
+    if not exhausted:
+        body += "No major structural exhaustion setups identified for tomorrow yet. The market is mixed.\n"
+    else:
+        body += "TOP COILED SETUPS TO WATCH AT TOMORROW'S OPEN:\n"
+        for i, t in enumerate(exhausted[:5]):
+            body += f"{i+1}. {t[0]} - {t[2]} bars deep in a {t[1]} regime. Stalking for a {t[3]}.\n"
+            
+    body += "\nGAME PLAN: Do not front-run! Wait for the Micro Supertrend to flash green/red as confirmation of the trap before entering.\n"
+    
+    msg = MIMEMultipart()
+    msg['From'] = GMAIL_USER
+    msg['To'] = DESTINATION_EMAIL
+    msg['Subject'] = "WYCKOFF: Daily Recap & Tomorrow's Watchlist"
+    msg.attach(MIMEText(body, 'plain', 'utf-8'))
+    
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+        server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
+        server.quit()
+        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Daily Recap Sent!")
+    except Exception as e:
+        print(f"Error sending recap: {e}")
+
 def send_ai_progress_report():
     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Running Daily AI Report via Subprocess...")
     try:
@@ -254,7 +320,7 @@ if __name__ == "__main__":
         current_date = now.date()
         
         if last_report_date != current_date:
-            reports_sent = {"morning": False, "lunch": False, "power": False, "ai": False}
+            reports_sent = {"morning": False, "lunch": False, "power": False, "ai": False, "recap": False}
             last_report_date = current_date
             
         # 9:15 AM
@@ -273,5 +339,9 @@ if __name__ == "__main__":
         elif now.hour == 16 and 15 <= now.minute < 30 and not reports_sent.get("ai", False):
             send_ai_progress_report()
             reports_sent["ai"] = True
+        # 4:30 PM (Daily Recap & Tomorrow's Watchlist)
+        elif now.hour == 16 and 30 <= now.minute < 45 and not reports_sent.get("recap", False):
+            send_daily_recap()
+            reports_sent["recap"] = True
             
         time.sleep(300)

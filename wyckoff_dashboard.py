@@ -45,8 +45,9 @@ if 'tp_val' not in st.session_state: st.session_state.tp_val = "Full Phase B Ran
 @st.cache_data(ttl=86400)
 def get_sp500_tickers():
     try:
-        table = pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies')
-        return [t.replace('.', '-') for t in table[0]['Symbol'].tolist()]
+        import json
+        with open('all_tickers.json', 'r') as f:
+            return json.load(f)
     except Exception:
         return ["AAPL","MSFT","NVDA","AMZN","META","GOOGL","TSLA","BRK-B","LLY","AVGO","JPM","V","UNH","MA","PG","JNJ","HD","MRK","ABBV","COST"]
 
