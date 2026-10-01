@@ -9,6 +9,19 @@ from email.mime.multipart import MIMEMultipart
 import subprocess
 import os
 
+# --- UPGRADE MODULES ---
+try:
+    from trade_tracker import log_alert, check_open_trades
+    TRACKER_ENABLED = True
+except:
+    TRACKER_ENABLED = False
+
+try:
+    from telegram_notifier import is_configured as tg_configured, send_trade_alert as tg_trade_alert, send_daily_recap as tg_recap, send_market_radar as tg_radar
+    TELEGRAM_ENABLED = tg_configured()
+except:
+    TELEGRAM_ENABLED = False
+
 # ==========================================
 # 🛑 USER CONFIGURATION REQUIRED 🛑
 # ==========================================
@@ -140,6 +153,8 @@ def scan_market():
                 regime = "BEARISH (Seeking Reversal)" if not u9[curr] and not u14[curr] else "MIXED"
                 
                 send_email_alert(ticker, "LONG (SPRING)", price, sl, tp, regime)
+                if TRACKER_ENABLED: log_alert(ticker, "LONG", price, sl, tp, regime)
+                if TELEGRAM_ENABLED: tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime)
                 last_alerted[ticker] = current_time
                 
             elif is_utad and (current_time - last_alerted[ticker] > 900):
@@ -149,6 +164,8 @@ def scan_market():
                 regime = "BULLISH (Seeking Reversal)" if u9[curr] and u14[curr] else "MIXED"
                 
                 send_email_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime)
+                if TRACKER_ENABLED: log_alert(ticker, "SHORT", price, sl, tp, regime)
+                if TELEGRAM_ENABLED: tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime)
                 last_alerted[ticker] = current_time
                 
         except Exception as e:
@@ -315,6 +332,14 @@ if __name__ == "__main__":
     
     while True:
         scan_market()
+        
+        # Check if any open trades have hit TP or SL
+        if TRACKER_ENABLED:
+            try:
+                closed = check_open_trades()
+                for t in closed:
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Trade Closed: {t.get('ticker', '?')} -> {t.get('outcome', '?')} ({t.get('pnl_r', 0):+.1f}R)")
+            except: pass
         
         now = datetime.datetime.now()
         current_date = now.date()

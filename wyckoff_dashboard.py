@@ -456,5 +456,209 @@ with st.sidebar:
                             f"</div>", unsafe_allow_html=True)
             st.markdown(f"<hr style='margin: 5px 0px; border-color: {TV_GRID};'>", unsafe_allow_html=True)
 
-# Render Chart & Intel Panel
-render_wyckoff_chart(st.session_state['selected_ticker'], timeframe, dl_period, sl_buffer, tp_target, algo_lookback, algo_vol)
+# =============================================================================
+# MULTI-PAGE UPGRADE: Sector Heatmap, Multi-TF Confluence, Options Flow, Trade Log
+# =============================================================================
+try:
+    from sector_data import get_sector, get_all_sectors, get_sector_summary, get_tickers_by_sector
+    SECTOR_AVAILABLE = True
+except: SECTOR_AVAILABLE = False
+
+try:
+    from mtf_confluence import scan_confluence
+    MTF_AVAILABLE = True
+except: MTF_AVAILABLE = False
+
+try:
+    from options_flow import get_options_flow
+    OPTIONS_AVAILABLE = True
+except: OPTIONS_AVAILABLE = False
+
+try:
+    from trade_tracker import get_stats, get_recent_trades
+    TRACKER_AVAILABLE = True
+except: TRACKER_AVAILABLE = False
+
+# --- TABS ---
+tab_scanner, tab_sector, tab_mtf, tab_options, tab_trades = st.tabs([
+    "Scanner", "Sector Heatmap", "Multi-TF Confluence", "Options Flow", "Trade Log"
+])
+
+with tab_scanner:
+    render_wyckoff_chart(st.session_state['selected_ticker'], timeframe, dl_period, sl_buffer, tp_target, algo_lookback, algo_vol)
+
+with tab_sector:
+    st.markdown("## Sector Rotation Heatmap")
+    if not SECTOR_AVAILABLE:
+        st.warning("sector_data.py module not found.")
+    elif 'scan_data' in st.session_state and st.session_state['scan_data'] is not None:
+        scan_df = st.session_state['scan_data']
+        results_for_sector = []
+        for _, row in scan_df.iterrows():
+            results_for_sector.append({
+                'ticker': row['Ticker'],
+                'regime': row['Regime'],
+                'exhaustion_bars': row['Bars'],
+            })
+        sector_summary = get_sector_summary(results_for_sector)
+        
+        cols = st.columns(3)
+        idx = 0
+        for sector_name in sorted(sector_summary.keys()):
+            s = sector_summary[sector_name]
+            with cols[idx % 3]:
+                regime_color = TV_GREEN if s['dominant_regime'] == 'BULL' else TV_RED if s['dominant_regime'] == 'BEAR' else "#FFD600"
+                st.markdown(f"""
+                <div style="background-color: {TV_PANEL}; border-left: 4px solid {regime_color}; padding: 12px; margin: 6px 0; border-radius: 4px;">
+                    <div style="font-size: 14px; font-weight: bold; color: white;">{sector_name}</div>
+                    <div style="font-size: 12px; color: #888; margin-top: 4px;">
+                        Stocks: {s['count']} | Avg Exhaust: {s['avg_exhaustion']:.0f} bars<br>
+                        Regime: <span style="color: {regime_color}; font-weight: bold;">{s['dominant_regime']}</span>
+                    </div>
+                    <div style="font-size: 11px; color: #aaa; margin-top: 6px;">
+                        Top Exhausted: {', '.join([f"{t[0]} ({t[1]})" for t in s.get('top_exhausted', [])[:3]])}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            idx += 1
+    else:
+        st.info("Run a Market Radar scan first to populate sector data.")
+
+with tab_mtf:
+    st.markdown("## Multi-Timeframe Confluence Scanner")
+    if not MTF_AVAILABLE:
+        st.warning("mtf_confluence.py module not found.")
+    else:
+        mtf_tickers = st.text_input("Tickers (comma-separated)", value="AAPL, MSFT, NVDA, AMZN, META, GOOGL, TSLA, JPM, AVGO")
+        if st.button("Scan Confluence"):
+            ticker_list = [t.strip().upper() for t in mtf_tickers.split(",") if t.strip()]
+            with st.spinner(f"Scanning {len(ticker_list)} tickers across Daily + Intraday..."):
+                mtf_results = scan_confluence(ticker_list)
+                st.session_state['mtf_results'] = mtf_results
+        
+        if 'mtf_results' in st.session_state and st.session_state['mtf_results']:
+            for r in st.session_state['mtf_results']:
+                score = r['confluence_score']
+                score_color = TV_GREEN if score >= 75 else "#FFD600" if score >= 50 else TV_RED
+                rev_color = TV_GREEN if r['reversal_quality'] == 'HIGH' else "#FFD600" if r['reversal_quality'] == 'MEDIUM' else "#888"
+                
+                c1, c2, c3, c4 = st.columns([1, 1.5, 1.5, 1])
+                with c1:
+                    st.markdown(f"<div style='font-size: 18px; font-weight: bold; color: white; padding: 8px;'>{r['ticker']}</div>", unsafe_allow_html=True)
+                with c2:
+                    daily_col = TV_GREEN if r['daily_regime'] == 'BULL' else TV_RED if r['daily_regime'] == 'BEAR' else "#FFD600"
+                    intra_col = TV_GREEN if r['intraday_regime'] == 'BULL' else TV_RED if r['intraday_regime'] == 'BEAR' else "#FFD600"
+                    st.markdown(f"<div style='padding: 8px;'>Daily: <span style='color:{daily_col}; font-weight:bold;'>{r['daily_regime']}</span> | 5m: <span style='color:{intra_col}; font-weight:bold;'>{r['intraday_regime']}</span></div>", unsafe_allow_html=True)
+                with c3:
+                    st.markdown(f"<div style='padding: 8px;'>Score: <span style='color:{score_color}; font-weight:bold; font-size: 18px;'>{score}/100</span> ({r['confluence_label']})</div>", unsafe_allow_html=True)
+                with c4:
+                    st.markdown(f"<div style='padding: 8px;'>Reversal: <span style='color:{rev_color}; font-weight:bold;'>{r['reversal_quality']}</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<hr style='margin: 2px 0; border-color: {TV_GRID};'>", unsafe_allow_html=True)
+
+with tab_options:
+    st.markdown("## Options Flow Detector")
+    if not OPTIONS_AVAILABLE:
+        st.warning("options_flow.py module not found.")
+    else:
+        opt_ticker = st.text_input("Ticker Symbol", value=st.session_state.get('selected_ticker', 'AAPL'), key='opt_ticker_input')
+        if st.button("Scan Options Flow"):
+            with st.spinner(f"Fetching {opt_ticker} options chain..."):
+                flow = get_options_flow(opt_ticker.strip().upper())
+                st.session_state['options_flow'] = flow
+        
+        if 'options_flow' in st.session_state and st.session_state['options_flow']:
+            f = st.session_state['options_flow']
+            
+            # Main metrics
+            mc1, mc2, mc3, mc4 = st.columns(4)
+            pcr_color = TV_RED if f['put_call_label'] == 'BEARISH SKEW' else TV_GREEN if f['put_call_label'] == 'BULLISH SKEW' else "#FFD600"
+            sent_color = TV_GREEN if 'BULLISH' in f['net_sentiment'] else TV_RED if 'BEARISH' in f['net_sentiment'] else "#FFD600"
+            
+            with mc1:
+                st.markdown(f"""<div class='intel-card'>
+                    <div style='font-size: 11px; color: #888;'>PUT/CALL RATIO</div>
+                    <div style='font-size: 24px; font-weight: bold; color: {pcr_color};'>{f['put_call_ratio']}</div>
+                    <div style='font-size: 12px; color: {pcr_color};'>{f['put_call_label']}</div>
+                </div>""", unsafe_allow_html=True)
+            with mc2:
+                st.markdown(f"""<div class='intel-card'>
+                    <div style='font-size: 11px; color: #888;'>MAX PAIN</div>
+                    <div style='font-size: 24px; font-weight: bold; color: white;'>${f['max_pain']:,.2f}</div>
+                    <div style='font-size: 12px; color: #888;'>Exp: {f['nearest_expiry']}</div>
+                </div>""", unsafe_allow_html=True)
+            with mc3:
+                st.markdown(f"""<div class='intel-card'>
+                    <div style='font-size: 11px; color: #888;'>GAMMA WALL</div>
+                    <div style='font-size: 24px; font-weight: bold; color: #AB47BC;'>${f['gamma_wall']:,.2f}</div>
+                    <div style='font-size: 12px; color: #888;'>Price Magnet</div>
+                </div>""", unsafe_allow_html=True)
+            with mc4:
+                st.markdown(f"""<div class='intel-card'>
+                    <div style='font-size: 11px; color: #888;'>NET SENTIMENT</div>
+                    <div style='font-size: 24px; font-weight: bold; color: {sent_color};'>{f['net_sentiment']}</div>
+                    <div style='font-size: 12px; color: #888;'>Call OI: {f['total_call_oi']:,} | Put OI: {f['total_put_oi']:,}</div>
+                </div>""", unsafe_allow_html=True)
+            
+            # Unusual activity tables
+            uc1, uc2 = st.columns(2)
+            with uc1:
+                st.markdown(f"<div style='color: {TV_GREEN}; font-weight: bold;'>Unusual Call Activity ({len(f['unusual_calls'])} strikes)</div>", unsafe_allow_html=True)
+                if f['unusual_calls']:
+                    call_df = pd.DataFrame(f['unusual_calls'])
+                    st.dataframe(call_df, use_container_width=True, hide_index=True)
+                else:
+                    st.caption("No unusual call volume detected.")
+            with uc2:
+                st.markdown(f"<div style='color: {TV_RED}; font-weight: bold;'>Unusual Put Activity ({len(f['unusual_puts'])} strikes)</div>", unsafe_allow_html=True)
+                if f['unusual_puts']:
+                    put_df = pd.DataFrame(f['unusual_puts'])
+                    st.dataframe(put_df, use_container_width=True, hide_index=True)
+                else:
+                    st.caption("No unusual put volume detected.")
+
+with tab_trades:
+    st.markdown("## Trade Performance Tracker")
+    if not TRACKER_AVAILABLE:
+        st.warning("trade_tracker.py module not found. The alert bot will automatically populate trades here.")
+    else:
+        stats = get_stats()
+        
+        sc1, sc2, sc3, sc4 = st.columns(4)
+        wr_color = TV_GREEN if stats['win_rate'] >= 50 else TV_RED
+        pnl_color = TV_GREEN if stats['avg_pnl_r'] >= 0 else TV_RED
+        
+        with sc1:
+            st.markdown(f"""<div class='intel-card'>
+                <div style='font-size: 11px; color: #888;'>TOTAL TRADES</div>
+                <div style='font-size: 28px; font-weight: bold; color: white;'>{stats['total_trades']}</div>
+                <div style='font-size: 12px; color: #888;'>Open: {stats['open_count']}</div>
+            </div>""", unsafe_allow_html=True)
+        with sc2:
+            st.markdown(f"""<div class='intel-card'>
+                <div style='font-size: 11px; color: #888;'>WIN RATE</div>
+                <div style='font-size: 28px; font-weight: bold; color: {wr_color};'>{stats['win_rate']:.1f}%</div>
+                <div style='font-size: 12px; color: #888;'>W: {stats['wins']} | L: {stats['losses']}</div>
+            </div>""", unsafe_allow_html=True)
+        with sc3:
+            st.markdown(f"""<div class='intel-card'>
+                <div style='font-size: 11px; color: #888;'>AVG PnL (R)</div>
+                <div style='font-size: 28px; font-weight: bold; color: {pnl_color};'>{stats['avg_pnl_r']:+.2f}R</div>
+                <div style='font-size: 12px; color: #888;'>Per Trade</div>
+            </div>""", unsafe_allow_html=True)
+        with sc4:
+            best = stats.get('best_trade', ('N/A', 0))
+            worst = stats.get('worst_trade', ('N/A', 0))
+            st.markdown(f"""<div class='intel-card'>
+                <div style='font-size: 11px; color: #888;'>BEST / WORST</div>
+                <div style='font-size: 14px; color: {TV_GREEN};'>Best: {best[0]} ({best[1]:+.1f}R)</div>
+                <div style='font-size: 14px; color: {TV_RED};'>Worst: {worst[0]} ({worst[1]:+.1f}R)</div>
+            </div>""", unsafe_allow_html=True)
+        
+        recent = get_recent_trades(20)
+        if recent:
+            st.markdown("### Recent Trades")
+            trade_df = pd.DataFrame(recent)
+            st.dataframe(trade_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("No trades logged yet. The alert bot will automatically record trades as signals fire.")
+
