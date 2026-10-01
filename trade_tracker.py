@@ -25,6 +25,10 @@ def init_db():
                 pnl_r REAL DEFAULT NULL
             )
         ''')
+        try: cursor.execute("ALTER TABLE alerts ADD COLUMN pcr REAL")
+        except: pass
+        try: cursor.execute("ALTER TABLE alerts ADD COLUMN sentiment TEXT")
+        except: pass
         conn.commit()
     except Exception as e:
         print(f"Error initializing database: {e}")
@@ -32,15 +36,15 @@ def init_db():
         if 'conn' in locals():
             conn.close()
 
-def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime):
+def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime, pcr=None, sentiment=None):
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         timestamp = datetime.datetime.now().isoformat()
         cursor.execute('''
-            INSERT INTO alerts (ticker, direction, entry_price, stop_loss, take_profit, regime, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (ticker, direction, entry_price, stop_loss, take_profit, regime, timestamp))
+            INSERT INTO alerts (ticker, direction, entry_price, stop_loss, take_profit, regime, timestamp, pcr, sentiment)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (ticker, direction, entry_price, stop_loss, take_profit, regime, timestamp, pcr, sentiment))
         conn.commit()
         last_id = cursor.lastrowid
         return last_id

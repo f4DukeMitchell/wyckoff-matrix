@@ -1,4 +1,4 @@
-import time
+﻿import time
 import datetime
 import smtplib
 import yfinance as yf
@@ -22,8 +22,14 @@ try:
 except:
     TELEGRAM_ENABLED = False
 
+try:
+    from options_flow import get_options_flow
+    OPTIONS_ENABLED = True
+except:
+    OPTIONS_ENABLED = False
+
 # ==========================================
-# 🛑 USER CONFIGURATION REQUIRED 🛑
+# ðŸ›‘ USER CONFIGURATION REQUIRED ðŸ›‘
 # ==========================================
 GMAIL_USER = "f4dukemitchell@gmail.com"           # <-- Replace with your Gmail address
 GMAIL_APP_PASSWORD = "aakv dgpp wfwx nhua"      # <-- Replace with your 16-character App Password
@@ -47,9 +53,9 @@ VOL_LIMIT = 1.2       # Intraday volume threshold
 # Dictionary to prevent spamming the same alert multiple times in a row
 last_alerted = {ticker: 0 for ticker in TICKERS}
 
-def send_email_alert(ticker, action, price, sl, tp, regime):
-    subject = f"🚨 WYCKOFF ALERT: {action} on {ticker}"
-    body = f"""
+def send_email_alert(ticker, action, price, sl, tp, regime, options_flow=None):
+    subject = f"WYCKOFF ALERT: {action} on {ticker}"
+    body = f"\""
     Wyckoff Institutional Terminal Alert
     ------------------------------------
     TICKER: {ticker} ({INTERVAL})
@@ -61,9 +67,21 @@ def send_email_alert(ticker, action, price, sl, tp, regime):
     
     REGIME: {regime}
     TIME: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    "\""
     
+    if options_flow:
+        body += f"\""
+    OPTIONS FLOW INTEL
+    ------------------------------------
+    Sentiment: {options_flow.get('net_sentiment', 'N/A')}
+    Put/Call Ratio: {options_flow.get('put_call_ratio', 'N/A')} ({options_flow.get('put_call_label', 'N/A')})
+    Gamma Wall (Magnet Target): ${options_flow.get('gamma_wall', 'N/A')}
+    Max Pain: ${options_flow.get('max_pain', 'N/A')}
+    "\""
+
+    body += "\""
     *Stalk the entry. Manage your risk.*
-    """
+    "\""
     
     msg = MIMEMultipart()
     msg['From'] = GMAIL_USER
@@ -78,9 +96,9 @@ def send_email_alert(ticker, action, price, sl, tp, regime):
         text = msg.as_string()
         server.sendmail(GMAIL_USER, DESTINATION_EMAIL, text)
         server.quit()
-        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ✉️ EMAIL SENT: {action} on {ticker}")
+        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] âœ‰ï¸ EMAIL SENT: {action} on {ticker}")
     except Exception as e:
-        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ❌ ERROR SENDING EMAIL. Did you enter your 16-character App Password correctly? Error: {e}")
+        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] âŒ ERROR SENDING EMAIL. Did you enter your 16-character App Password correctly? Error: {e}")
 
 def get_supertrend(high, low, close, length, multiplier):
     tr0 = np.abs(high - low)
@@ -107,7 +125,7 @@ def get_supertrend(high, low, close, length, multiplier):
     return in_uptrend
 
 def scan_market():
-    print(f"\n[{datetime.datetime.now().strftime('%H:%M:%S')}] 📡 Scanning {len(TICKERS)} tickers for Phase C exhaustion...")
+    print(f"\n[{datetime.datetime.now().strftime('%H:%M:%S')}] ðŸ“¡ Scanning {len(TICKERS)} tickers for Phase C exhaustion...")
     
     # Bulk download is faster and prevents rate limits
     data = yf.download(TICKERS, period=PERIOD, interval=INTERVAL, group_by='ticker', progress=False)
@@ -145,27 +163,51 @@ def scan_market():
             
             current_time = time.time()
             
-            # If signal fired AND we haven't alerted this ticker in the last 15 minutes (900 seconds)
+                        # If signal fired AND we haven't alerted this ticker in the last 15 minutes (900 seconds)
             if is_spring and (current_time - last_alerted[ticker] > 900):
+                flow = None
+                if OPTIONS_ENABLED:
+                    flow = get_options_flow(ticker)
+                    if flow.get('put_call_ratio', 0) > 1.3:
+                        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED: {ticker} LONG (SPRING) - Options flow is heavily BEARISH (P/C: {flow.get('put_call_ratio')})")
+                        last_alerted[ticker] = current_time
+                        continue
+                
                 price = closes[curr]
                 sl = min(lows[curr], lows[curr-1]) * (1.0 - SL_BUFFER)
                 tp = range_low[curr] + ((range_high[curr] - range_low[curr]) * 0.5)
+                
+                if flow and flow.get('gamma_wall', 0) > price and flow.get('gamma_wall', 0) < range_high[curr]:
+                    tp = flow.get('gamma_wall', 0)
+                    
                 regime = "BEARISH (Seeking Reversal)" if not u9[curr] and not u14[curr] else "MIXED"
                 
-                send_email_alert(ticker, "LONG (SPRING)", price, sl, tp, regime)
-                if TRACKER_ENABLED: log_alert(ticker, "LONG", price, sl, tp, regime)
-                if TELEGRAM_ENABLED: tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime)
+                send_email_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, flow)
+                if TRACKER_ENABLED: log_alert(ticker, "LONG", price, sl, tp, regime, flow.get('put_call_ratio') if flow else None, flow.get('net_sentiment') if flow else None)
+                if TELEGRAM_ENABLED: tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, flow)
                 last_alerted[ticker] = current_time
                 
             elif is_utad and (current_time - last_alerted[ticker] > 900):
+                flow = None
+                if OPTIONS_ENABLED:
+                    flow = get_options_flow(ticker)
+                    if flow.get('put_call_ratio', 0) < 0.7:
+                        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED: {ticker} SHORT (UTAD) - Options flow is heavily BULLISH (P/C: {flow.get('put_call_ratio')})")
+                        last_alerted[ticker] = current_time
+                        continue
+                        
                 price = closes[curr]
                 sl = max(highs[curr], highs[curr-1]) * (1.0 + SL_BUFFER)
                 tp = range_high[curr] - ((range_high[curr] - range_low[curr]) * 0.5)
+                
+                if flow and flow.get('gamma_wall', 0) < price and flow.get('gamma_wall', 0) > range_low[curr]:
+                    tp = flow.get('gamma_wall', 0)
+                    
                 regime = "BULLISH (Seeking Reversal)" if u9[curr] and u14[curr] else "MIXED"
                 
-                send_email_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime)
-                if TRACKER_ENABLED: log_alert(ticker, "SHORT", price, sl, tp, regime)
-                if TELEGRAM_ENABLED: tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime)
+                send_email_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, flow)
+                if TRACKER_ENABLED: log_alert(ticker, "SHORT", price, sl, tp, regime, flow.get('put_call_ratio') if flow else None, flow.get('net_sentiment') if flow else None)
+                if TELEGRAM_ENABLED: tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, flow)
                 last_alerted[ticker] = current_time
                 
         except Exception as e:
@@ -175,7 +217,7 @@ last_report_date = None
 reports_sent = {"morning": False, "lunch": False, "power": False}
 
 def send_market_report(session_name):
-    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] 📝 Generating {session_name} Report...")
+    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ðŸ“ Generating {session_name} Report...")
     data = yf.download(TICKERS, period="10d", interval=INTERVAL, group_by='ticker', progress=False)
     
     exhausted = []
@@ -204,7 +246,7 @@ def send_market_report(session_name):
             
     exhausted.sort(key=lambda x: x[2], reverse=True)
     
-    body = f"📊 WYCKOFF MARKET RADAR: {session_name}\n"
+    body = f"ðŸ“Š WYCKOFF MARKET RADAR: {session_name}\n"
     body += "------------------------------------------------------\n"
     body += "Here are the most structurally exhausted stocks to stalk right now:\n\n"
     
@@ -219,7 +261,7 @@ def send_market_report(session_name):
     msg = MIMEMultipart()
     msg['From'] = GMAIL_USER
     msg['To'] = DESTINATION_EMAIL
-    msg['Subject'] = f"📊 WYCKOFF RADAR: {session_name} Update"
+    msg['Subject'] = f"ðŸ“Š WYCKOFF RADAR: {session_name} Update"
     msg.attach(MIMEText(body, 'plain', 'utf-8'))
     
     try:
@@ -228,7 +270,7 @@ def send_market_report(session_name):
         server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
         server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
         server.quit()
-        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ✉️ {session_name} REPORT SENT!")
+        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] âœ‰ï¸ {session_name} REPORT SENT!")
     except Exception as e:
         print(f"Error sending report: {e}")
 
@@ -324,7 +366,7 @@ def send_ai_progress_report():
 
 if __name__ == "__main__":
     print("========================================")
-    print("🦅 WYCKOFF LIVE ALERT BOT INITIALIZED 🦅")
+    print("ðŸ¦… WYCKOFF LIVE ALERT BOT INITIALIZED ðŸ¦…")
     print("========================================")
     print(f"Targeting: {len(TICKERS)} Mega-Cap Stocks")
     print(f"Interval: {INTERVAL}")
@@ -370,3 +412,5 @@ if __name__ == "__main__":
             reports_sent["recap"] = True
             
         time.sleep(300)
+
+

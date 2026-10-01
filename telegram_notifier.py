@@ -29,7 +29,7 @@ def send_message(text):
         print(f"Failed to send Telegram message: {e}")
         return False
 
-def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, regime):
+def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, regime, options_flow=None):
     """Formats and sends a trading alert."""
     if not is_configured():
         print("Telegram not configured. Skipping trade alert.")
@@ -43,6 +43,16 @@ def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, reg
         f"Take Profit: {take_profit}\n"
         f"Regime Context: {regime}"
     )
+    
+    if options_flow:
+        message += (
+            f"\n\nOPTIONS FLOW INTEL:\n"
+            f"Sentiment: {options_flow.get('net_sentiment', 'N/A')}\n"
+            f"Put/Call Ratio: {options_flow.get('put_call_ratio', 'N/A')} ({options_flow.get('put_call_label', 'N/A')})\n"
+            f"Gamma Wall (Magnet): ${options_flow.get('gamma_wall', 'N/A')}\n"
+            f"Max Pain: ${options_flow.get('max_pain', 'N/A')}"
+        )
+        
     return send_message(message)
 
 def send_daily_recap(recap_text):
