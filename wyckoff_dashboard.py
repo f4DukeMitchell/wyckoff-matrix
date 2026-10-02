@@ -304,7 +304,7 @@ def render_wyckoff_chart(ticker, interval, period, sl_buffer, tp_target, lookbac
                 dict(count=7, label="1W", step="day", stepmode="backward"),
                 dict(step="all", label="ALL")
             ]),
-            bgcolor=TV_PANEL, activecolor=TV_GREEN, font=dict(color="white"), y=1.02
+            bgcolor=TV_PANEL, activecolor=TV_GREEN, font=dict(color="white"), y=-0.1, x=0.0
         )
     )
     fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor=TV_GRID, tickprefix="$")
