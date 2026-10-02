@@ -183,6 +183,15 @@ def scan_market(interval, period, lookback):
             u9 = get_supertrend(highs, lows, closes, 9, 9.0)
             u14 = get_supertrend(highs, lows, closes, 14, 14.0)
             
+            curr_u9 = u9[-1]
+            curr_u14 = u14[-1]
+            bars_in_regime = 0
+            for i in range(len(u9)-1, -1, -1):
+                if u9[i] == curr_u9 and u14[i] == curr_u14:
+                    bars_in_regime += 1
+                else:
+                    break
+            
             vol_sma = pd.Series(vols).rolling(20, min_periods=1).mean().values
             with np.errstate(divide='ignore', invalid='ignore'):
                 rel_vol = np.where(vol_sma > 0, vols / vol_sma, 1.0)
@@ -222,7 +231,7 @@ def scan_market(interval, period, lookback):
                 regime = "BEARISH (Seeking Reversal)" if not u9[curr] and not u14[curr] else "MIXED"
                 
                 send_email_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, flow)
-                if TRACKER_ENABLED: log_alert(ticker, "LONG", price, sl, tp, regime, flow.get('put_call_ratio') if flow else None, flow.get('net_sentiment') if flow else None)
+                if TRACKER_ENABLED: log_alert(ticker, "LONG", price, sl, tp, regime, interval, flow.get('put_call_ratio') if flow else None, flow.get('net_sentiment') if flow else None, bars_in_regime)
                 if TELEGRAM_ENABLED: tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, flow)
                 last_alerted[ticker] = current_time
                 
@@ -245,7 +254,7 @@ def scan_market(interval, period, lookback):
                 regime = "BULLISH (Seeking Reversal)" if u9[curr] and u14[curr] else "MIXED"
                 
                 send_email_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, flow)
-                if TRACKER_ENABLED: log_alert(ticker, "SHORT", price, sl, tp, regime, flow.get('put_call_ratio') if flow else None, flow.get('net_sentiment') if flow else None)
+                if TRACKER_ENABLED: log_alert(ticker, "SHORT", price, sl, tp, regime, interval, flow.get('put_call_ratio') if flow else None, flow.get('net_sentiment') if flow else None, bars_in_regime)
                 if TELEGRAM_ENABLED: tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, flow)
                 last_alerted[ticker] = current_time
                 
