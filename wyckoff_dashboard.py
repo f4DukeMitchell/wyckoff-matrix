@@ -112,7 +112,6 @@ def process_ticker(ticker, interval, period, sl_buffer, tp_target, lookback, vol
         
         l_wins, l_loss, s_wins, s_loss = 0, 0, 0, 0
         l_units, s_units = 0.0, 0.0
-    backtest_trades = []
         
         highs, lows, closes = df_clean['High'].values, df_clean['Low'].values, df_clean['Close'].values
         sl_pct = sl_buffer / 100.0
