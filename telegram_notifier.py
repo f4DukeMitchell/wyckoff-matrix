@@ -1,8 +1,8 @@
 import requests
 
 # User must fill these in with valid credentials
-TELEGRAM_BOT_TOKEN = ''
-TELEGRAM_CHAT_ID = ''
+TELEGRAM_BOT_TOKEN = '8870935798:AAFx5-TdD0qEwQ4nTSRIFw4RvdI87GSXnDc'
+TELEGRAM_CHAT_ID = '8610265859'
 
 def is_configured():
     """Returns True if both token and chat_id are configured."""
