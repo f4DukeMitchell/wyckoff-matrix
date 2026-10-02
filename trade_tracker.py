@@ -2,6 +2,7 @@ import sqlite3
 import yfinance as yf
 import datetime
 import os
+import pandas as pd
 
 DB_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(DB_DIR, "wyckoff_trades.db")
@@ -96,7 +97,21 @@ def check_open_trades():
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM alerts WHERE outcome = 'OPEN'")
         open_trades = cursor.fetchall()
-        
+        if not open_trades:
+            return closed_trades
+            
+        unique_tickers = list(set(trade['ticker'] for trade in open_trades))
+        prices = {}
+        try:
+            data = yf.download(unique_tickers, period="1d", interval="1m", progress=False)
+            if not data.empty and 'Close' in data:
+                latest = data['Close'].iloc[-1]
+                for sym in unique_tickers:
+                    if sym in latest and not pd.isna(latest[sym]):
+                        prices[sym] = float(latest[sym])
+        except Exception as e:
+            print(f"Batch price download error: {e}")
+
         for trade in open_trades:
             trade_id = trade['id']
             ticker = trade['ticker']
@@ -105,7 +120,7 @@ def check_open_trades():
             stop_loss = trade['stop_loss']
             take_profit = trade['take_profit']
             
-            price = get_latest_price(ticker)
+            price = prices.get(ticker) or get_latest_price(ticker)
             if price is None:
                 continue
                 
