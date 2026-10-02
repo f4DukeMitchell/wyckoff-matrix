@@ -23,7 +23,7 @@ except:
     TELEGRAM_ENABLED = False
 
 try:
-    from options_flow import get_options_flow
+    from options_flow import get_options_flow, get_public_quotes
     OPTIONS_ENABLED = True
 except:
     OPTIONS_ENABLED = False
@@ -285,6 +285,7 @@ def scan_market(interval, period, lookback):
                 
                 # send_email_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, flow, interval)
                 if TRACKER_ENABLED:
+                    q = get_public_quotes(ticker) if OPTIONS_ENABLED else {'bid_ask_ratio': None, 'spread_width_pct': None}
                     log_alert(ticker, "LONG", price, sl, tp, regime, interval,
                               flow.get('put_call_ratio') if flow else None,
                               flow.get('net_sentiment') if flow else None,
@@ -292,7 +293,10 @@ def scan_market(interval, period, lookback):
                               vwap_distance=vwap_distance,
                               hour_of_day=hour_of_day,
                               spy_bullish=spy_bullish,
-                              atr_expansion=atr_expansion)
+                              atr_expansion=atr_expansion,
+                              bid_ask_ratio=q.get('bid_ask_ratio'),
+                              spread_width_pct=q.get('spread_width_pct'),
+                              implied_volatility=flow.get('atm_iv') if flow else None)
                 if TELEGRAM_ENABLED: tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, interval, flow)
                 last_alerted[ticker] = current_time
                 
@@ -316,6 +320,7 @@ def scan_market(interval, period, lookback):
                 
                 # send_email_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, flow, interval)
                 if TRACKER_ENABLED:
+                    q = get_public_quotes(ticker) if OPTIONS_ENABLED else {'bid_ask_ratio': None, 'spread_width_pct': None}
                     log_alert(ticker, "SHORT", price, sl, tp, regime, interval,
                               flow.get('put_call_ratio') if flow else None,
                               flow.get('net_sentiment') if flow else None,
@@ -323,7 +328,10 @@ def scan_market(interval, period, lookback):
                               vwap_distance=vwap_distance,
                               hour_of_day=hour_of_day,
                               spy_bullish=spy_bullish,
-                              atr_expansion=atr_expansion)
+                              atr_expansion=atr_expansion,
+                              bid_ask_ratio=q.get('bid_ask_ratio'),
+                              spread_width_pct=q.get('spread_width_pct'),
+                              implied_volatility=flow.get('atm_iv') if flow else None)
                 if TELEGRAM_ENABLED: tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow)
                 last_alerted[ticker] = current_time
                 

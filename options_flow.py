@@ -23,6 +23,7 @@ def get_options_flow(ticker):
         'total_put_oi': 0,
         'nearest_expiry': 'N/A',
         'gamma_wall': 0.0,
+        'atm_iv': 0.0,
         'net_sentiment': 'N/A',
     }
     
@@ -85,6 +86,13 @@ def get_options_flow(ticker):
             gamma_wall = max(all_strikes, key=all_strikes.get)
             result['gamma_wall'] = float(gamma_wall)
             
+            # Extract IV at the Gamma Wall strike
+            for c in calls + puts:
+                if c.option_details and float(c.option_details.strike_price) == gamma_wall:
+                    if c.option_details.greeks and c.option_details.greeks.implied_volatility:
+                        result['atm_iv'] = float(c.option_details.greeks.implied_volatility)
+                        break
+            
         # Sentiment
         if result['put_call_label'] != 'N/A':
             result['net_sentiment'] = result['put_call_label'].replace(' SKEW', '')
@@ -95,10 +103,34 @@ def get_options_flow(ticker):
         
     return result
 
+def get_public_quotes(ticker):
+    from public_api_sdk.models import QuoteRequest
+    res = {'bid_ask_ratio': 0.0, 'spread_width_pct': 0.0}
+    if not API_KEY: return res
+    try:
+        client = PublicApiClient(auth_config=ApiKeyAuthConfig(api_secret_key=API_KEY))
+        accounts = client.get_accounts()
+        if not accounts.accounts: return res
+        account_id = accounts.accounts[0].account_id
+        
+        q_res = client.get_quotes(QuoteRequest(instruments=[OrderInstrument(symbol=ticker, type="EQUITY")]), account_id=account_id)
+        if q_res.quotes:
+            q = q_res.quotes[0]
+            bid, ask = float(q.bid or 0), float(q.ask or 0)
+            bid_size, ask_size = float(q.bid_size or 0), float(q.ask_size or 0)
+            
+            if ask_size > 0: res['bid_ask_ratio'] = round(bid_size / ask_size, 2)
+            if bid > 0 and ask > 0: res['spread_width_pct'] = round(((ask - bid) / bid) * 100, 3)
+    except Exception as e:
+        pass
+    return res
+
 if __name__ == '__main__':
     flow = get_options_flow("AAPL")
+    q = get_public_quotes("AAPL")
     print(f"AAPL Options Flow (Public.com API):")
     print(f"  P/C Ratio: {flow['put_call_ratio']} ({flow['put_call_label']})")
-    print(f"  Gamma Wall: ${flow['gamma_wall']}")
+    print(f"  Gamma Wall: ${flow['gamma_wall']} (IV: {flow.get('atm_iv', 0)})")
     print(f"  Call OI: {flow['total_call_oi']:,} | Put OI: {flow['total_put_oi']:,}")
     print(f"  Net Sentiment: {flow['net_sentiment']}")
+    print(f"  Quote Details: Bid/Ask Ratio={q['bid_ask_ratio']}, Spread={q['spread_width_pct']}%")

@@ -35,6 +35,9 @@ def init_db():
             ("hour_of_day", "REAL"),
             ("spy_bullish", "INTEGER"),
             ("atr_expansion", "REAL"),
+            ("bid_ask_ratio", "REAL"),
+            ("spread_width_pct", "REAL"),
+            ("implied_volatility", "REAL"),
         ]
         for col_name, col_type in new_cols:
             try: cursor.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")
@@ -48,7 +51,8 @@ def init_db():
 
 def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
               timeframe='5m', pcr=None, sentiment=None, bars_in_regime=0,
-              vwap_distance=None, hour_of_day=None, spy_bullish=None, atr_expansion=None):
+              vwap_distance=None, hour_of_day=None, spy_bullish=None, atr_expansion=None,
+              bid_ask_ratio=None, spread_width_pct=None, implied_volatility=None):
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -56,12 +60,13 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
         cursor.execute('''
             INSERT INTO alerts (ticker, direction, entry_price, stop_loss, take_profit, regime,
                                 timestamp, pcr, sentiment, timeframe, bars_in_regime,
-                                vwap_distance, hour_of_day, spy_bullish, atr_expansion)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                vwap_distance, hour_of_day, spy_bullish, atr_expansion,
+                                bid_ask_ratio, spread_width_pct, implied_volatility)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (ticker, direction, entry_price, stop_loss, take_profit, regime,
               timestamp, pcr, sentiment, timeframe, bars_in_regime,
               vwap_distance, hour_of_day, 1 if spy_bullish else 0 if spy_bullish is not None else None,
-              atr_expansion))
+              atr_expansion, bid_ask_ratio, spread_width_pct, implied_volatility))
         conn.commit()
         last_id = cursor.lastrowid
         return last_id
