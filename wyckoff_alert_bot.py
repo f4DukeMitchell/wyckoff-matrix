@@ -29,35 +29,33 @@ except:
     OPTIONS_ENABLED = False
 
 # ==========================================
-# ðŸ›‘ USER CONFIGURATION REQUIRED ðŸ›‘
+# USER CONFIGURATION
 # ==========================================
-GMAIL_USER = "f4dukemitchell@gmail.com"           # <-- Replace with your Gmail address
-GMAIL_APP_PASSWORD = "aakv dgpp wfwx nhua"      # <-- Replace with your 16-character App Password
-DESTINATION_EMAIL = "matt.smith@pga.com"    # <-- Where you want the alerts sent (can be the same as above)
+GMAIL_USER = "f4dukemitchell@gmail.com"
+GMAIL_APP_PASSWORD = "aakv dgpp wfwx nhua"
+DESTINATION_EMAIL = "matt.smith@pga.com"
 
 import json
-import os
 
 try:
     with open("all_tickers.json", "r") as f:
         TICKERS = json.load(f)
 except:
     TICKERS = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "BRK-B", "LLY", "AVGO", "JPM", "V"]
+
 TIMEFRAMES = [
     {"interval": "5m", "period": "5d", "lookback": 200},
     {"interval": "15m", "period": "20d", "lookback": 150},
     {"interval": "1h", "period": "60d", "lookback": 100},
     {"interval": "1d", "period": "2y", "lookback": 100}
 ]
-SL_BUFFER = 0.01      # 1% stop loss buffer for intraday volatility
-VOL_LIMIT = 1.2       # Intraday volume threshold
-# ==========================================
+SL_BUFFER = 0.01
+VOL_LIMIT = 1.2
 
-# Dictionary to prevent spamming the same alert multiple times in a row
 last_alerted = {ticker: 0 for ticker in TICKERS}
 
-def send_email_alert(ticker, action, price, sl, tp, regime, options_flow=None):
-    subject = f"WYCKOFF ALERT: {action} on {ticker}"
+def send_email_alert(ticker, action, price, sl, tp, regime, options_flow=None, interval="5m"):
+    subject = f"WYCKOFF ALERT: {action} on {ticker} ({interval})"
     body = f"""
     Wyckoff Institutional Terminal Alert
     ------------------------------------
@@ -96,12 +94,11 @@ def send_email_alert(ticker, action, price, sl, tp, regime, options_flow=None):
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        text = msg.as_string()
-        server.sendmail(GMAIL_USER, DESTINATION_EMAIL, text)
+        server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
         server.quit()
-        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] âœ‰ï¸ EMAIL SENT: {action} on {ticker}")
+        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] EMAIL SENT: {action} on {ticker}")
     except Exception as e:
-        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] âŒ ERROR SENDING EMAIL. Did you enter your 16-character App Password correctly? Error: {e}")
+        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ERROR SENDING EMAIL: {e}")
 
 def get_supertrend(high, low, close, length, multiplier):
     tr0 = np.abs(high - low)
@@ -127,6 +124,41 @@ def get_supertrend(high, low, close, length, multiplier):
             if not in_uptrend[i] and upperband[i] > upperband[i-1]: upperband[i] = upperband[i-1]
     return in_uptrend
 
+# --- INSTITUTIONAL FEATURE CALCULATIONS ---
+def calc_vwap(highs, lows, closes, volumes):
+    """Volume Weighted Average Price"""
+    typical_price = (highs + lows + closes) / 3.0
+    cum_tp_vol = np.cumsum(typical_price * volumes)
+    cum_vol = np.cumsum(volumes)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        vwap = np.where(cum_vol > 0, cum_tp_vol / cum_vol, closes)
+    return vwap
+
+def calc_atr_expansion(highs, lows, closes, period=14):
+    """ATR divided by its own 20-period SMA = volatility expansion ratio"""
+    tr0 = np.abs(highs - lows)
+    tr1 = np.abs(highs - np.roll(closes, 1))
+    tr2 = np.abs(lows - np.roll(closes, 1))
+    tr = np.maximum(tr0, np.maximum(tr1, tr2))
+    tr[0] = 0
+    atr = pd.Series(tr).rolling(period, min_periods=1).mean().values
+    atr_sma = pd.Series(atr).rolling(20, min_periods=1).mean().values
+    with np.errstate(divide='ignore', invalid='ignore'):
+        expansion = np.where(atr_sma > 0, atr / atr_sma, 1.0)
+    return expansion
+
+def get_spy_trend():
+    """Get SPY macro trend using 9-period SuperTrend"""
+    try:
+        spy = yf.download("SPY", period="60d", interval="1h", progress=False)
+        if spy.empty: return True  # default bullish
+        highs = spy['High'].values.flatten()
+        lows = spy['Low'].values.flatten()
+        closes = spy['Close'].values.flatten()
+        u9 = get_supertrend(highs, lows, closes, 9, 9.0)
+        return bool(u9[-1])  # True = SPY bullish
+    except:
+        return True
 
 # --- TELEGRAM COMMAND LISTENER ---
 LAST_UPDATE_ID = 0
@@ -149,40 +181,55 @@ def check_telegram_commands():
                 LAST_UPDATE_ID = update["update_id"]
                 msg = update.get("message", {})
                 txt = msg.get("text", "").strip().lower()
-                chat_id = msg.get("chat", {}).get("id")
                 
                 if txt == "/report":
-                    send_message("ðŸ”Ž Generating on-demand Market Report, please wait...")
+                    send_message("Generating on-demand Market Report, please wait...")
                     send_market_report("On-Demand")
                 elif txt == "/recap":
-                    send_message("ðŸ“Š Generating on-demand Daily Recap, please wait...")
+                    send_message("Generating on-demand Daily Recap, please wait...")
                     send_daily_recap()
                 elif txt == "/status":
-                    send_message("âœ… Wyckoff ML Bot is actively running and monitoring all timeframes.")
-    except Exception as e:
+                    send_message("Wyckoff ML Bot is actively running and monitoring all timeframes.")
+    except:
         pass
 
+# ===================================================================
+# HYBRID SCAN: yfinance bulk download + institutional feature tracking
+# ===================================================================
 def scan_market(interval, period, lookback):
-    print(f"\n[{datetime.datetime.now().strftime('%H:%M:%S')}] ðŸ“¡ Scanning {len(TICKERS)} tickers for Phase C exhaustion...")
+    print(f"\n[{datetime.datetime.now().strftime('%H:%M:%S')}] Scanning {len(TICKERS)} tickers on {interval}...")
     
-    # Bulk download is faster and prevents rate limits
+    # BULK DOWNLOAD via yfinance (fast, handles 510 tickers in one call)
     data = yf.download(TICKERS, period=period, interval=interval, group_by='ticker', progress=False)
+    
+    # Get SPY macro trend (cached per scan cycle)
+    spy_bullish = get_spy_trend()
+    now = datetime.datetime.now()
+    hour_of_day = now.hour + now.minute / 60.0
     
     for ticker in TICKERS:
         try:
             df = data[ticker].dropna() if len(TICKERS) > 1 else data.dropna()
             if df.empty or len(df) < lookback:
                 continue
-                
-            highs = df['High'].values
-            lows = df['Low'].values
-            closes = df['Close'].values
-            vols = df['Volume'].values
             
+            # Flatten MultiIndex if present
+            if isinstance(df.columns, pd.MultiIndex):
+                highs = df['High'].iloc[:, 0].values.astype(float)
+                lows = df['Low'].iloc[:, 0].values.astype(float)
+                closes = df['Close'].iloc[:, 0].values.astype(float)
+                vols = df['Volume'].iloc[:, 0].values.astype(float)
+            else:
+                highs = df['High'].values.astype(float)
+                lows = df['Low'].values.astype(float)
+                closes = df['Close'].values.astype(float)
+                vols = df['Volume'].values.astype(float)
+                
             u1 = get_supertrend(highs, lows, closes, 1, 1.0)
             u9 = get_supertrend(highs, lows, closes, 9, 9.0)
             u14 = get_supertrend(highs, lows, closes, 14, 14.0)
             
+            # --- Bars in Regime ---
             curr_u9 = u9[-1]
             curr_u14 = u14[-1]
             bars_in_regime = 0
@@ -192,12 +239,19 @@ def scan_market(interval, period, lookback):
                 else:
                     break
             
+            # --- Institutional Features ---
+            vwap = calc_vwap(highs, lows, closes, vols)
+            vwap_distance = (closes[-1] - vwap[-1]) / vwap[-1] * 100 if vwap[-1] > 0 else 0
+            
+            atr_exp = calc_atr_expansion(highs, lows, closes)
+            atr_expansion = float(atr_exp[-1])
+            
             vol_sma = pd.Series(vols).rolling(20, min_periods=1).mean().values
             with np.errstate(divide='ignore', invalid='ignore'):
                 rel_vol = np.where(vol_sma > 0, vols / vol_sma, 1.0)
             
-            range_high = pd.Series(highs).rolling(LOOKBACK, min_periods=20).max().shift(1).values
-            range_low = pd.Series(lows).rolling(LOOKBACK, min_periods=20).min().shift(1).values
+            range_high = pd.Series(highs).rolling(lookback, min_periods=20).max().shift(1).values
+            range_low = pd.Series(lows).rolling(lookback, min_periods=20).min().shift(1).values
             
             curr = len(df) - 1
             if pd.isna(range_high[curr]): continue
@@ -211,13 +265,12 @@ def scan_market(interval, period, lookback):
             
             current_time = time.time()
             
-                        # If signal fired AND we haven't alerted this ticker in the last 15 minutes (900 seconds)
-            if is_spring and (current_time - last_alerted[ticker] > 900):
+            if is_spring and (current_time - last_alerted.get(ticker, 0) > 900):
                 flow = None
                 if OPTIONS_ENABLED:
                     flow = get_options_flow(ticker)
                     if flow.get('put_call_ratio', 0) > 1.3:
-                        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED: {ticker} LONG (SPRING) - Options flow is heavily BEARISH (P/C: {flow.get('put_call_ratio')})")
+                        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED: {ticker} LONG - P/C: {flow.get('put_call_ratio')}")
                         last_alerted[ticker] = current_time
                         continue
                 
@@ -230,17 +283,25 @@ def scan_market(interval, period, lookback):
                     
                 regime = "BEARISH (Seeking Reversal)" if not u9[curr] and not u14[curr] else "MIXED"
                 
-                send_email_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, flow)
-                if TRACKER_ENABLED: log_alert(ticker, "LONG", price, sl, tp, regime, interval, flow.get('put_call_ratio') if flow else None, flow.get('net_sentiment') if flow else None, bars_in_regime)
+                send_email_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, flow, interval)
+                if TRACKER_ENABLED:
+                    log_alert(ticker, "LONG", price, sl, tp, regime, interval,
+                              flow.get('put_call_ratio') if flow else None,
+                              flow.get('net_sentiment') if flow else None,
+                              bars_in_regime,
+                              vwap_distance=vwap_distance,
+                              hour_of_day=hour_of_day,
+                              spy_bullish=spy_bullish,
+                              atr_expansion=atr_expansion)
                 if TELEGRAM_ENABLED: tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, flow)
                 last_alerted[ticker] = current_time
                 
-            elif is_utad and (current_time - last_alerted[ticker] > 900):
+            elif is_utad and (current_time - last_alerted.get(ticker, 0) > 900):
                 flow = None
                 if OPTIONS_ENABLED:
                     flow = get_options_flow(ticker)
                     if flow.get('put_call_ratio', 0) < 0.7:
-                        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED: {ticker} SHORT (UTAD) - Options flow is heavily BULLISH (P/C: {flow.get('put_call_ratio')})")
+                        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED: {ticker} SHORT - P/C: {flow.get('put_call_ratio')}")
                         last_alerted[ticker] = current_time
                         continue
                         
@@ -253,28 +314,44 @@ def scan_market(interval, period, lookback):
                     
                 regime = "BULLISH (Seeking Reversal)" if u9[curr] and u14[curr] else "MIXED"
                 
-                send_email_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, flow)
-                if TRACKER_ENABLED: log_alert(ticker, "SHORT", price, sl, tp, regime, interval, flow.get('put_call_ratio') if flow else None, flow.get('net_sentiment') if flow else None, bars_in_regime)
+                send_email_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, flow, interval)
+                if TRACKER_ENABLED:
+                    log_alert(ticker, "SHORT", price, sl, tp, regime, interval,
+                              flow.get('put_call_ratio') if flow else None,
+                              flow.get('net_sentiment') if flow else None,
+                              bars_in_regime,
+                              vwap_distance=vwap_distance,
+                              hour_of_day=hour_of_day,
+                              spy_bullish=spy_bullish,
+                              atr_expansion=atr_expansion)
                 if TELEGRAM_ENABLED: tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, flow)
                 last_alerted[ticker] = current_time
                 
         except Exception as e:
-            pass # Silently skip errors on individual tickers to keep the loop alive
+            pass
 
 last_report_date = None
 reports_sent = {"morning": False, "lunch": False, "power": False}
 
 def send_market_report(session_name):
-    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ðŸ“ Generating {session_name} Report...")
+    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Generating {session_name} Report...")
     data = yf.download(TICKERS, period="10d", interval="1h", group_by='ticker', progress=False)
     
     exhausted = []
     for ticker in TICKERS:
         try:
             df = data[ticker].dropna() if len(TICKERS) > 1 else data.dropna()
-            if df.empty or len(df) < lookback: continue
+            if df.empty or len(df) < 50: continue
             
-            highs, lows, closes = df['High'].values, df['Low'].values, df['Close'].values
+            if isinstance(df.columns, pd.MultiIndex):
+                highs = df['High'].iloc[:, 0].values.astype(float)
+                lows = df['Low'].iloc[:, 0].values.astype(float)
+                closes = df['Close'].iloc[:, 0].values.astype(float)
+            else:
+                highs = df['High'].values.astype(float)
+                lows = df['Low'].values.astype(float)
+                closes = df['Close'].values.astype(float)
+            
             u9 = get_supertrend(highs, lows, closes, 9, 9.0)
             u14 = get_supertrend(highs, lows, closes, 14, 14.0)
             
@@ -294,12 +371,12 @@ def send_market_report(session_name):
             
     exhausted.sort(key=lambda x: x[2], reverse=True)
     
-    body = f"ðŸ“Š WYCKOFF MARKET RADAR: {session_name}\n"
+    body = f"WYCKOFF MARKET RADAR: {session_name}\n"
     body += "------------------------------------------------------\n"
-    body += "Here are the most structurally exhausted stocks to stalk right now:\n\n"
+    body += "Most structurally exhausted stocks to stalk:\n\n"
     
     if not exhausted:
-        body += "No stocks are currently showing significant exhaustion (>= 20 bars).\n"
+        body += "No stocks showing significant exhaustion (>= 20 bars).\n"
     else:
         for t in exhausted[:5]:
             body += f"- {t[0]}: {t[1]} Regime ({t[2]} bars exhausted). Stalk for {t[3]}.\n"
@@ -309,7 +386,7 @@ def send_market_report(session_name):
     msg = MIMEMultipart()
     msg['From'] = GMAIL_USER
     msg['To'] = DESTINATION_EMAIL
-    msg['Subject'] = f"ðŸ“Š WYCKOFF RADAR: {session_name} Update"
+    msg['Subject'] = f"WYCKOFF RADAR: {session_name} Update"
     msg.attach(MIMEText(body, 'plain', 'utf-8'))
     
     try:
@@ -318,21 +395,34 @@ def send_market_report(session_name):
         server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
         server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
         server.quit()
-        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] âœ‰ï¸ {session_name} REPORT SENT!")
+        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {session_name} REPORT SENT!")
     except Exception as e:
         print(f"Error sending report: {e}")
+    
+    if TELEGRAM_ENABLED and exhausted:
+        try:
+            tg_radar(exhausted[:5], session_name)
+        except: pass
 
 def send_daily_recap():
-    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Generating Daily Recap & Tomorrow's Watchlist...")
+    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Generating Daily Recap...")
     data = yf.download(TICKERS, period="10d", interval="1h", group_by='ticker', progress=False)
     
     exhausted = []
     for ticker in TICKERS:
         try:
             df = data[ticker].dropna() if len(TICKERS) > 1 else data.dropna()
-            if df.empty or len(df) < lookback: continue
+            if df.empty or len(df) < 50: continue
             
-            highs, lows, closes = df['High'].values, df['Low'].values, df['Close'].values
+            if isinstance(df.columns, pd.MultiIndex):
+                highs = df['High'].iloc[:, 0].values.astype(float)
+                lows = df['Low'].iloc[:, 0].values.astype(float)
+                closes = df['Close'].iloc[:, 0].values.astype(float)
+            else:
+                highs = df['High'].values.astype(float)
+                lows = df['Low'].values.astype(float)
+                closes = df['Close'].values.astype(float)
+            
             u9 = get_supertrend(highs, lows, closes, 9, 9.0)
             u14 = get_supertrend(highs, lows, closes, 14, 14.0)
             
@@ -354,16 +444,15 @@ def send_daily_recap():
     
     body = "END OF DAY WYCKOFF RECAP & WATCHLIST FOR TOMORROW\n"
     body += "=================================================\n\n"
-    body += "The market has closed. Here is your Wyckoff alignment for tomorrow's open:\n\n"
     
     if not exhausted:
-        body += "No major structural exhaustion setups identified for tomorrow yet. The market is mixed.\n"
+        body += "No major exhaustion setups identified. Market is mixed.\n"
     else:
-        body += "TOP COILED SETUPS TO WATCH AT TOMORROW'S OPEN:\n"
+        body += "TOP COILED SETUPS TO WATCH:\n"
         for i, t in enumerate(exhausted[:5]):
             body += f"{i+1}. {t[0]} - {t[2]} bars deep in a {t[1]} regime. Stalking for a {t[3]}.\n"
             
-    body += "\nGAME PLAN: Do not front-run! Wait for the Micro Supertrend to flash green/red as confirmation of the trap before entering.\n"
+    body += "\nGAME PLAN: Do not front-run! Wait for the Micro Supertrend confirmation.\n"
     
     msg = MIMEMultipart()
     msg['From'] = GMAIL_USER
@@ -382,7 +471,7 @@ def send_daily_recap():
         print(f"Error sending recap: {e}")
 
 def send_ai_progress_report():
-    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Running Daily AI Report via Subprocess...")
+    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Running Daily AI Report...")
     try:
         result = subprocess.run(["python", "wyckoff_ml_engine.py"], capture_output=True, text=True, env={**os.environ, "PYTHONIOENCODING": "utf-8"})
         output = result.stdout
@@ -394,7 +483,7 @@ def send_ai_progress_report():
             
         body = "DAILY WYCKOFF AI PROGRESS REPORT\n"
         body += "--------------------------------------\n"
-        body += "The Machine Learning model just re-trained itself on the latest 60 days of market data.\n\n"
+        body += "The ML model just re-trained on the latest data.\n\n"
         body += "WHAT CAUSES WYCKOFF TRADES TO FAIL?" + ai_text
         
         msg = MIMEMultipart()
@@ -414,20 +503,25 @@ def send_ai_progress_report():
 
 if __name__ == "__main__":
     print("========================================")
-    print("ðŸ¦… WYCKOFF LIVE ALERT BOT INITIALIZED ðŸ¦…")
+    print("WYCKOFF LIVE ALERT BOT v11.0 (HYBRID)")
     print("========================================")
     print(f"Targeting: {len(TICKERS)} Mega-Cap Stocks")
+    print(f"Data: yfinance (bulk) + Public.com (execution)")
     print(f"Intervals: 5m, 15m, 1h, 1d")
-    print("Bot is now running in the background. Press Ctrl+C to stop.\n")
+    print("Bot is now running. Press Ctrl+C to stop.\n")
+    
+    # Send initial report on boot
+    if TELEGRAM_ENABLED:
+        from telegram_notifier import send_message
+        send_message("Wyckoff Bot v11.0 (Hybrid) initialized. Scanning all timeframes.")
+    send_market_report("On-Demand")
     
     while True:
         check_telegram_commands()
         for tf in TIMEFRAMES:
             scan_market(tf['interval'], tf['period'], tf['lookback'])
-            import time
             time.sleep(2)
         
-        # Check if any open trades have hit TP or SL
         if TRACKER_ENABLED:
             try:
                 closed = check_open_trades()
@@ -442,27 +536,20 @@ if __name__ == "__main__":
             reports_sent = {"morning": False, "lunch": False, "power": False, "ai": False, "recap": False}
             last_report_date = current_date
             
-        # 9:15 AM
         if now.hour == 9 and 15 <= now.minute < 30 and not reports_sent["morning"]:
             send_market_report("Pre-Market (9:15 AM)")
             reports_sent["morning"] = True
-        # 12:30 PM
         elif now.hour == 12 and 30 <= now.minute < 45 and not reports_sent["lunch"]:
             send_market_report("Mid-Day (12:30 PM)")
             reports_sent["lunch"] = True
-        # 2:45 PM
         elif now.hour == 14 and 45 <= now.minute < 59 and not reports_sent["power"]:
             send_market_report("Power Hour (2:45 PM)")
             reports_sent["power"] = True
-        # 4:15 PM (Post-Market AI Training)
         elif now.hour == 16 and 15 <= now.minute < 30 and not reports_sent.get("ai", False):
             send_ai_progress_report()
             reports_sent["ai"] = True
-        # 4:30 PM (Daily Recap & Tomorrow's Watchlist)
         elif now.hour == 16 and 30 <= now.minute < 45 and not reports_sent.get("recap", False):
             send_daily_recap()
             reports_sent["recap"] = True
             
         time.sleep(300)
-
-

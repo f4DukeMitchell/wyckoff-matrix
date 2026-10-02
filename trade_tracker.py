@@ -26,12 +26,19 @@ def init_db():
                 pnl_r REAL DEFAULT NULL
             )
         ''')
-        try: cursor.execute("ALTER TABLE alerts ADD COLUMN pcr REAL")
-        except: pass
-        try: cursor.execute("ALTER TABLE alerts ADD COLUMN sentiment TEXT")
-        except: pass
-        try: cursor.execute("ALTER TABLE alerts ADD COLUMN bars_in_regime INTEGER DEFAULT 0")
-        except: pass
+        # Institutional feature columns (ML toolbelt)
+        new_cols = [
+            ("pcr", "REAL"),
+            ("sentiment", "TEXT"),
+            ("bars_in_regime", "INTEGER DEFAULT 0"),
+            ("vwap_distance", "REAL"),
+            ("hour_of_day", "REAL"),
+            ("spy_bullish", "INTEGER"),
+            ("atr_expansion", "REAL"),
+        ]
+        for col_name, col_type in new_cols:
+            try: cursor.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")
+            except: pass
         conn.commit()
     except Exception as e:
         print(f"Error initializing database: {e}")
@@ -39,15 +46,22 @@ def init_db():
         if 'conn' in locals():
             conn.close()
 
-def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe='5m', pcr=None, sentiment=None, bars_in_regime=0):
+def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
+              timeframe='5m', pcr=None, sentiment=None, bars_in_regime=0,
+              vwap_distance=None, hour_of_day=None, spy_bullish=None, atr_expansion=None):
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         timestamp = datetime.datetime.now().isoformat()
         cursor.execute('''
-            INSERT INTO alerts (ticker, direction, entry_price, stop_loss, take_profit, regime, timestamp, pcr, sentiment, timeframe, bars_in_regime)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (ticker, direction, entry_price, stop_loss, take_profit, regime, timestamp, pcr, sentiment, timeframe, bars_in_regime))
+            INSERT INTO alerts (ticker, direction, entry_price, stop_loss, take_profit, regime,
+                                timestamp, pcr, sentiment, timeframe, bars_in_regime,
+                                vwap_distance, hour_of_day, spy_bullish, atr_expansion)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (ticker, direction, entry_price, stop_loss, take_profit, regime,
+              timestamp, pcr, sentiment, timeframe, bars_in_regime,
+              vwap_distance, hour_of_day, 1 if spy_bullish else 0 if spy_bullish is not None else None,
+              atr_expansion))
         conn.commit()
         last_id = cursor.lastrowid
         return last_id
