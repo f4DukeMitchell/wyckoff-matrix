@@ -12,7 +12,55 @@ Before any Machine Learning happens, the system uses a strict, rules-based algor
 3. **Volume Exhaustion:** It checks the Relative Volume. For a valid Spring/UTAD, the breakdown must happen on *low volume* (dry supply/demand), indicating it is a fake-out by institutions rather than a true breakout.
 4. **Micro-Trend Reversal:** It uses a fast 1-period SuperTrend. The moment the price breaks back inside the range, the signal fires.
 
-When these conditions are met, the Base Algorithm triggers an alert. In a non-ML system, this is where the process ends. 
+When these conditions are met, the Base Algorithm triggers an alert. In a non-ML system, this is where the process ends.
+
+---
+
+## Deep Dive: The Base Algorithm Mathematical Formula
+
+The Base Algorithm evaluates the market on a candle-by-candle basis. To trigger a trade, a ticker must mathematically pass four strict conditions simultaneously.
+
+### 1. The Phase B Channel (Establishing the Range)
+Wyckoff theory relies on identifying institutional accumulation/distribution zones (Trading Ranges). The algorithm defines this mathematically using a rolling lookback window (default: 200 bars).
+* **Resistance (Range_High)**: The absolute maximum High over the previous 200 bars.
+* **Support (Range_Low)**: The absolute minimum Low over the previous 200 bars.
+
+*Code Formula:*
+Range_High = RollingMax(High, window=200).shift(1)
+Range_Low = RollingMin(Low, window=200).shift(1)
+
+### 2. The Phase C Break (The Fake-out)
+Institutions hunt liquidity above Resistance and below Support. The algorithm waits for the price to temporarily pierce these boundaries.
+* **Spring Setup:** The current or previous candle's Low must be strictly less than the Range_Low.
+* **UTAD Setup:** The current or previous candle's High must be strictly greater than the Range_High.
+
+### 3. Volume Exhaustion (Dry Supply/Demand)
+A true breakout has massive volume. A Wyckoff Phase C fake-out happens on *exhausted* volume, proving that institutions are not supporting the move.
+* **Volume Baseline (ol_sma)**: The 20-period Simple Moving Average of Volume.
+* **Relative Volume (RV)**: Current Volume / vol_sma
+* **The Rule (ol_dry)**: RV must be strictly less than the Volume Threshold (default: 1.2x).
+
+### 4. Micro-Trend Reversal (The Exact Trigger)
+We do not blindly buy just because the price drops below Support on low volume. We must wait for the price to reverse back *inside* the channel. The algorithm uses a highly sensitive **SuperTrend (1-Period ATR, 1.0 Multiplier)** to detect the exact tick the micro-trend flips.
+
+* **SPRING TRIGGER (Long):**
+  1. Price is below Range_Low
+  2. ol_dry is True (Low volume)
+  3. The 1-Period SuperTrend just flipped from Bearish to Bullish on this exact candle.
+  4. The 9-Period SuperTrend is still Bearish (ensuring we are catching the absolute bottom, not entering late).
+
+* **UTAD TRIGGER (Short):**
+  1. Price is above Range_High
+  2. ol_dry is True (Low volume)
+  3. The 1-Period SuperTrend just flipped from Bullish to Bearish on this exact candle.
+  4. The 9-Period SuperTrend is still Bullish (ensuring we are catching the absolute top).
+
+### Risk Management Logic (The Bracket Order)
+The moment the trigger fires, the algorithm calculates the bracket:
+* **Entry:** Current Candle Close Price
+* **Stop Loss (Spring):** The absolute lowest point of the Phase C dip, minus a 1% safety buffer.
+* **Take Profit (Spring):** Target 1 is the 50% Mid-Line of the Phase B Channel. Target 2 is the Range_High Resistance line.
+ 
 
 ---
 
