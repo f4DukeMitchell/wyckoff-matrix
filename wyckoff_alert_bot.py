@@ -283,7 +283,7 @@ def scan_market(interval, period, lookback):
                     
                 regime = "BEARISH (Seeking Reversal)" if not u9[curr] and not u14[curr] else "MIXED"
                 
-                send_email_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, flow, interval)
+                # send_email_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, flow, interval)
                 if TRACKER_ENABLED:
                     log_alert(ticker, "LONG", price, sl, tp, regime, interval,
                               flow.get('put_call_ratio') if flow else None,
@@ -293,7 +293,7 @@ def scan_market(interval, period, lookback):
                               hour_of_day=hour_of_day,
                               spy_bullish=spy_bullish,
                               atr_expansion=atr_expansion)
-                if TELEGRAM_ENABLED: tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, flow)
+                if TELEGRAM_ENABLED: tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, interval, flow)
                 last_alerted[ticker] = current_time
                 
             elif is_utad and (current_time - last_alerted.get(ticker, 0) > 900):
@@ -314,7 +314,7 @@ def scan_market(interval, period, lookback):
                     
                 regime = "BULLISH (Seeking Reversal)" if u9[curr] and u14[curr] else "MIXED"
                 
-                send_email_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, flow, interval)
+                # send_email_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, flow, interval)
                 if TRACKER_ENABLED:
                     log_alert(ticker, "SHORT", price, sl, tp, regime, interval,
                               flow.get('put_call_ratio') if flow else None,
@@ -324,7 +324,7 @@ def scan_market(interval, period, lookback):
                               hour_of_day=hour_of_day,
                               spy_bullish=spy_bullish,
                               atr_expansion=atr_expansion)
-                if TELEGRAM_ENABLED: tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, flow)
+                if TELEGRAM_ENABLED: tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow)
                 last_alerted[ticker] = current_time
                 
         except Exception as e:

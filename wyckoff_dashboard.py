@@ -395,6 +395,12 @@ if selected_tab == TABS[0]:
     db_trades = get_live_db_trades()
     
     if db_trades:
+        styles = {
+            "5m": "Day Trade Scalp",
+            "15m": "Day Trade / Short Swing",
+            "1h": "Swing Trade",
+            "1d": "Long Term"
+        }
         st.markdown(f"#### 🔥 TRIGGERED ({len(db_trades)} Live Bot Alerts)")
         for t in db_trades:
             # Reconstruct the card format from the DB record
@@ -404,7 +410,9 @@ if selected_tab == TABS[0]:
             conf = min(100, 50 + (bars * 2)) # estimate confidence for DB trades
             conf_color = TV_GREEN if conf > 70 else ("#E6A23C" if conf > 50 else TV_RED)
             
-            reason = f"TF: {t.get('timeframe', '5m')} | Context: {t.get('regime', 'Unknown')}"
+            tf = t.get('timeframe', '5m')
+            trade_style = styles.get(tf, "Unknown")
+            reason = f"TF: {tf} ({trade_style}) | Context: {t.get('regime', 'Unknown')}"
             
             st.markdown(f"""
             <div style="background-color:{TV_PANEL}; border-left: 5px solid {border_color}; padding: 20px; border-radius: 10px; margin-bottom: 15px;">
@@ -487,7 +495,7 @@ elif selected_tab == TABS[1]:
                 if OPTIONS_AVAILABLE:
                     try:
                         flow = get_options_flow(st.session_state['selected_ticker'])
-                        if flow:
+                        if flow and flow.get('total_call_oi', 0) > 0:
                             st.markdown(f"""
                             <div style='font-size:13px;'>
                                 <div style='display:flex; justify-content:space-between;'><span>Sentiment:</span> <strong>{flow.get('net_sentiment')}</strong></div>
@@ -496,7 +504,9 @@ elif selected_tab == TABS[1]:
                                 <div style='display:flex; justify-content:space-between;'><span>Max Pain:</span> <strong>${flow.get('max_pain')}</strong></div>
                             </div>
                             """, unsafe_allow_html=True)
-                    except: st.write("No flow data.")
+                        else:
+                            st.write("No institutional options chain data available right now.")
+                    except: st.write("Error fetching options flow.")
                 else: st.write("Module offline.")
 
             with st.expander("📊 Volume Profile", expanded=True):
