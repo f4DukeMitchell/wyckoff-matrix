@@ -1,4 +1,4 @@
-import streamlit as st
+﻿import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -332,8 +332,8 @@ def update_search():
     st.session_state['selected_ticker'] = st.session_state['search_input'].upper()
 
 col_tk, col_tf, col_btn = st.columns([2, 1, 5])
-with col_tk: st.text_input("🔍 Ticker:", value=st.session_state['selected_ticker'], key="search_input", on_change=update_search)
-with col_tf: timeframe = st.selectbox("⏱️ Timeframe:", ["5m", "15m", "1h", "1d", "1wk"], index=3)
+with col_tk: st.text_input("ðŸ” Ticker:", value=st.session_state['selected_ticker'], key="search_input", on_change=update_search)
+with col_tf: timeframe = st.selectbox("â±ï¸ Timeframe:", ["5m", "15m", "1h", "1d", "1wk"], index=3)
 
 if timeframe in ["1d", "1wk"]: dl_period = "2y"
 elif timeframe in ["1h"]: dl_period = "730d"
@@ -343,7 +343,7 @@ else: dl_period = "60d"
 with st.sidebar:
     
     st.markdown("<div class='opt-btn'>", unsafe_allow_html=True)
-    if st.button("🧠 Auto-Tune for Timeframe", help="AI recommended optimal settings based on current timeframe"):
+    if st.button("ðŸ§  Auto-Tune for Timeframe", help="AI recommended optimal settings based on current timeframe"):
         if timeframe in ["5m", "15m"]:
             st.session_state.lb_val = 200
             st.session_state.sl_val = 1.0
@@ -362,7 +362,7 @@ with st.sidebar:
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("### 🧬 Algo Tuning")
+    st.markdown("### ðŸ§¬ Algo Tuning")
     
     def on_slider_change():
         pass
@@ -370,7 +370,7 @@ with st.sidebar:
     algo_lookback = st.slider("Phase B Lookback (Bars)", min_value=20, max_value=300, value=st.session_state.lb_val, step=10, key='lb_val', on_change=on_slider_change)
     algo_vol = st.slider("Vol Exhaustion Threshold", min_value=0.3, max_value=2.0, value=st.session_state.vol_val, step=0.1, key='vol_val', on_change=on_slider_change)
 
-    st.markdown("### ⚙️ Backtest Risk Rules")
+    st.markdown("### âš™ï¸ Backtest Risk Rules")
     sl_buffer = st.slider("Stop-Loss Buffer (%)", min_value=0.1, max_value=3.0, value=st.session_state.sl_val, step=0.1, key='sl_val', on_change=on_slider_change)
     tp_target = st.radio("Take Profit Target", ["Full Phase B Range", "50% Mid-Line"], index=0 if st.session_state.tp_val == "Full Phase B Range" else 1, key='tp_val', on_change=on_slider_change)
     
@@ -437,14 +437,14 @@ with st.sidebar:
     else:
         st.info("Select a ticker to see Live Intel.")
 
-    st.markdown("### 📋 Market Radar")
+    st.markdown("### ðŸ“‹ Market Radar")
     watchlist_choice = st.selectbox("Watchlist Profile:", ["Top 20 Mega-Cap Tech", "S&P 500 (Massive Sweep)"], index=0)
     sort_by = st.radio("Sort By:", ["Exhaustion (Bars)", "Historical Win Rate (%)", "Net Profit (Units)"], horizontal=True)
     
     if watchlist_choice == "S&P 500 (Massive Sweep)": tickers_to_scan = get_sp500_tickers()
     else: tickers_to_scan = ["AAPL","MSFT","NVDA","AMZN","META","GOOGL","TSLA","BRK-B","LLY","AVGO","JPM","V","UNH","MA","PG","COST","HD","MRK","ABBV","CVX"]
     
-    if st.button("🔄 Rescan Market"):
+    if st.button("ðŸ”„ Rescan Market"):
         with st.spinner(f"Initiating {len(tickers_to_scan)} Ticker Sweep..."):
             st.session_state['scan_data'] = fetch_and_analyze(tickers_to_scan, timeframe, dl_period, sl_buffer, tp_target, algo_lookback, algo_vol)
         
@@ -514,11 +514,16 @@ with tab_scanner:
     if intel_data:
         st.session_state['intel_data'] = intel_data
         
+        # Populate the price placeholder under the ticker
+        curr_price = intel_data['df']['Close'].iloc[-1]
+        price_placeholder.markdown(f"<h2 style='margin-top:-15px; margin-bottom: 20px; color:#2962FF;'>${curr_price:.2f}</h2>", unsafe_allow_html=True)
+
+        
         c_chart, c_cards = st.columns([3.5, 1])
         with c_chart:
             st.plotly_chart(intel_data['fig'], use_container_width=True)
         with c_cards:
-            with st.expander("🌊 Options Flow", expanded=True):
+            with st.expander("ðŸŒŠ Options Flow", expanded=True):
                 try:
                     from options_flow import get_options_flow
                     flow = get_options_flow(st.session_state['selected_ticker'])
@@ -535,7 +540,7 @@ with tab_scanner:
                         st.write("No flow data.")
                 except: st.write("Module missing.")
                 
-            with st.expander("📊 Volume Heatmap (Profile)", expanded=True):
+            with st.expander("ðŸ“Š Volume Heatmap (Profile)", expanded=True):
                 try:
                     import plotly.graph_objects as go
                     import pandas as pd
@@ -560,7 +565,7 @@ with tab_scanner:
                     st.plotly_chart(vp_fig, use_container_width=True, config={'displayModeBar': False})
                 except Exception as e: st.write(f"Error: {e}")
                 
-            with st.expander("📝 Trade Log", expanded=True):
+            with st.expander("ðŸ“ Trade Log", expanded=True):
                 try:
                     from trade_tracker import get_recent_trades
                     import pandas as pd
@@ -748,4 +753,5 @@ with tab_trades:
             st.dataframe(trade_df, use_container_width=True, hide_index=True)
         else:
             st.info("No trades logged yet. The alert bot will automatically record trades as signals fire.")
+
 
