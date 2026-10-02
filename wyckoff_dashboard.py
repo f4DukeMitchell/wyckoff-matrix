@@ -112,6 +112,7 @@ def process_ticker(ticker, interval, period, sl_buffer, tp_target, lookback, vol
         
         l_wins, l_loss, s_wins, s_loss = 0, 0, 0, 0
         l_units, s_units = 0.0, 0.0
+    backtest_trades = []
         
         highs, lows, closes = df_clean['High'].values, df_clean['Low'].values, df_clean['Close'].values
         sl_pct = sl_buffer / 100.0
@@ -200,6 +201,7 @@ def render_wyckoff_chart(ticker, interval, period, sl_buffer, tp_target, lookbac
     spring_x, spring_y, utad_x, utad_y = [], [], [], []
     l_wins, l_loss, s_wins, s_loss = 0, 0, 0, 0
     l_units, s_units = 0.0, 0.0
+    backtest_trades = []
     sl_pct = sl_buffer / 100.0
     
     for i in range(1, len(df_clean)):
@@ -220,9 +222,13 @@ def render_wyckoff_chart(ticker, interval, period, sl_buffer, tp_target, lookbac
             
             for j in range(i+1, len(df_clean)):
                 if df_clean['High'].iloc[j] >= tp: 
-                    l_wins += 1; l_units += rr; break
+                    l_wins += 1; l_units += rr
+                    backtest_trades.append({'date': dates[i].strftime('%Y-%m-%d'), 'direction': 'LONG', 'outcome': 'WIN', 'pnl_r': round(rr, 2)})
+                    break
                 if df_clean['Low'].iloc[j] <= sl: 
-                    l_loss += 1; l_units -= 1.0; break
+                    l_loss += 1; l_units -= 1.0
+                    backtest_trades.append({'date': dates[i].strftime('%Y-%m-%d'), 'direction': 'LONG', 'outcome': 'LOSS', 'pnl_r': -1.0})
+                    break
                 
         if is_utad:
             utad_x.append(dates[i]); utad_y.append(df_clean['High'].iloc[i] * 1.01)
@@ -235,9 +241,13 @@ def render_wyckoff_chart(ticker, interval, period, sl_buffer, tp_target, lookbac
             
             for j in range(i+1, len(df_clean)):
                 if df_clean['Low'].iloc[j] <= tp: 
-                    s_wins += 1; s_units += rr; break
+                    s_wins += 1; s_units += rr
+                    backtest_trades.append({'date': dates[i].strftime('%Y-%m-%d'), 'direction': 'SHORT', 'outcome': 'WIN', 'pnl_r': round(rr, 2)})
+                    break
                 if df_clean['High'].iloc[j] >= sl: 
-                    s_loss += 1; s_units -= 1.0; break
+                    s_loss += 1; s_units -= 1.0
+                    backtest_trades.append({'date': dates[i].strftime('%Y-%m-%d'), 'direction': 'SHORT', 'outcome': 'LOSS', 'pnl_r': -1.0})
+                    break
 
     live_rec = {"action": "NEUTRAL", "color": TV_TEXT, "entry": 0, "sl": 0, "tp": 0, "msg": "Regime building cause..."}
     curr = len(df_clean) - 1
@@ -322,7 +332,7 @@ def render_wyckoff_chart(ticker, interval, period, sl_buffer, tp_target, lookbac
         "long_wr": long_wr, "short_wr": short_wr,
         "tot_longs": tot_longs, "tot_shorts": tot_shorts,
         "l_units": l_units, "s_units": s_units, "tot_units": tot_units,
-        "live_rec": live_rec, "dates": dates
+        "live_rec": live_rec, "dates": dates, "backtest_trades": backtest_trades
     }
 
 # --- MAIN UI ---
@@ -570,19 +580,17 @@ with tab_scanner:
                     st.plotly_chart(vp_fig, use_container_width=True, config={'displayModeBar': False})
                 except Exception as e: st.write(f"Error: {e}")
                 
-            with st.expander("📝 Trade Log", expanded=True):
-                try:
-                    from trade_tracker import get_recent_trades
-                    import pandas as pd
-                    recent = get_recent_trades(20)
-                    if recent:
-                        recent_t = [t for t in recent if t['ticker'] == st.session_state['selected_ticker']]
-                        if recent_t:
-                            tdf = pd.DataFrame(recent_t)[['direction', 'outcome', 'pnl_r']]
-                            st.dataframe(tdf, use_container_width=True, hide_index=True)
-                        else: st.write("No trades found.")
-                    else: st.write("No trades found.")
-                except: st.write("Module missing.")
+            with st.expander("📝 Backtest Trade Log", expanded=True):
+                import pandas as pd
+                bt_trades = intel_data.get('backtest_trades', [])
+                if bt_trades:
+                    # Get the most recent 10 trades
+                    bt_trades.reverse()
+                    bt_trades = bt_trades[:10]
+                    tdf = pd.DataFrame(bt_trades)[['date', 'direction', 'outcome', 'pnl_r']]
+                    st.dataframe(tdf, use_container_width=True, hide_index=True)
+                else:
+                    st.write("No backtest trades generated.")
 
 with tab_sector:
     st.markdown("## Sector Rotation Heatmap")
