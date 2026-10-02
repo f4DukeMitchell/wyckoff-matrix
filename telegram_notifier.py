@@ -36,12 +36,13 @@ def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, reg
         return False
         
     message = (
-        f"TRADE ALERT: {ticker}\n"
+        f"🚨 TRADE ALERT: {ticker}\n"
         f"Direction: {direction}\n"
         f"Entry: {entry_price}\n"
         f"Stop Loss: {stop_loss}\n"
         f"Take Profit: {take_profit}\n"
-        f"Regime Context: {regime}"
+        f"Regime Context: {regime}\n\n"
+        f"🔗 Trade on Public: https://public.com/stocks/{ticker.lower()}"
     )
     
     if options_flow:
