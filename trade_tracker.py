@@ -38,6 +38,7 @@ def init_db():
             ("bid_ask_ratio", "REAL"),
             ("spread_width_pct", "REAL"),
             ("implied_volatility", "REAL"),
+            ("user_active", "INTEGER DEFAULT 0"),
         ]
         for col_name, col_type in new_cols:
             try: cursor.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")
@@ -149,7 +150,8 @@ def check_open_trades():
                     'entry_price': entry_price,
                     'exit_price': exit_price,
                     'outcome': outcome,
-                    'pnl_r': pnl_r
+                    'pnl_r': pnl_r,
+                    'user_active': trade.get('user_active', 0)
                 })
                 
     except Exception as e:

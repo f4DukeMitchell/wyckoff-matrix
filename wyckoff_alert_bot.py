@@ -288,9 +288,10 @@ def scan_market(interval, period, lookback):
                 
                 regime = "BEARISH (Seeking Reversal)" if not u9[curr] and not u14[curr] else "MIXED"
                 
+                trade_id = None
                 if TRACKER_ENABLED:
                     q = get_public_quotes(ticker) if OPTIONS_ENABLED else {'bid_ask_ratio': None, 'spread_width_pct': None}
-                    log_alert(ticker, "LONG", price, sl, tp, regime, interval,
+                    trade_id = log_alert(ticker, "LONG", price, sl, tp, regime, interval,
                               flow.get('put_call_ratio') if flow else None,
                               flow.get('net_sentiment') if flow else None,
                               bars_in_regime,
@@ -307,7 +308,7 @@ def scan_market(interval, period, lookback):
                     last_alerted[ticker] = current_time
                     continue
 
-                if TELEGRAM_ENABLED: tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, interval, flow)
+                if TELEGRAM_ENABLED: tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, interval, flow, trade_id)
                 last_alerted[ticker] = current_time
                 
             elif is_utad and (current_time - last_alerted.get(ticker, 0) > 900):
@@ -332,9 +333,10 @@ def scan_market(interval, period, lookback):
                 
                 regime = "BULLISH (Seeking Reversal)" if u9[curr] and u14[curr] else "MIXED"
                 
+                trade_id = None
                 if TRACKER_ENABLED:
                     q = get_public_quotes(ticker) if OPTIONS_ENABLED else {'bid_ask_ratio': None, 'spread_width_pct': None}
-                    log_alert(ticker, "SHORT", price, sl, tp, regime, interval,
+                    trade_id = log_alert(ticker, "SHORT", price, sl, tp, regime, interval,
                               flow.get('put_call_ratio') if flow else None,
                               flow.get('net_sentiment') if flow else None,
                               bars_in_regime,
@@ -351,7 +353,7 @@ def scan_market(interval, period, lookback):
                     last_alerted[ticker] = current_time
                     continue
 
-                if TELEGRAM_ENABLED: tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow)
+                if TELEGRAM_ENABLED: tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow, trade_id)
                 last_alerted[ticker] = current_time
                 
         except Exception as e:
@@ -549,11 +551,24 @@ if __name__ == "__main__":
             scan_market(tf['interval'], tf['period'], tf['lookback'])
             time.sleep(2)
         
+        if TELEGRAM_ENABLED:
+            try:
+                from telegram_notifier import check_callbacks
+                check_callbacks()
+            except Exception as e:
+                pass
+                
         if TRACKER_ENABLED:
             try:
                 closed = check_open_trades()
                 for t in closed:
-                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Trade Closed: {t.get('ticker', '?')} -> {t.get('outcome', '?')} ({t.get('pnl_r', 0):+.1f}R)")
+                    msg = f"Trade Closed: {t.get('ticker', '?')} -> {t.get('outcome', '?')} ({t.get('pnl_r', 0):+.1f}R)"
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {msg}")
+                    
+                    if t.get('user_active') == 1 and TELEGRAM_ENABLED:
+                        from telegram_notifier import send_message
+                        alert_msg = f"🚨 EXIT ALERT: {t.get('ticker')} has hit its {t.get('outcome')} target!\nReturn: {t.get('pnl_r', 0):+.1f}R Units"
+                        send_message(alert_msg)
             except: pass
         
         now = datetime.datetime.now()

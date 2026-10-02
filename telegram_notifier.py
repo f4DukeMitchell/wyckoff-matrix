@@ -8,7 +8,7 @@ def is_configured():
     """Returns True if both token and chat_id are configured."""
     return bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
 
-def send_message(text):
+def send_message(text, reply_markup=None):
     """Sends a text message to the configured Telegram chat."""
     if not is_configured():
         print("Telegram not configured. Skipping message send.")
@@ -19,6 +19,8 @@ def send_message(text):
         "chat_id": TELEGRAM_CHAT_ID,
         "text": text
     }
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
     
     try:
         response = requests.post(url, json=payload, timeout=10)
@@ -29,7 +31,7 @@ def send_message(text):
         print(f"Failed to send Telegram message: {e}")
         return False
 
-def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe="5m", options_flow=None):
+def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe="5m", options_flow=None, trade_id=None):
     """Formats and sends a trading alert."""
     if not is_configured():
         print("Telegram not configured. Skipping trade alert.")
@@ -87,7 +89,15 @@ def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, reg
             f"Max Pain: ${options_flow.get('max_pain', 'N/A')}"
         )
         
-    return send_message(message)
+    reply_markup = None
+    if trade_id:
+        reply_markup = {
+            "inline_keyboard": [
+                [{"text": "I'm in this trade! 🟢", "callback_data": f"in_trade_{trade_id}"}]
+            ]
+        }
+        
+    return send_message(message, reply_markup=reply_markup)
 
 def send_daily_recap(recap_text):
     """Sends the daily recap text via Telegram."""
@@ -106,6 +116,48 @@ def send_market_radar(radar_text):
         
     message = f"MARKET RADAR\n{radar_text}"
     return send_message(message)
+
+_last_update_id = None
+def check_callbacks():
+    """Polls Telegram for button clicks and updates the DB."""
+    global _last_update_id
+    if not is_configured(): return
+    
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
+    params = {"timeout": 5, "allowed_updates": ["callback_query"]}
+    if _last_update_id:
+        params["offset"] = _last_update_id + 1
+        
+    try:
+        res = requests.get(url, params=params).json()
+        if not res.get("ok"): return
+        
+        updates = res.get("result", [])
+        for u in updates:
+            _last_update_id = u["update_id"]
+            if "callback_query" in u:
+                cq = u["callback_query"]
+                data = cq.get("data", "")
+                cq_id = cq.get("id")
+                
+                # Answer the query so the button stops spinning
+                ans_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery"
+                requests.post(ans_url, json={"callback_query_id": cq_id, "text": "Trade marked as ACTIVE! 🟢"})
+                
+                if data.startswith("in_trade_"):
+                    try:
+                        trade_id = int(data.split("_")[2])
+                        import sqlite3
+                        conn = sqlite3.connect("wyckoff_trades.db")
+                        c = conn.cursor()
+                        c.execute("UPDATE alerts SET user_active = 1 WHERE id = ?", (trade_id,))
+                        conn.commit()
+                        conn.close()
+                        print(f"User marked trade {trade_id} as ACTIVE.")
+                    except Exception as e:
+                        print(f"Error updating DB for callback: {e}")
+    except Exception as e:
+        pass
 
 if __name__ == '__main__':
     if is_configured():
