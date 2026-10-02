@@ -519,8 +519,8 @@ try:
 except: TRACKER_AVAILABLE = False
 
 # --- TABS ---
-tab_scanner, tab_sector, tab_mtf, tab_options, tab_trades = st.tabs([
-    "Scanner", "Sector Heatmap", "Multi-TF Confluence", "Options Flow", "Trade Log"
+tab_scanner, tab_sector, tab_mtf, tab_options, tab_trades, tab_reports = st.tabs([
+    "Scanner", "Sector Heatmap", "Multi-TF Confluence", "Options Flow", "Trade Log", "Reports"
 ])
 
 with tab_scanner:
@@ -767,3 +767,92 @@ with tab_trades:
             st.info("No trades logged yet. The alert bot will automatically record trades as signals fire.")
 
 
+
+
+with tab_reports:
+    st.markdown("## Bot Reports & Live Alert History")
+    
+    if not TRACKER_AVAILABLE:
+        st.warning("trade_tracker.py module not found.")
+    else:
+        # --- HEADER STATS ---
+        stats = get_stats()
+        r1, r2, r3, r4 = st.columns(4)
+        with r1:
+            st.metric("Total Bot Alerts", stats['total_trades'])
+        with r2:
+            st.metric("Win Rate", f"{stats['win_rate']:.1f}%")
+        with r3:
+            st.metric("Avg PnL", f"{stats['avg_pnl_r']:+.2f}R")
+        with r4:
+            st.metric("Open Trades", stats['open_count'])
+        
+        st.markdown("---")
+        
+        # --- FULL TRADE TABLE ---
+        st.markdown("### Live Alert Log")
+        st.caption("These are real-time alerts fired by the background bot across all timeframes (5m, 15m, 1h, 1d).")
+        
+        recent = get_recent_trades(100)
+        if recent:
+            import pandas as pd
+            df_trades = pd.DataFrame(recent)
+            
+            # Timeframe filter
+            tf_filter = st.selectbox("Filter by Timeframe:", ["ALL", "5m", "15m", "1h", "1d"], key="report_tf_filter")
+            if tf_filter != "ALL" and 'timeframe' in df_trades.columns:
+                df_trades = df_trades[df_trades['timeframe'] == tf_filter]
+            
+            # Direction filter
+            dir_filter = st.selectbox("Filter by Direction:", ["ALL", "LONG", "SHORT"], key="report_dir_filter")
+            if dir_filter != "ALL" and 'direction' in df_trades.columns:
+                df_trades = df_trades[df_trades['direction'] == dir_filter]
+            
+            # Display columns
+            display_cols = ['timestamp', 'ticker', 'direction', 'entry_price', 'stop_loss', 'take_profit', 'status', 'outcome', 'pnl_r']
+            if 'timeframe' in df_trades.columns:
+                display_cols.insert(2, 'timeframe')
+            if 'pcr' in df_trades.columns:
+                display_cols.append('pcr')
+            if 'sentiment' in df_trades.columns:
+                display_cols.append('sentiment')
+            
+            available_cols = [c for c in display_cols if c in df_trades.columns]
+            st.dataframe(df_trades[available_cols], use_container_width=True, hide_index=True)
+            
+            # --- PnL CHART ---
+            if 'pnl_r' in df_trades.columns and 'timestamp' in df_trades.columns:
+                pnl_trades = df_trades[df_trades['pnl_r'].notna()].copy()
+                if not pnl_trades.empty:
+                    st.markdown("### Cumulative PnL Curve (R-Units)")
+                    pnl_trades = pnl_trades.sort_values('timestamp')
+                    pnl_trades['cumulative_r'] = pnl_trades['pnl_r'].cumsum()
+                    
+                    import plotly.graph_objects as go
+                    pnl_fig = go.Figure()
+                    pnl_fig.add_trace(go.Scatter(
+                        x=pnl_trades['timestamp'], y=pnl_trades['cumulative_r'],
+                        mode='lines+markers', line=dict(color='#2962FF', width=2),
+                        marker=dict(size=6), fill='tozeroy', fillcolor='rgba(41, 98, 255, 0.1)'
+                    ))
+                    pnl_fig.update_layout(
+                        template='plotly_dark', height=350,
+                        margin=dict(l=40, r=20, t=20, b=40),
+                        xaxis_title='Date', yaxis_title='Cumulative R',
+                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+                    )
+                    st.plotly_chart(pnl_fig, use_container_width=True)
+        else:
+            st.info("No bot alerts logged yet. The bot needs to detect a live Spring or UTAD to populate this page. Leave the bot running during market hours!")
+        
+        st.markdown("---")
+        st.markdown("### Scheduled Reports")
+        st.markdown('''
+        | Time (ET) | Report | Description |
+        |---|---|---|
+        | **9:15 AM** | Pre-Market Radar | Exhausted tickers approaching reversal zones |
+        | **12:30 PM** | Mid-Day Snapshot | Updated regimes + new setups since open |
+        | **2:45 PM** | Power Hour Alert | Final hour momentum shifts |
+        | **4:30 PM** | Daily Recap | Full day summary + tomorrow's watchlist |
+        ''')
+        st.caption("Reports are sent to your Email and Telegram automatically. You can also text /report or /recap to the Telegram bot anytime.")
