@@ -373,54 +373,75 @@ if 'active_tab' not in st.session_state or st.session_state['active_tab'] not in
 selected_tab = st.radio("Navigation", TABS, horizontal=True, label_visibility="collapsed", index=TABS.index(st.session_state['active_tab']))
 st.session_state['active_tab'] = selected_tab
 
+def get_live_db_trades():
+    import sqlite3
+    try:
+        conn = sqlite3.connect("wyckoff_trades.db")
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT * FROM alerts WHERE outcome = 'OPEN' ORDER BY id DESC")
+        rows = c.fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+    except:
+        return []
+
 # ===== TAB 1: TRADE IDEAS =====
 if selected_tab == TABS[0]:
     st.markdown("### ⚡ Live Trade Ideas — ML Ranked")
     st.caption("Scanning Top 20 Mega-Caps for Wyckoff Phase C setups. Ranked by ML Confidence Score.")
 
-    with st.spinner("Scanning market for trade ideas..."):
+    # Pull actual live triggered trades directly from the bot's database
+    db_trades = get_live_db_trades()
+    
+    if db_trades:
+        st.markdown(f"#### 🔥 TRIGGERED ({len(db_trades)} Live Bot Alerts)")
+        for t in db_trades:
+            # Reconstruct the card format from the DB record
+            border_color = TV_GREEN if "LONG" in t['direction'] else TV_RED
+            dir_emoji = "🟢" if "LONG" in t['direction'] else "🔴"
+            bars = t.get('bars_in_regime', 0)
+            conf = min(100, 50 + (bars * 2)) # estimate confidence for DB trades
+            conf_color = TV_GREEN if conf > 70 else ("#E6A23C" if conf > 50 else TV_RED)
+            
+            reason = f"TF: {t.get('timeframe', '5m')} | Context: {t.get('regime', 'Unknown')}"
+            
+            st.markdown(f"""
+            <div style="background-color:{TV_PANEL}; border-left: 5px solid {border_color}; padding: 20px; border-radius: 10px; margin-bottom: 15px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h3 style="margin:0;">{dir_emoji} {t['ticker']} <span style="font-size:0.6em; color:#888;">@ ${t['entry_price']:.2f}</span></h3>
+                    <span style="background:{border_color}; color:white; padding:4px 12px; border-radius:15px; font-weight:bold; font-size:13px;">{t['direction']}</span>
+                </div>
+                <div style="margin-top:12px;">
+                    <strong>ML Confidence: ~{conf}%</strong>
+                    <div style="width:100%; background:#333; border-radius:5px; height:8px; margin-top:4px;">
+                        <div style="width:{conf}%; background:{conf_color}; height:100%; border-radius:5px;"></div>
+                    </div>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-top:15px; font-size:14px;">
+                    <div>🟢 Entry: <strong>${t['entry_price']:.2f}</strong></div>
+                    <div>🔴 Stop: <strong>${t['stop_loss']:.2f}</strong></div>
+                    <div>🎯 Target: <strong>${t['take_profit']:.2f}</strong></div>
+                </div>
+                <p style="margin-top:12px; font-style:italic; color:#aaa; font-size:13px;">🧠 WHY: {reason}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button(f"📊 Open {t['ticker']} Chart", key=f"db_{t['id']}_{t['ticker']}"):
+                st.session_state['selected_ticker'] = t['ticker']
+                st.session_state['active_tab'] = TABS[1]
+                st.rerun()
+                
+    st.markdown("---")
+
+    with st.spinner("Scanning 1D macro market for building setups..."):
         ideas = scan_trade_ideas()
 
-    if not ideas:
+    if not ideas and not db_trades:
         st.info("No actionable setups detected right now. The market may be in a consolidation phase.")
-    else:
-        triggered = [i for i in ideas if "SPRING" in i['Direction'] or "UTAD" in i['Direction']]
+    elif ideas:
         stalking = [i for i in ideas if i['Direction'] == "STALKING"]
-
-        if triggered:
-            st.markdown(f"#### 🔥 TRIGGERED ({len(triggered)} Active Setups)")
-            for idea in triggered:
-                border_color = TV_GREEN if "LONG" in idea['Direction'] else TV_RED
-                conf_color = TV_GREEN if idea['ML_Confidence'] > 70 else ("#E6A23C" if idea['ML_Confidence'] > 50 else TV_RED)
-                dir_emoji = "🟢" if "LONG" in idea['Direction'] else "🔴"
-
-                st.markdown(f"""
-                <div style="background-color:{TV_PANEL}; border-left: 5px solid {border_color}; padding: 20px; border-radius: 10px; margin-bottom: 15px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <h3 style="margin:0;">{dir_emoji} {idea['Ticker']} <span style="font-size:0.6em; color:#888;">@ ${idea['Price']:.2f}</span></h3>
-                        <span style="background:{border_color}; color:white; padding:4px 12px; border-radius:15px; font-weight:bold; font-size:13px;">{idea['Direction']}</span>
-                    </div>
-                    <div style="margin-top:12px;">
-                        <strong>ML Confidence: {idea['ML_Confidence']}%</strong>
-                        <div style="width:100%; background:#333; border-radius:5px; height:8px; margin-top:4px;">
-                            <div style="width:{idea['ML_Confidence']}%; background:{conf_color}; height:100%; border-radius:5px;"></div>
-                        </div>
-                    </div>
-                    <div style="display:flex; justify-content:space-between; margin-top:15px; font-size:14px;">
-                        <div>🟢 Entry: <strong>${idea['Entry']:.2f}</strong></div>
-                        <div>🔴 Stop: <strong>${idea['Stop']:.2f}</strong></div>
-                        <div>🎯 Target: <strong>${idea['Target']:.2f}</strong></div>
-                    </div>
-                    <p style="margin-top:12px; font-style:italic; color:#aaa; font-size:13px;">🧠 WHY: {idea['Reason']}</p>
-                </div>
-                """, unsafe_allow_html=True)
-                if st.button(f"📊 Open {idea['Ticker']} Chart", key=f"idea_{idea['Ticker']}"):
-                    st.session_state['selected_ticker'] = idea['Ticker']
-                    st.session_state['active_tab'] = TABS[1]
-                    st.rerun()
-
         if stalking:
-            st.markdown(f"#### 👁️ STALKING ({len(stalking)} Building Setups)")
+            st.markdown(f"#### 👁️ STALKING ({len(stalking)} Building 1D Setups)")
             st.caption("These are exhausted regimes waiting for the Micro SuperTrend to flip. Do NOT enter yet.")
             cols = st.columns(3)
             for idx, idea in enumerate(stalking):
