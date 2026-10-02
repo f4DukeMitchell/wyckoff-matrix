@@ -1,4 +1,4 @@
-﻿import streamlit as st
+import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -465,6 +465,9 @@ with st.sidebar:
         if sort_by == "Historical Win Rate (%)": df_res = df_res.sort_values(by=["WinRate", "Trades"], ascending=[False, False])
         elif sort_by == "Net Profit (Units)": df_res = df_res.sort_values(by="NetUnits", ascending=False)
         else: df_res = df_res.sort_values(by="Bars", ascending=False)
+        
+        df_res = df_res.head(25)
+        st.markdown("<p style='font-size: 11px; color: #888; margin-top: 5px; margin-bottom: 5px;'>Showing Top 25 matches.</p>", unsafe_allow_html=True)
             
         for _, row in df_res.iterrows():
             color = TV_GREEN if row['Regime'] == 'BULL' else TV_RED if row['Regime'] == 'BEAR' else TV_TEXT
