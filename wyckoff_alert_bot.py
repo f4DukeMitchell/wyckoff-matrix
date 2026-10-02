@@ -184,7 +184,8 @@ def scan_market(interval, period, lookback):
             u14 = get_supertrend(highs, lows, closes, 14, 14.0)
             
             vol_sma = pd.Series(vols).rolling(20, min_periods=1).mean().values
-            rel_vol = np.where(vol_sma > 0, vols / vol_sma, 1.0)
+            with np.errstate(divide='ignore', invalid='ignore'):
+                rel_vol = np.where(vol_sma > 0, vols / vol_sma, 1.0)
             
             range_high = pd.Series(highs).rolling(LOOKBACK, min_periods=20).max().shift(1).values
             range_low = pd.Series(lows).rolling(LOOKBACK, min_periods=20).min().shift(1).values
