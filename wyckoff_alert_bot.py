@@ -127,6 +127,41 @@ def get_supertrend(high, low, close, length, multiplier):
             if not in_uptrend[i] and upperband[i] > upperband[i-1]: upperband[i] = upperband[i-1]
     return in_uptrend
 
+
+# --- TELEGRAM COMMAND LISTENER ---
+LAST_UPDATE_ID = 0
+
+def check_telegram_commands():
+    global LAST_UPDATE_ID
+    if not TELEGRAM_ENABLED: return
+    try:
+        import requests
+        from telegram_notifier import TELEGRAM_BOT_TOKEN, send_message
+        if not TELEGRAM_BOT_TOKEN: return
+        
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
+        params = {"offset": LAST_UPDATE_ID + 1, "timeout": 1}
+        r = requests.get(url, params=params, timeout=2)
+        data = r.json()
+        
+        if data.get("ok") and data.get("result"):
+            for update in data["result"]:
+                LAST_UPDATE_ID = update["update_id"]
+                msg = update.get("message", {})
+                txt = msg.get("text", "").strip().lower()
+                chat_id = msg.get("chat", {}).get("id")
+                
+                if txt == "/report":
+                    send_message("ðŸ”Ž Generating on-demand Market Report, please wait...")
+                    send_market_report("On-Demand")
+                elif txt == "/recap":
+                    send_message("ðŸ“Š Generating on-demand Daily Recap, please wait...")
+                    send_daily_recap()
+                elif txt == "/status":
+                    send_message("âœ… Wyckoff ML Bot is actively running and monitoring all timeframes.")
+    except Exception as e:
+        pass
+
 def scan_market(interval, period, lookback):
     print(f"\n[{datetime.datetime.now().strftime('%H:%M:%S')}] ðŸ“¡ Scanning {len(TICKERS)} tickers for Phase C exhaustion...")
     
@@ -376,6 +411,7 @@ if __name__ == "__main__":
     print("Bot is now running in the background. Press Ctrl+C to stop.\n")
     
     while True:
+        check_telegram_commands()
         for tf in TIMEFRAMES:
             scan_market(tf['interval'], tf['period'], tf['lookback'])
             import time
