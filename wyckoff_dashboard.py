@@ -414,6 +414,13 @@ if selected_tab == TABS[0]:
             trade_style = styles.get(tf, "Unknown")
             reason = f"TF: {tf} ({trade_style}) | Context: {t.get('regime', 'Unknown')}"
             
+            try:
+                risk = abs(float(t['entry_price']) - float(t['stop_loss']))
+                reward = abs(float(t['take_profit']) - float(t['entry_price']))
+                r_units = round(reward / risk, 2) if risk > 0 else 0.0
+            except:
+                r_units = 0.0
+            
             st.markdown(f"""
             <div style="background-color:{TV_PANEL}; border-left: 5px solid {border_color}; padding: 20px; border-radius: 10px; margin-bottom: 15px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -430,6 +437,7 @@ if selected_tab == TABS[0]:
                     <div>🟢 Entry: <strong>${t['entry_price']:.2f}</strong></div>
                     <div>🔴 Stop: <strong>${t['stop_loss']:.2f}</strong></div>
                     <div>🎯 Target: <strong>${t['take_profit']:.2f}</strong></div>
+                    <div style="color:#2962FF; font-weight:bold;">⚡ {r_units}R Units</div>
                 </div>
                 <p style="margin-top:12px; font-style:italic; color:#aaa; font-size:13px;">🧠 WHY: {reason}</p>
             </div>
