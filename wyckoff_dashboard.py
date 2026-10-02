@@ -309,59 +309,21 @@ def render_wyckoff_chart(ticker, interval, period, sl_buffer, tp_target, lookbac
     )
     fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor=TV_GRID, tickprefix="$")
     
-    col_chart, col_intel = st.columns([4, 1.2])
-    with col_chart: st.plotly_chart(fig, use_container_width=True)
-    with col_intel:
-        st.markdown("<h3 style='margin-bottom: 5px;'>🤖 Live Intel</h3>", unsafe_allow_html=True)
-        
-        tot_longs = l_wins + l_loss
-        tot_shorts = s_wins + s_loss
-        long_wr = (l_wins / tot_longs * 100) if tot_longs > 0 else 0
-        short_wr = (s_wins / tot_shorts * 100) if tot_shorts > 0 else 0
-        
-        bias_action = "NEUTRAL (Balanced Edge)"
-        bias_color = TV_TEXT
-        if short_wr >= long_wr + 20 and tot_shorts >= 2:
-            bias_action = "SHORT ONLY"
-            bias_color = TV_RED
-            bias_msg = "Historically fails to hold Springs. Only trade UTADs."
-        elif long_wr >= short_wr + 20 and tot_longs >= 2:
-            bias_action = "LONG ONLY"
-            bias_color = TV_GREEN
-            bias_msg = "Naturally drifts upward. Shorting UTADs is dangerous."
-        else:
-            bias_msg = "Symmetrical win rates. Safe to trade in both directions."
-            
-        st.markdown(f"""
-        <div class="intel-card" style='border: 1px solid {bias_color};'>
-            <p style='color: #888; font-size: 12px; margin:0;'>ASSET PERSONALITY</p>
-            <h3 style='color: {bias_color}; margin-top: 0; margin-bottom: 5px;'>{bias_action}</h3>
-            <p style='font-size: 11px; margin-bottom: 0px;'>{bias_msg}</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown(f"""
-        <div class="intel-card">
-            <p style='color: #888; font-size: 12px; margin:0;'>CURRENT ACTION</p>
-            <h2 style='color: {live_rec["color"]}; margin-top: 0;'>{live_rec["action"]}</h2>
-            <p style='margin-bottom: 5px;'>{live_rec["msg"]}</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        tot_units = l_units + s_units
-        st.markdown(f"""
-<div class="intel-card">
-<p style='color: #888; font-size: 12px; margin:0;'>STRATEGY PERFORMANCE</p>
-<p style='font-size: 11px; color: #666; margin-bottom: 12px;'>Backtested: {dates[0].strftime('%b %d, %Y')} &rarr; {dates[-1].strftime('%b %d, %Y')}</p>
-<div style='display: flex; justify-content: space-between;'><span>LONG (Springs):</span> <strong style='color:{TV_GREEN if long_wr >= 50 else TV_TEXT};'>{long_wr:.1f}% Win</strong></div>
-<div style='display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-bottom: 8px;'><span>Gain/Loss:</span> <strong style='color:{TV_GREEN if l_units > 0 else TV_RED if l_units < 0 else TV_TEXT};'>{l_units:+.2f}R Units</strong></div>
-<div style='display: flex; justify-content: space-between;'><span>SHORT (UTADs):</span> <strong style='color:{TV_RED if short_wr >= 50 else TV_TEXT};'>{short_wr:.1f}% Win</strong></div>
-<div style='display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-bottom: 8px;'><span>Gain/Loss:</span> <strong style='color:{TV_GREEN if s_units > 0 else TV_RED if s_units < 0 else TV_TEXT};'>{s_units:+.2f}R Units</strong></div>
-<hr style='border-color: {TV_GRID}; margin: 8px 0;'>
-<div style='display: flex; justify-content: space-between;'><span>Total L/S Setups:</span> <strong>{tot_longs} / {tot_shorts}</strong></div>
-<div style='display: flex; justify-content: space-between;'><span>Total Net Profit:</span> <strong style='color:{TV_GREEN if tot_units > 0 else TV_RED if tot_units < 0 else TV_TEXT}; font-size: 16px;'>{tot_units:+.2f}R</strong></div>
-</div>
-""", unsafe_allow_html=True)
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Return intel data for sidebar rendering
+    tot_longs = l_wins + l_loss
+    tot_shorts = s_wins + s_loss
+    long_wr = (l_wins / tot_longs * 100) if tot_longs > 0 else 0
+    short_wr = (s_wins / tot_shorts * 100) if tot_shorts > 0 else 0
+    tot_units = l_units + s_units
+    
+    return {
+        "long_wr": long_wr, "short_wr": short_wr,
+        "tot_longs": tot_longs, "tot_shorts": tot_shorts,
+        "l_units": l_units, "s_units": s_units, "tot_units": tot_units,
+        "live_rec": live_rec, "dates": dates
+    }
 
 # --- MAIN UI ---
 st.title("TradingView | Wyckoff Terminal")
@@ -455,6 +417,69 @@ with st.sidebar:
                             f"<span style='font-size: 11px; color: #888;'>Net: <strong style='color:{u_color};'>{net_u:+.1f}R</strong> | <strong style='color:{TV_GREEN};'>L:{row['Long_WR']}%</strong> / <strong style='color:{TV_RED};'>S:{row['Short_WR']}%</strong></span>"
                             f"</div>", unsafe_allow_html=True)
             st.markdown(f"<hr style='margin: 5px 0px; border-color: {TV_GRID};'>", unsafe_allow_html=True)
+    
+    # --- LIVE INTEL CARDS (rendered in sidebar) ---
+    st.markdown("---")
+    st.markdown("<h3 style='margin-bottom: 5px;'>Live Intel</h3>", unsafe_allow_html=True)
+    
+    if 'intel_data' in st.session_state:
+        d = st.session_state['intel_data']
+        long_wr = d["long_wr"]
+        short_wr = d["short_wr"]
+        tot_longs = d["tot_longs"]
+        tot_shorts = d["tot_shorts"]
+        l_units = d["l_units"]
+        s_units = d["s_units"]
+        tot_units = d["tot_units"]
+        live_rec = d["live_rec"]
+        intel_dates = d["dates"]
+        
+        # Asset Personality
+        bias_action = "NEUTRAL (Balanced Edge)"
+        bias_color = TV_TEXT
+        bias_msg = "Symmetrical win rates. Safe to trade in both directions."
+        if short_wr >= long_wr + 20 and tot_shorts >= 2:
+            bias_action = "SHORT ONLY"
+            bias_color = TV_RED
+            bias_msg = "Historically fails to hold Springs. Only trade UTADs."
+        elif long_wr >= short_wr + 20 and tot_longs >= 2:
+            bias_action = "LONG ONLY"
+            bias_color = TV_GREEN
+            bias_msg = "Naturally drifts upward. Shorting UTADs is dangerous."
+            
+        st.markdown(f"""
+        <div class="intel-card" style='border: 1px solid {bias_color};'>
+            <p style='color: #888; font-size: 12px; margin:0;'>ASSET PERSONALITY</p>
+            <h3 style='color: {bias_color}; margin-top: 0; margin-bottom: 5px;'>{bias_action}</h3>
+            <p style='font-size: 11px; margin-bottom: 0px;'>{bias_msg}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Current Action
+        st.markdown(f"""
+        <div class="intel-card">
+            <p style='color: #888; font-size: 12px; margin:0;'>CURRENT ACTION</p>
+            <h2 style='color: {live_rec["color"]}; margin-top: 0;'>{live_rec["action"]}</h2>
+            <p style='margin-bottom: 5px;'>{live_rec["msg"]}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Strategy Performance
+        st.markdown(f"""
+<div class="intel-card">
+<p style='color: #888; font-size: 12px; margin:0;'>STRATEGY PERFORMANCE</p>
+<p style='font-size: 11px; color: #666; margin-bottom: 12px;'>Backtested: {intel_dates[0].strftime('%b %d, %Y')} &rarr; {intel_dates[-1].strftime('%b %d, %Y')}</p>
+<div style='display: flex; justify-content: space-between;'><span>LONG (Springs):</span> <strong style='color:{TV_GREEN if long_wr >= 50 else TV_TEXT};'>{long_wr:.1f}% Win</strong></div>
+<div style='display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-bottom: 8px;'><span>Gain/Loss:</span> <strong style='color:{TV_GREEN if l_units > 0 else TV_RED if l_units < 0 else TV_TEXT};'>{l_units:+.2f}R Units</strong></div>
+<div style='display: flex; justify-content: space-between;'><span>SHORT (UTADs):</span> <strong style='color:{TV_RED if short_wr >= 50 else TV_TEXT};'>{short_wr:.1f}% Win</strong></div>
+<div style='display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-bottom: 8px;'><span>Gain/Loss:</span> <strong style='color:{TV_GREEN if s_units > 0 else TV_RED if s_units < 0 else TV_TEXT};'>{s_units:+.2f}R Units</strong></div>
+<hr style='border-color: {TV_GRID}; margin: 8px 0;'>
+<div style='display: flex; justify-content: space-between;'><span>Total L/S Setups:</span> <strong>{tot_longs} / {tot_shorts}</strong></div>
+<div style='display: flex; justify-content: space-between;'><span>Total Net Profit:</span> <strong style='color:{TV_GREEN if tot_units > 0 else TV_RED if tot_units < 0 else TV_TEXT}; font-size: 16px;'>{tot_units:+.2f}R</strong></div>
+</div>
+""", unsafe_allow_html=True)
+    else:
+        st.info("Select a ticker to see Live Intel.")
 
 # =============================================================================
 # MULTI-PAGE UPGRADE: Sector Heatmap, Multi-TF Confluence, Options Flow, Trade Log
@@ -485,7 +510,9 @@ tab_scanner, tab_sector, tab_mtf, tab_options, tab_trades = st.tabs([
 ])
 
 with tab_scanner:
-    render_wyckoff_chart(st.session_state['selected_ticker'], timeframe, dl_period, sl_buffer, tp_target, algo_lookback, algo_vol)
+    intel_data = render_wyckoff_chart(st.session_state['selected_ticker'], timeframe, dl_period, sl_buffer, tp_target, algo_lookback, algo_vol)
+    if intel_data:
+        st.session_state['intel_data'] = intel_data
 
 with tab_sector:
     st.markdown("## Sector Rotation Heatmap")
