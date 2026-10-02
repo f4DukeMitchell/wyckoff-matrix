@@ -94,7 +94,7 @@ def send_email_alert(ticker, action, price, sl, tp, regime, options_flow=None, i
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
+        # server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
         server.quit()
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] EMAIL SENT: {action} on {ticker}")
     except Exception as e:
@@ -393,7 +393,7 @@ def send_market_report(session_name):
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
+        # server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
         server.quit()
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {session_name} REPORT SENT!")
     except Exception as e:
@@ -464,7 +464,7 @@ def send_daily_recap():
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
+        # server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
         server.quit()
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Daily Recap Sent!")
     except Exception as e:
@@ -495,7 +495,7 @@ def send_ai_progress_report():
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
+        # server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
         server.quit()
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] AI Progress Report Sent!")
     except Exception as e:
