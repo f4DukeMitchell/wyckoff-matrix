@@ -4,19 +4,25 @@ import requests
 TELEGRAM_BOT_TOKEN = '8870935798:AAFx5-TdD0qEwQ4nTSRIFw4RvdI87GSXnDc'
 TELEGRAM_CHAT_ID = '8610265859'
 
+# Optional: Set these to route different trade types to different groups
+TELEGRAM_CHAT_ID_DAY = None     # For 5m, 15m
+TELEGRAM_CHAT_ID_SWING = None   # For 1h
+TELEGRAM_CHAT_ID_LONG = None    # For 1d
+
 def is_configured():
     """Returns True if both token and chat_id are configured."""
     return bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
 
-def send_message(text, reply_markup=None):
+def send_message(text, reply_markup=None, chat_id=None):
     """Sends a text message to the configured Telegram chat."""
     if not is_configured():
         print("Telegram not configured. Skipping message send.")
         return False
 
+    target_chat = chat_id if chat_id else TELEGRAM_CHAT_ID
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
+        "chat_id": target_chat,
         "text": text
     }
     if reply_markup:
@@ -97,7 +103,12 @@ def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, reg
             ]
         }
         
-    return send_message(message, reply_markup=reply_markup)
+    target_chat = None
+    if timeframe in ["5m", "15m"] and TELEGRAM_CHAT_ID_DAY: target_chat = TELEGRAM_CHAT_ID_DAY
+    elif timeframe == "1h" and TELEGRAM_CHAT_ID_SWING: target_chat = TELEGRAM_CHAT_ID_SWING
+    elif timeframe == "1d" and TELEGRAM_CHAT_ID_LONG: target_chat = TELEGRAM_CHAT_ID_LONG
+        
+    return send_message(message, reply_markup=reply_markup, chat_id=target_chat)
 
 def send_daily_recap(recap_text):
     """Sends the daily recap text via Telegram."""
