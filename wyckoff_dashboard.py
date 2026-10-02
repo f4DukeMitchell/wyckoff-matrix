@@ -1,755 +1,427 @@
 import streamlit as st
-import yfinance as yf
 import pandas as pd
 import numpy as np
-import concurrent.futures
+import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import concurrent.futures
+import datetime
+import os
+import json
 
-# --- TV THEME SETTINGS ---
-st.set_page_config(page_title="Wyckoff Institutional Terminal", layout="wide", initial_sidebar_state="expanded")
-
+# --- Constants & Themes ---
 TV_BG = "#131722"
-TV_PANEL = "#2A2E39"
+TV_PANEL = "#2A2E39" 
 TV_TEXT = "#D1D4DC"
 TV_GRID = "#1E222D"
 TV_GREEN = "#089981"
 TV_RED = "#F23645"
 
+TOP_20_TICKERS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'BRK-B', 'TSLA', 'LLY', 'V', 
+                  'UNH', 'JPM', 'JNJ', 'XOM', 'WMT', 'MA', 'PG', 'AVGO', 'HD', 'CVX']
+
+st.set_page_config(page_title="Wyckoff Matrix", layout="wide", initial_sidebar_state="expanded")
+
+# Custom CSS
 st.markdown(f"""
-    <style>
-    .stApp {{ background-color: {TV_BG}; color: {TV_TEXT}; font-family: 'Trebuchet MS', sans-serif; }}
-    .stSidebar {{ background-color: {TV_BG} !important; border-right: 1px solid {TV_GRID}; }}
-    .stTextInput>div>div>input, .stSelectbox>div>div>div, .stSlider>div>div>div {{ background-color: {TV_PANEL}; color: {TV_TEXT}; border: 1px solid {TV_GRID}; }}
-    .stDataFrame {{ background-color: {TV_PANEL}; }}
-    h1, h2, h3, p, span {{ color: #ffffff !important; }}
-    
-    .stButton>button {{ background-color: {TV_PANEL}; border: 1px solid {TV_GRID}; color: {TV_TEXT}; width: 100%; padding: 5px; text-align: left; font-weight: bold; }}
-    .stButton>button:hover {{ border: 1px solid {TV_GREEN}; color: white; }}
-    .opt-btn>button {{ background-color: #4A148C; border: 1px solid #7B1FA2; text-align: center; margin-bottom: 15px; }}
-    .opt-btn>button:hover {{ background-color: #7B1FA2; border: 1px solid white; }}
-    
-    .intel-card {{ background-color: {TV_PANEL}; border-radius: 8px; padding: 15px; border: 1px solid {TV_GRID}; margin-bottom: 15px; }}
-    </style>
+<style>
+.stApp {{ background-color: {TV_BG}; color: {TV_TEXT}; }}
+.stSelectbox div[data-baseweb="select"] {{ background-color: {TV_PANEL}; color: {TV_TEXT}; }}
+.stTextInput input {{ background-color: {TV_PANEL}; color: {TV_TEXT}; }}
+h1, h2, h3, h4, h5, h6, p, span, div {{ color: {TV_TEXT}; }}
+.metric-card {{
+    background-color: {TV_PANEL};
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid {TV_GRID};
+    margin-bottom: 15px;
+}}
+.trade-card {{
+    background-color: {TV_PANEL};
+    padding: 20px;
+    border-radius: 10px;
+    border-left: 5px solid {TV_GREEN};
+    margin-bottom: 15px;
+}}
+.trade-card.short {{ border-left-color: {TV_RED}; }}
+.trade-card.stalking {{ border-left-color: #E6A23C; }}
+</style>
 """, unsafe_allow_html=True)
 
-if 'selected_ticker' not in st.session_state: st.session_state['selected_ticker'] = "MSFT"
+# --- Imports ---
+try:
+    from trade_tracker import get_stats, get_recent_trades, init_db
+except ImportError:
+    def get_stats(): return {"total": 0, "win_rate": 0, "avg_pnl": 0, "open": 0}
+    def get_recent_trades(limit=50): return pd.DataFrame()
+    def init_db(): pass
 
-# --- SESSION STATE FOR AUTO-TUNING SLIDERS ---
-if 'lb_val' not in st.session_state: st.session_state.lb_val = 100
-if 'vol_val' not in st.session_state: st.session_state.vol_val = 1.0
-if 'sl_val' not in st.session_state: st.session_state.sl_val = 0.2
-if 'tp_val' not in st.session_state: st.session_state.tp_val = "Full Phase B Range"
+try:
+    import sector_data
+except ImportError:
+    sector_data = None
 
-# --- DATA HELPERS ---
-@st.cache_data(ttl=86400)
-def get_sp500_tickers():
-    try:
-        import json
-        with open('all_tickers.json', 'r') as f:
-            return json.load(f)
-    except Exception:
-        return ["AAPL","MSFT","NVDA","AMZN","META","GOOGL","TSLA","BRK-B","LLY","AVGO","JPM","V","UNH","MA","PG","JNJ","HD","MRK","ABBV","COST"]
+try:
+    import mtf_confluence
+except ImportError:
+    mtf_confluence = None
 
-# --- MATH ENGINE ---
-def safe_col(df, col_name):
-    return df[col_name].iloc[:, 0].values if isinstance(df.columns, pd.MultiIndex) else df[col_name].values
+try:
+    import options_flow
+except ImportError:
+    options_flow = None
 
-def get_supertrend(df_clean, length, multiplier):
-    high, low, close = df_clean['High'].values, df_clean['Low'].values, df_clean['Close'].values
-    tr0 = np.abs(high - low)
-    tr1 = np.abs(high - np.roll(close, 1))
-    tr2 = np.abs(low - np.roll(close, 1))
-    tr = np.maximum(tr0, np.maximum(tr1, tr2))
-    tr[0] = 0
-    atr = np.zeros_like(close)
-    if len(close) > length:
-        atr[length] = np.mean(tr[1:length+1])
-        for i in range(length+1, len(close)): atr[i] = (atr[i-1] * (length - 1) + tr[i]) / length
+# Init State
+init_db()
+if 'selected_ticker' not in st.session_state:
+    st.session_state.selected_ticker = 'SPY'
+if 'chart_tf' not in st.session_state:
+    st.session_state.chart_tf = '1h'
+
+# --- Indicators ---
+def calculate_supertrend(df, period, multiplier):
+    if df is None or len(df) < period:
+        return df
+    
+    high = df['High']
+    low = df['Low']
+    close = df['Close']
+    
+    # Calculate ATR
+    tr1 = pd.DataFrame(high - low)
+    tr2 = pd.DataFrame(abs(high - close.shift(1)))
+    tr3 = pd.DataFrame(abs(low - close.shift(1)))
+    frames = [tr1, tr2, tr3]
+    tr = pd.concat(frames, axis=1, join='inner').max(axis=1)
+    atr = tr.ewm(alpha=1/period, adjust=False).mean()
+    
     hl2 = (high + low) / 2
-    upperband = hl2 + (multiplier * atr)
-    lowerband = hl2 - (multiplier * atr)
-    in_uptrend = np.ones(len(close), dtype=bool)
-    supertrend_line = np.zeros(len(close))
-    for i in range(1, len(close)):
-        if close[i] > upperband[i-1]: in_uptrend[i] = True
-        elif close[i] < lowerband[i-1]: in_uptrend[i] = False
+    final_upperband = hl2 + (multiplier * atr)
+    final_lowerband = hl2 - (multiplier * atr)
+    
+    supertrend = [0.0] * len(df)
+    trend = [0] * len(df)
+    
+    for i in range(1, len(df)):
+        curr_c = close.iloc[i]
+        prev_upper = final_upperband.iloc[i-1]
+        prev_lower = final_lowerband.iloc[i-1]
+        curr_upper = final_upperband.iloc[i]
+        curr_lower = final_lowerband.iloc[i]
+        
+        if curr_c > prev_upper:
+            trend[i] = 1
+        elif curr_c < prev_lower:
+            trend[i] = -1
         else:
-            in_uptrend[i] = in_uptrend[i-1]
-            if in_uptrend[i] and lowerband[i] < lowerband[i-1]: lowerband[i] = lowerband[i-1]
-            if not in_uptrend[i] and upperband[i] > upperband[i-1]: upperband[i] = upperband[i-1]
-        supertrend_line[i] = lowerband[i] if in_uptrend[i] else upperband[i]
-    supertrend_line[0] = np.nan
-    return in_uptrend, supertrend_line
+            trend[i] = trend[i-1]
+            
+        if trend[i] == 1 and curr_lower < prev_lower:
+            final_lowerband.iloc[i] = prev_lower
+        if trend[i] == -1 and curr_upper > prev_upper:
+            final_upperband.iloc[i] = prev_upper
+            
+        if trend[i] == 1:
+            supertrend[i] = final_lowerband.iloc[i]
+        else:
+            supertrend[i] = final_upperband.iloc[i]
+            
+    df_out = df.copy()
+    df_out[f'ST_{period}_{multiplier}'] = supertrend
+    df_out[f'ST_DIR_{period}_{multiplier}'] = trend
+    
+    # Calculate Bars in Regime
+    bars_in_regime = []
+    current_trend = trend[0]
+    count = 0
+    for t in trend:
+        if t == current_trend:
+            count += 1
+        else:
+            current_trend = t
+            count = 1
+        bars_in_regime.append(count)
+        
+    df_out[f'BARS_IN_REGIME_{period}_{multiplier}'] = bars_in_regime
+    return df_out
 
-def process_ticker(ticker, interval, period, sl_buffer, tp_target, lookback, vol_limit):
+# --- Data Fetching ---
+@st.cache_data(ttl=300)
+def fetch_data(ticker, period='6mo', interval='1d'):
     try:
         df = yf.download(ticker, period=period, interval=interval, progress=False)
-        if df.empty or len(df) < lookback: return None
-        df_clean = pd.DataFrame({'High': safe_col(df, 'High'), 'Low': safe_col(df, 'Low'), 'Close': safe_col(df, 'Close'), 'Volume': safe_col(df, 'Volume')})
-        u1, _ = get_supertrend(df_clean, 1, 1.0)
-        u3, _ = get_supertrend(df_clean, 3, 3.0)
-        u9, _ = get_supertrend(df_clean, 9, 9.0)
-        u14, _ = get_supertrend(df_clean, 14, 14.0)
-        vol = df_clean['Volume'].values
-        vol_sma = pd.Series(vol).rolling(20, min_periods=1).mean().values
-        rel_vol_arr = np.where(vol_sma > 0, vol / vol_sma, 1.0)
-        
-        c1, c3, c9, c14 = u1[-1], u3[-1], u9[-1], u14[-1]
-        cascade = f"{'U' if c1 else 'D'} | {'U' if c3 else 'D'} | {'U' if c9 else 'D'} | {'U' if c14 else 'D'}"
-        
-        bars_in_regime = 0
-        is_bull = c9 and c14
-        is_bear = not c9 and not c14
-        if is_bull or is_bear:
-            for i in range(len(u9)-1, -1, -1):
-                if (is_bull and u9[i] and u14[i]) or (is_bear and not u9[i] and not u14[i]): bars_in_regime += 1
-                else: break
-                
-        actual_lookback = lookback if len(df_clean) > lookback else int(len(df_clean)/2)
-        range_high = df_clean['High'].rolling(actual_lookback, min_periods=20).max().shift(1).values
-        range_low = df_clean['Low'].rolling(actual_lookback, min_periods=20).min().shift(1).values
-        
-        l_wins, l_loss, s_wins, s_loss = 0, 0, 0, 0
-        l_units, s_units = 0.0, 0.0
-        
-        highs, lows, closes = df_clean['High'].values, df_clean['Low'].values, df_clean['Close'].values
-        sl_pct = sl_buffer / 100.0
-        
-        for i in range(1, len(df_clean)):
-            if pd.isna(range_high[i]) or pd.isna(range_low[i]): continue
-            c_below = (lows[i] < range_low[i]) or (lows[i-1] < range_low[i-1])
-            c_above = (highs[i] > range_high[i]) or (highs[i-1] > range_high[i-1])
-            vol_dry = rel_vol_arr[i] < vol_limit
-            
-            is_spring = c_below and u1[i] and not u1[i-1] and not u9[i] and vol_dry
-            is_utad = c_above and not u1[i] and u1[i-1] and u9[i] and vol_dry
-            
-            if is_spring:
-                entry = closes[i]
-                sl = min(lows[i], lows[i-1]) * (1.0 - sl_pct)
-                tp = range_low[i] + ((range_high[i] - range_low[i]) * 0.5) if tp_target == "50% Mid-Line" else range_high[i]
-                sl_dist = abs(entry - sl)
-                tp_dist = abs(tp - entry)
-                rr = (tp_dist / sl_dist) if sl_dist > 0 else 0
-                
-                for j in range(i+1, len(df_clean)):
-                    if highs[j] >= tp: 
-                        l_wins+=1; l_units += rr; break
-                    if lows[j] <= sl: 
-                        l_loss+=1; l_units -= 1.0; break
-            if is_utad:
-                entry = closes[i]
-                sl = max(highs[i], highs[i-1]) * (1.0 + sl_pct)
-                tp = range_high[i] - ((range_high[i] - range_low[i]) * 0.5) if tp_target == "50% Mid-Line" else range_low[i]
-                sl_dist = abs(sl - entry)
-                tp_dist = abs(entry - tp)
-                rr = (tp_dist / sl_dist) if sl_dist > 0 else 0
-                
-                for j in range(i+1, len(df_clean)):
-                    if lows[j] <= tp: 
-                        s_wins+=1; s_units += rr; break
-                    if highs[j] >= sl: 
-                        s_loss+=1; s_units -= 1.0; break
-                    
-        tot = l_wins + l_loss + s_wins + s_loss
-        win_rate = round(((l_wins + s_wins) / tot * 100), 1) if tot > 0 else 0.0
-        l_wr = round((l_wins / (l_wins + l_loss) * 100), 1) if (l_wins + l_loss) > 0 else 0.0
-        s_wr = round((s_wins / (s_wins + s_loss) * 100), 1) if (s_wins + s_loss) > 0 else 0.0
-        micro_flipped = u1[-1] != u1[-2]
-        
-        return {"Ticker": ticker, "Price": round(float(df_clean['Close'].values[-1]), 2), 
-                "Cascade": cascade, "Regime": "BULL" if is_bull else "BEAR" if is_bear else "MIXED", 
-                "Bars": bars_in_regime, "Vol": round(float(rel_vol_arr[-1]), 2), 
-                "Spark": "FLIPPED!" if micro_flipped else ("HOLDING" if c1 == c9 else "FIGHTING"),
-                "WinRate": win_rate, "Long_WR": l_wr, "Short_WR": s_wr, "Trades": tot, "NetUnits": round(l_units + s_units, 2)}
-    except: return None
+        if df.empty:
+            return None
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+        df.dropna(inplace=True)
+        return df
+    except Exception as e:
+        return None
 
-@st.cache_data(ttl=300)
-def fetch_and_analyze(tickers, interval, period, sl_buffer, tp_target, lookback, vol_limit):
-    results = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
-        futures = [executor.submit(process_ticker, t, interval, period, sl_buffer, tp_target, lookback, vol_limit) for t in tickers]
-        for future in concurrent.futures.as_completed(futures):
-            res = future.result()
-            if res: results.append(res)
-    return pd.DataFrame(results)
-
-# --- CHARTING & BACKTEST ENGINE ---
-def render_wyckoff_chart(ticker, interval, period, sl_buffer, tp_target, lookback, vol_limit):
-    df = yf.download(ticker, period=period, interval=interval, progress=False)
-    if df.empty: 
-        st.error(f"No data found for {ticker} on {interval} timeframe.")
-        return
-    dates = df.index
-    df_clean = pd.DataFrame({'Open': safe_col(df, 'Open'), 'High': safe_col(df, 'High'), 'Low': safe_col(df, 'Low'), 'Close': safe_col(df, 'Close'), 'Volume': safe_col(df, 'Volume')})
-    
-    u1, line1 = get_supertrend(df_clean, 1, 1.0)
-    u3, line3 = get_supertrend(df_clean, 3, 3.0)
-    u9, line9 = get_supertrend(df_clean, 9, 9.0)
-    u14, line14 = get_supertrend(df_clean, 14, 14.0)
-    
-    actual_lookback = lookback if len(df_clean) > lookback else int(len(df_clean)/2)
-    df_clean['Range_High'] = df_clean['High'].rolling(actual_lookback, min_periods=20).max().shift(1)
-    df_clean['Range_Low'] = df_clean['Low'].rolling(actual_lookback, min_periods=20).min().shift(1)
-    
-    vol_sma = pd.Series(df_clean['Volume']).rolling(20, min_periods=1).mean()
-    rel_vol = df_clean['Volume'] / vol_sma
-    vol_colors = ['#FFD700' if rv < vol_limit else '#555555' for rv in rel_vol]
-    
-    spring_x, spring_y, utad_x, utad_y = [], [], [], []
-    l_wins, l_loss, s_wins, s_loss = 0, 0, 0, 0
-    l_units, s_units = 0.0, 0.0
-    backtest_trades = []
-    sl_pct = sl_buffer / 100.0
-    
-    for i in range(1, len(df_clean)):
-        is_below = df_clean['Low'].iloc[i] < df_clean['Range_Low'].iloc[i] or df_clean['Low'].iloc[i-1] < df_clean['Range_Low'].iloc[i-1]
-        is_above = df_clean['High'].iloc[i] > df_clean['Range_High'].iloc[i] or df_clean['High'].iloc[i-1] > df_clean['Range_High'].iloc[i-1]
+# --- Scanning Logic ---
+def scan_ticker(ticker):
+    df = fetch_data(ticker, period='1y', interval='1d')
+    if df is None or len(df) < 50:
+        return None
         
-        is_spring = is_below and u1[i] and not u1[i-1] and not u9[i] and rel_vol.iloc[i] < vol_limit
-        is_utad = is_above and not u1[i] and u1[i-1] and u9[i] and rel_vol.iloc[i] < vol_limit
+    # Calc SuperTrends
+    df = calculate_supertrend(df, 1, 1)
+    df = calculate_supertrend(df, 3, 3)
+    df = calculate_supertrend(df, 9, 9)
+    df = calculate_supertrend(df, 14, 14)
+    
+    last_row = df.iloc[-1]
+    
+    # Volume relative to 20sma
+    df['Vol_SMA'] = df['Volume'].rolling(20).mean()
+    if df['Vol_SMA'].iloc[-1] > 0:
+        rel_vol = last_row['Volume'] / df['Vol_SMA'].iloc[-1]
+    else:
+        rel_vol = 1.0
+    
+    # Base stats
+    dir_14 = last_row['ST_DIR_14_14']
+    dir_9 = last_row['ST_DIR_9_9']
+    dir_3 = last_row['ST_DIR_3_3']
+    dir_1 = last_row['ST_DIR_1_1']
+    
+    bars_regime_14 = last_row['BARS_IN_REGIME_14_14']
+    
+    # Determine Condition & ML Score
+    score = 0
+    condition = "STALKING"
+    
+    # ML Scoring system
+    score += min(40, bars_regime_14 * 1.5)
+    
+    # Vol exhaustion
+    if rel_vol < 1.0:
+        score += (1.0 - rel_vol) * 50
         
-        if is_spring:
-            spring_x.append(dates[i]); spring_y.append(df_clean['Low'].iloc[i] * 0.99)
-            entry = df_clean['Close'].iloc[i]
-            sl = min(df_clean['Low'].iloc[i], df_clean['Low'].iloc[i-1]) * (1.0 - sl_pct)
-            tp = df_clean['Range_Low'].iloc[i] + ((df_clean['Range_High'].iloc[i] - df_clean['Range_Low'].iloc[i]) * 0.5) if tp_target == "50% Mid-Line" else df_clean['Range_High'].iloc[i]
-            sl_dist = abs(entry - sl)
-            tp_dist = abs(tp - entry)
-            rr = (tp_dist / sl_dist) if sl_dist > 0 else 0
-            
-            for j in range(i+1, len(df_clean)):
-                if df_clean['High'].iloc[j] >= tp: 
-                    l_wins += 1; l_units += rr
-                    backtest_trades.append({'date': dates[i].strftime('%Y-%m-%d'), 'direction': 'LONG', 'outcome': 'WIN', 'pnl_r': round(rr, 2)})
-                    break
-                if df_clean['Low'].iloc[j] <= sl: 
-                    l_loss += 1; l_units -= 1.0
-                    backtest_trades.append({'date': dates[i].strftime('%Y-%m-%d'), 'direction': 'LONG', 'outcome': 'LOSS', 'pnl_r': -1.0})
-                    break
-                
-        if is_utad:
-            utad_x.append(dates[i]); utad_y.append(df_clean['High'].iloc[i] * 1.01)
-            entry = df_clean['Close'].iloc[i]
-            sl = max(df_clean['High'].iloc[i], df_clean['High'].iloc[i-1]) * (1.0 + sl_pct)
-            tp = df_clean['Range_High'].iloc[i] - ((df_clean['Range_High'].iloc[i] - df_clean['Range_Low'].iloc[i]) * 0.5) if tp_target == "50% Mid-Line" else df_clean['Range_Low'].iloc[i]
-            sl_dist = abs(sl - entry)
-            tp_dist = abs(entry - tp)
-            rr = (tp_dist / sl_dist) if sl_dist > 0 else 0
-            
-            for j in range(i+1, len(df_clean)):
-                if df_clean['Low'].iloc[j] <= tp: 
-                    s_wins += 1; s_units += rr
-                    backtest_trades.append({'date': dates[i].strftime('%Y-%m-%d'), 'direction': 'SHORT', 'outcome': 'WIN', 'pnl_r': round(rr, 2)})
-                    break
-                if df_clean['High'].iloc[j] >= sl: 
-                    s_loss += 1; s_units -= 1.0
-                    backtest_trades.append({'date': dates[i].strftime('%Y-%m-%d'), 'direction': 'SHORT', 'outcome': 'LOSS', 'pnl_r': -1.0})
-                    break
-
-    live_rec = {"action": "NEUTRAL", "color": TV_TEXT, "entry": 0, "sl": 0, "tp": 0, "msg": "Regime building cause..."}
-    curr = len(df_clean) - 1
-    if curr > 0:
-        c_below = df_clean['Low'].iloc[curr] < df_clean['Range_Low'].iloc[curr] or df_clean['Low'].iloc[curr-1] < df_clean['Range_Low'].iloc[curr-1]
-        c_above = df_clean['High'].iloc[curr] > df_clean['Range_High'].iloc[curr] or df_clean['High'].iloc[curr-1] > df_clean['Range_High'].iloc[curr-1]
-        c_spring = c_below and u1[curr] and not u1[curr-1] and not u9[curr] and rel_vol.iloc[curr] < vol_limit
-        c_utad = c_above and not u1[curr] and u1[curr-1] and u9[curr] and rel_vol.iloc[curr] < vol_limit
-        bars_in_regime = 21 if ((u9[curr] and u14[curr]) or (not u9[curr] and not u14[curr])) else 0
-            
-        if c_spring:
-            live_rec = {"action": "LONG (SPRING)", "color": TV_GREEN, "entry": df_clean['Close'].iloc[curr], 
-                        "sl": min(df_clean['Low'].iloc[curr], df_clean['Low'].iloc[curr-1]) * (1.0 - sl_pct), 
-                        "tp": df_clean['Range_Low'].iloc[curr] + ((df_clean['Range_High'].iloc[curr] - df_clean['Range_Low'].iloc[curr]) * 0.5) if tp_target == "50% Mid-Line" else df_clean['Range_High'].iloc[curr],
-                        "msg": f"Buy signal triggered. Setup confirmed."}
-        elif c_utad:
-            live_rec = {"action": "SHORT (UTAD)", "color": TV_RED, "entry": df_clean['Close'].iloc[curr], 
-                        "sl": max(df_clean['High'].iloc[curr], df_clean['High'].iloc[curr-1]) * (1.0 + sl_pct), 
-                        "tp": df_clean['Range_High'].iloc[curr] - ((df_clean['Range_High'].iloc[curr] - df_clean['Range_Low'].iloc[curr]) * 0.5) if tp_target == "50% Mid-Line" else df_clean['Range_Low'].iloc[curr],
-                        "msg": f"Sell signal triggered. Setup confirmed."}
-        elif bars_in_regime >= 20:
-            live_rec = {"action": "ARMED", "color": "#FFD700", "entry": 0, "sl": 0, "tp": 0, "msg": "Waiting for Micro Spark to flip."}
-
-    # --- PLOTTING ---
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.8, 0.2])
-    fig.add_trace(go.Candlestick(x=dates, open=df_clean['Open'], high=df_clean['High'], low=df_clean['Low'], close=df_clean['Close'], increasing_line_color=TV_GREEN, decreasing_line_color=TV_RED, increasing_fillcolor=TV_GREEN, decreasing_fillcolor=TV_RED, name="Price"), row=1, col=1)
-    fig.add_trace(go.Scatter(x=dates, y=df_clean['Range_High'], mode='lines', line=dict(color='#787B86', dash='dot', width=1), name='Phase B High'), row=1, col=1)
-    fig.add_trace(go.Scatter(x=dates, y=df_clean['Range_Low'], mode='lines', line=dict(color='#787B86', dash='dot', width=1), name='Phase B Low'), row=1, col=1)
-    if spring_x: fig.add_trace(go.Scatter(x=spring_x, y=spring_y, mode='markers+text', marker=dict(symbol='triangle-up', size=16, color=TV_GREEN), text=["[C] SPRING"] * len(spring_x), textposition="bottom center", textfont=dict(color=TV_GREEN, size=14)), row=1, col=1)
-    if utad_x: fig.add_trace(go.Scatter(x=utad_x, y=utad_y, mode='markers+text', marker=dict(symbol='triangle-down', size=16, color=TV_RED), text=["[C] UTAD"] * len(utad_x), textposition="top center", textfont=dict(color=TV_RED, size=14)), row=1, col=1)
-    def add_st(u_dir, line_val, width, opacity=1.0, dash='solid'):
-        up_vals = np.where(u_dir, line_val, np.nan); dn_vals = np.where(~u_dir, line_val, np.nan)
-        fig.add_trace(go.Scatter(x=dates, y=up_vals, mode='lines', line=dict(color=TV_GREEN, width=width, dash=dash), opacity=opacity, showlegend=False), row=1, col=1)
-        fig.add_trace(go.Scatter(x=dates, y=dn_vals, mode='lines', line=dict(color=TV_RED, width=width, dash=dash), opacity=opacity, showlegend=False), row=1, col=1)
+    # Alignment
+    if dir_14 == dir_9 == dir_3 == dir_1:
+        score += 30
+    elif dir_14 == dir_9 == dir_3:
+        score += 15
         
-    add_st(u1, line1, width=1, opacity=0.9)                 # Micro
-    add_st(u3, line3, width=1, opacity=0.5, dash='dot')     # Structural
-    add_st(u9, line9, width=2, opacity=0.8)                 # Macro
-    add_st(u14, line14, width=3, opacity=1.0)               # Anchor
-    fig.add_trace(go.Bar(x=dates, y=df_clean['Volume'], marker_color=vol_colors, name="Volume"), row=2, col=1)
-    c1, c3, c9, c14 = u1[-1], u3[-1], u9[-1], u14[-1]
-    cascade = f"{'U' if c1 else 'D'} | {'U' if c3 else 'D'} | {'U' if c9 else 'D'} | {'U' if c14 else 'D'}"
-    rangebreaks = [dict(bounds=["sat", "mon"])]
-    if interval in ["5m", "15m", "1h"]: rangebreaks.append(dict(bounds=[16, 9.5], pattern="hour"))
-    fig.update_layout(
-        title=dict(text=f"<b>{ticker.upper()} ({interval})</b> <span style='font-size: 14px; color: {TV_TEXT};'>&nbsp;&nbsp; Wyckoff Matrix: [{cascade}] &nbsp;&nbsp; RV: {round(float(rel_vol.iloc[-1]), 2)}x</span>", font=dict(size=24, color='#FFFFFF')),
-        template="plotly_dark", xaxis_rangeslider_visible=False, height=850, margin=dict(l=50, r=20, t=60, b=20),
-        paper_bgcolor=TV_BG, plot_bgcolor=TV_BG, showlegend=False
-    )
-    
-    end_date = dates[-1]
-    if interval == "5m": start_date = dates[-min(len(dates), 200)]
-    elif interval == "15m": start_date = dates[-min(len(dates), 250)]
-    elif interval == "1h": start_date = dates[-min(len(dates), 150)]
-    else: start_date = dates[0]
-    
-    fig.update_xaxes(
-        showgrid=True, gridwidth=1, gridcolor=TV_GRID, rangebreaks=rangebreaks,
-        range=[start_date, end_date],
-        rangeselector=dict(
-            buttons=list([
-                dict(count=1, label="1D", step="day", stepmode="backward"),
-                dict(count=3, label="3D", step="day", stepmode="backward"),
-                dict(count=7, label="1W", step="day", stepmode="backward"),
-                dict(step="all", label="ALL")
-            ]),
-            bgcolor=TV_PANEL, activecolor=TV_GREEN, font=dict(color="white"), y=-0.1, x=0.0
-        )
-    )
-    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor=TV_GRID, tickprefix="$")
-    
-    # Remove plotly_chart from here, return everything to the caller
-    tot_longs = l_wins + l_loss
-    tot_shorts = s_wins + s_loss
-    long_wr = (l_wins / tot_longs * 100) if tot_longs > 0 else 0
-    short_wr = (s_wins / tot_shorts * 100) if tot_shorts > 0 else 0
-    tot_units = l_units + s_units
+    if dir_14 == 1:
+        if dir_1 == 1:
+            condition = "LONG (SPRING)"
+        else:
+            condition = "STALKING"
+    else:
+        if dir_1 == -1:
+            condition = "SHORT (UTAD)"
+        else:
+            condition = "STALKING"
+            
+    reason = f"{int(bars_regime_14)}-bar {'bullish' if dir_14==1 else 'bearish'} regime, vol {rel_vol:.1f}x, ST alignment."
     
     return {
-        "fig": fig,
-        "df": df_clean,
-        "long_wr": long_wr, "short_wr": short_wr,
-        "tot_longs": tot_longs, "tot_shorts": tot_shorts,
-        "l_units": l_units, "s_units": s_units, "tot_units": tot_units,
-        "live_rec": live_rec, "dates": dates, "backtest_trades": backtest_trades
+        'Ticker': ticker,
+        'Price': last_row['Close'],
+        'Direction': condition,
+        'ML_Confidence': min(100, int(score)),
+        'Entry': last_row['Close'],
+        'Stop': last_row['ST_14_14'],
+        'Target': last_row['Close'] * (1.1 if dir_14==1 else 0.9),
+        'Reason': reason,
+        'Bars_in_Regime': bars_regime_14
     }
 
-# --- MAIN UI ---
-st.title("TradingView | Wyckoff Terminal")
-
-def update_search():
-    st.session_state['selected_ticker'] = st.session_state['search_input'].upper()
-
-col_tk, col_tf, col_btn = st.columns([2, 1, 5])
-with col_tk:
-    st.text_input("🔍 Ticker:", value=st.session_state['selected_ticker'], key="search_input", on_change=update_search)
-    price_placeholder = st.empty()
-with col_tf: timeframe = st.selectbox("⏱️ Timeframe:", ["5m", "15m", "1h", "1d", "1wk"], index=3)
-
-if timeframe in ["1d", "1wk"]: dl_period = "2y"
-elif timeframe in ["1h"]: dl_period = "730d"
-else: dl_period = "60d"
-
-# Sidebar
-with st.sidebar:
-    
-    st.markdown("<div class='opt-btn'>", unsafe_allow_html=True)
-    if st.button("🧠 Auto-Tune for Timeframe", help="AI recommended optimal settings based on current timeframe"):
-        if timeframe in ["5m", "15m"]:
-            st.session_state.lb_val = 200
-            st.session_state.sl_val = 1.0
-            st.session_state.tp_val = "50% Mid-Line"
-            st.session_state.vol_val = 1.2
-        elif timeframe == "1h":
-            st.session_state.lb_val = 150
-            st.session_state.sl_val = 0.5
-            st.session_state.tp_val = "50% Mid-Line"
-            st.session_state.vol_val = 1.0
-        else:
-            st.session_state.lb_val = 100
-            st.session_state.sl_val = 0.2
-            st.session_state.tp_val = "Full Phase B Range"
-            st.session_state.vol_val = 0.8
-        st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown("### 🧬 Algo Tuning")
-    
-    def on_slider_change():
-        pass
-
-    algo_lookback = st.slider("Phase B Lookback (Bars)", min_value=20, max_value=300, value=st.session_state.lb_val, step=10, key='lb_val', on_change=on_slider_change)
-    algo_vol = st.slider("Vol Exhaustion Threshold", min_value=0.3, max_value=2.0, value=st.session_state.vol_val, step=0.1, key='vol_val', on_change=on_slider_change)
-
-    st.markdown("### ⚙️ Backtest Risk Rules")
-    sl_buffer = st.slider("Stop-Loss Buffer (%)", min_value=0.1, max_value=3.0, value=st.session_state.sl_val, step=0.1, key='sl_val', on_change=on_slider_change)
-    tp_target = st.radio("Take Profit Target", ["Full Phase B Range", "50% Mid-Line"], index=0 if st.session_state.tp_val == "Full Phase B Range" else 1, key='tp_val', on_change=on_slider_change)
-    
-    # --- LIVE INTEL CARDS (rendered in sidebar) ---
-    st.markdown("---")
-    st.markdown("<h3 style='margin-bottom: 5px;'>Live Intel</h3>", unsafe_allow_html=True)
-    
-    if 'intel_data' in st.session_state:
-        d = st.session_state['intel_data']
-        long_wr = d["long_wr"]
-        short_wr = d["short_wr"]
-        tot_longs = d["tot_longs"]
-        tot_shorts = d["tot_shorts"]
-        l_units = d["l_units"]
-        s_units = d["s_units"]
-        tot_units = d["tot_units"]
-        live_rec = d["live_rec"]
-        intel_dates = d["dates"]
-        
-        # Asset Personality
-        bias_action = "NEUTRAL (Balanced Edge)"
-        bias_color = TV_TEXT
-        bias_msg = "Symmetrical win rates. Safe to trade in both directions."
-        if short_wr >= long_wr + 20 and tot_shorts >= 2:
-            bias_action = "SHORT ONLY"
-            bias_color = TV_RED
-            bias_msg = "Historically fails to hold Springs. Only trade UTADs."
-        elif long_wr >= short_wr + 20 and tot_longs >= 2:
-            bias_action = "LONG ONLY"
-            bias_color = TV_GREEN
-            bias_msg = "Naturally drifts upward. Shorting UTADs is dangerous."
-            
-        st.markdown(f"""
-        <div class="intel-card" style='border: 1px solid {bias_color};'>
-            <p style='color: #888; font-size: 12px; margin:0;'>ASSET PERSONALITY</p>
-            <h3 style='color: {bias_color}; margin-top: 0; margin-bottom: 5px;'>{bias_action}</h3>
-            <p style='font-size: 11px; margin-bottom: 0px;'>{bias_msg}</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Current Action
-        st.markdown(f"""
-        <div class="intel-card">
-            <p style='color: #888; font-size: 12px; margin:0;'>CURRENT ACTION</p>
-            <h2 style='color: {live_rec["color"]}; margin-top: 0;'>{live_rec["action"]}</h2>
-            <p style='margin-bottom: 5px;'>{live_rec["msg"]}</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Strategy Performance
-        st.markdown(f"""
-<div class="intel-card">
-<p style='color: #888; font-size: 12px; margin:0;'>STRATEGY PERFORMANCE</p>
-<p style='font-size: 11px; color: #666; margin-bottom: 12px;'>Backtested: {intel_dates[0].strftime('%b %d, %Y')} &rarr; {intel_dates[-1].strftime('%b %d, %Y')}</p>
-<div style='display: flex; justify-content: space-between;'><span>LONG (Springs):</span> <strong style='color:{TV_GREEN if long_wr >= 50 else TV_TEXT};'>{long_wr:.1f}% Win</strong></div>
-<div style='display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-bottom: 8px;'><span>Gain/Loss:</span> <strong style='color:{TV_GREEN if l_units > 0 else TV_RED if l_units < 0 else TV_TEXT};'>{l_units:+.2f}R Units</strong></div>
-<div style='display: flex; justify-content: space-between;'><span>SHORT (UTADs):</span> <strong style='color:{TV_RED if short_wr >= 50 else TV_TEXT};'>{short_wr:.1f}% Win</strong></div>
-<div style='display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-bottom: 8px;'><span>Gain/Loss:</span> <strong style='color:{TV_GREEN if s_units > 0 else TV_RED if s_units < 0 else TV_TEXT};'>{s_units:+.2f}R Units</strong></div>
-<hr style='border-color: {TV_GRID}; margin: 8px 0;'>
-<div style='display: flex; justify-content: space-between;'><span>Total L/S Setups:</span> <strong>{tot_longs} / {tot_shorts}</strong></div>
-<div style='display: flex; justify-content: space-between;'><span>Total Net Profit:</span> <strong style='color:{TV_GREEN if tot_units > 0 else TV_RED if tot_units < 0 else TV_TEXT}; font-size: 16px;'>{tot_units:+.2f}R</strong></div>
-</div>
-""", unsafe_allow_html=True)
-    else:
-        st.info("Select a ticker to see Live Intel.")
-
-    st.markdown("### 📋 Market Radar")
-    watchlist_choice = st.selectbox("Watchlist Profile:", ["Top 20 Mega-Cap Tech", "S&P 500 (Massive Sweep)"], index=0)
-    sort_by = st.radio("Sort By:", ["Exhaustion (Bars)", "Historical Win Rate (%)", "Net Profit (Units)"], horizontal=True)
-    
-    if watchlist_choice == "S&P 500 (Massive Sweep)": tickers_to_scan = get_sp500_tickers()
-    else: tickers_to_scan = ["AAPL","MSFT","NVDA","AMZN","META","GOOGL","TSLA","BRK-B","LLY","AVGO","JPM","V","UNH","MA","PG","COST","HD","MRK","ABBV","CVX"]
-    
-    if st.button("🔄 Rescan Market"):
-        with st.spinner(f"Initiating {len(tickers_to_scan)} Ticker Sweep..."):
-            st.session_state['scan_data'] = fetch_and_analyze(tickers_to_scan, timeframe, dl_period, sl_buffer, tp_target, algo_lookback, algo_vol)
-        
-    if 'scan_data' not in st.session_state or st.session_state.get('last_tf') != timeframe or st.session_state.get('last_wl') != watchlist_choice or st.session_state.get('last_sl') != sl_buffer or st.session_state.get('last_tp') != tp_target or st.session_state.get('last_lb') != algo_lookback or st.session_state.get('last_vol') != algo_vol:
-        with st.spinner(f"Initiating {len(tickers_to_scan)} Ticker Sweep..."):
-            st.session_state['scan_data'] = fetch_and_analyze(tickers_to_scan, timeframe, dl_period, sl_buffer, tp_target, algo_lookback, algo_vol)
-            st.session_state['last_tf'] = timeframe
-            st.session_state['last_wl'] = watchlist_choice
-            st.session_state['last_sl'] = sl_buffer
-            st.session_state['last_tp'] = tp_target
-            st.session_state['last_lb'] = algo_lookback
-            st.session_state['last_vol'] = algo_vol
-        
-    df_res = st.session_state['scan_data']
-    if df_res is not None and not df_res.empty:
-        if sort_by == "Historical Win Rate (%)": df_res = df_res.sort_values(by=["WinRate", "Trades"], ascending=[False, False])
-        elif sort_by == "Net Profit (Units)": df_res = df_res.sort_values(by="NetUnits", ascending=False)
-        else: df_res = df_res.sort_values(by="Bars", ascending=False)
-        
-        df_res = df_res.head(25)
-        st.markdown("<p style='font-size: 11px; color: #888; margin-top: 5px; margin-bottom: 5px;'>Showing Top 25 matches.</p>", unsafe_allow_html=True)
-            
-        for _, row in df_res.iterrows():
-            color = TV_GREEN if row['Regime'] == 'BULL' else TV_RED if row['Regime'] == 'BEAR' else TV_TEXT
-            net_u = row.get("NetUnits", 0)
-            u_color = TV_GREEN if net_u > 0 else TV_RED if net_u < 0 else TV_TEXT
-            
-            c1, c2 = st.columns([1.2, 2])
-            with c1:
-                if st.button(f"{row['Ticker']}", key=f"btn_{row['Ticker']}_{timeframe}_{watchlist_choice}_{sl_buffer}_{tp_target}_{algo_lookback}_{algo_vol}"):
-                    st.session_state['selected_ticker'] = row['Ticker']
-                    st.rerun()
-            with c2:
-                st.markdown(f"<div style='line-height: 1.2; margin-top: 5px;'>"
-                            f"<span style='color: {color}; font-size: 14px;'>{row['Regime']} ({row['Bars']})</span><br>"
-                            f"<span style='font-size: 11px; color: #888;'>Net: <strong style='color:{u_color};'>{net_u:+.1f}R</strong> | <strong style='color:{TV_GREEN};'>L:{row['Long_WR']}%</strong> / <strong style='color:{TV_RED};'>S:{row['Short_WR']}%</strong></span>"
-                            f"</div>", unsafe_allow_html=True)
-            st.markdown(f"<hr style='margin: 5px 0px; border-color: {TV_GRID};'>", unsafe_allow_html=True)
-    
-# =============================================================================
-# MULTI-PAGE UPGRADE: Sector Heatmap, Multi-TF Confluence, Options Flow, Trade Log
-# =============================================================================
-try:
-    from sector_data import get_sector, get_all_sectors, get_sector_summary, get_tickers_by_sector
-    SECTOR_AVAILABLE = True
-except: SECTOR_AVAILABLE = False
-
-try:
-    from mtf_confluence import scan_confluence
-    MTF_AVAILABLE = True
-except: MTF_AVAILABLE = False
-
-try:
-    from options_flow import get_options_flow
-    OPTIONS_AVAILABLE = True
-except: OPTIONS_AVAILABLE = False
-
-try:
-    from trade_tracker import get_stats, get_recent_trades
-    TRACKER_AVAILABLE = True
-except: TRACKER_AVAILABLE = False
-
-# --- TABS ---
-tab_scanner, tab_sector, tab_mtf, tab_reports, tab_docs = st.tabs([
-    'Scanner', 'Sector Heatmap', 'Multi-TF Confluence', 'Live Bot Reports', '🧠 ML Architecture'
-])
-
-with tab_scanner:
-    intel_data = render_wyckoff_chart(st.session_state['selected_ticker'], timeframe, dl_period, sl_buffer, tp_target, algo_lookback, algo_vol)
-    if intel_data:
-        st.session_state['intel_data'] = intel_data
-        
-        # Populate the price placeholder under the ticker
-        curr_price = intel_data['df']['Close'].iloc[-1]
-        price_placeholder.markdown(f"<h2 style='margin-top:-15px; margin-bottom: 20px; color:#2962FF;'>${curr_price:.2f}</h2>", unsafe_allow_html=True)
-
-        
-        c_chart, c_cards = st.columns([3.5, 1])
-        with c_chart:
-            st.plotly_chart(intel_data['fig'], use_container_width=True)
-        with c_cards:
-            with st.expander("🌊 Options Flow", expanded=True):
-                try:
-                    from options_flow import get_options_flow
-                    flow = get_options_flow(st.session_state['selected_ticker'])
-                    if flow:
-                        st.markdown(f"""
-                        <div style='font-size:13px;'>
-                            <div style='display:flex; justify-content:space-between;'><span>Sentiment:</span> <strong>{flow.get('net_sentiment')}</strong></div>
-                            <div style='display:flex; justify-content:space-between;'><span>Put/Call:</span> <strong>{flow.get('put_call_ratio')}</strong></div>
-                            <div style='display:flex; justify-content:space-between;'><span>Gamma Wall:</span> <strong style='color:#2962FF;'>${flow.get('gamma_wall')}</strong></div>
-                            <div style='display:flex; justify-content:space-between;'><span>Max Pain:</span> <strong>${flow.get('max_pain')}</strong></div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.write("No flow data.")
-                except: st.write("Module missing.")
+@st.cache_data(ttl=300)
+def scan_market():
+    results = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(scan_ticker, t): t for t in TOP_20_TICKERS}
+        for future in concurrent.futures.as_completed(futures):
+            res = future.result()
+            if res:
+                results.append(res)
                 
-            with st.expander("📊 Volume Heatmap (Profile)", expanded=True):
-                try:
-                    import plotly.graph_objects as go
-                    import pandas as pd
-                    df_chart = intel_data['df']
-                    # Mini volume profile
-                    vol_bins = pd.cut(df_chart['Close'], bins=30)
-                    vol_profile = df_chart.groupby(vol_bins, observed=False)['Volume'].sum()
-                    vp_fig = go.Figure(go.Bar(
-                        x=vol_profile.values,
-                        y=[f"${v.mid:.2f}" for v in vol_profile.index],
-                        orientation='h',
-                        marker_color='rgba(41, 98, 255, 0.6)'
-                    ))
-                    vp_fig.update_layout(
-                        margin=dict(l=0,r=0,t=0,b=0), 
-                        height=200, 
-                        paper_bgcolor='rgba(0,0,0,0)', 
-                        plot_bgcolor='rgba(0,0,0,0)', 
-                        xaxis=dict(visible=False), 
-                        yaxis=dict(tickfont=dict(size=10, color='#888'))
-                    )
-                    st.plotly_chart(vp_fig, use_container_width=True, config={'displayModeBar': False})
-                except Exception as e: st.write(f"Error: {e}")
-                
-            with st.expander("📝 Backtest Trade Log", expanded=True):
-                import pandas as pd
-                bt_trades = intel_data.get('backtest_trades', [])
-                if bt_trades:
-                    # Get the most recent 10 trades
-                    bt_trades.reverse()
-                    bt_trades = bt_trades[:10]
-                    tdf = pd.DataFrame(bt_trades)[['date', 'direction', 'outcome', 'pnl_r']]
-                    st.dataframe(tdf, use_container_width=True, hide_index=True)
-                else:
-                    st.write("No backtest trades generated.")
+    return sorted(results, key=lambda x: x['ML_Confidence'], reverse=True)
 
-with tab_sector:
-    st.markdown("## Sector Rotation Heatmap")
-    if not SECTOR_AVAILABLE:
-        st.warning("sector_data.py module not found.")
-    elif 'scan_data' in st.session_state and st.session_state['scan_data'] is not None:
-        scan_df = st.session_state['scan_data']
-        results_for_sector = []
-        for _, row in scan_df.iterrows():
-            results_for_sector.append({
-                'ticker': row['Ticker'],
-                'regime': row['Regime'],
-                'exhaustion_bars': row['Bars'],
-            })
-        sector_summary = get_sector_summary(results_for_sector)
+# --- Plotly Chart ---
+def render_wyckoff_chart(df, ticker, interval):
+    df = calculate_supertrend(df, 3, 3)
+    df = calculate_supertrend(df, 14, 14)
+    
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
+                        vertical_spacing=0.03, subplot_titles=(f'{ticker} Price', 'Volume'), 
+                        row_width=[0.2, 0.7])
+                        
+    # Candlestick
+    fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], 
+                                 low=df['Low'], close=df['Close'], name='Price',
+                                 increasing_line_color=TV_GREEN, decreasing_line_color=TV_RED), 
+                  row=1, col=1)
+                  
+    # SuperTrends
+    fig.add_trace(go.Scatter(x=df.index, y=df['ST_14_14'], mode='lines', name='ST(14,14)',
+                             line=dict(color='yellow', width=2)), row=1, col=1)
+                             
+    # Volume
+    colors = [TV_GREEN if close >= open_ else TV_RED for close, open_ in zip(df['Close'], df['Open'])]
+    fig.add_trace(go.Bar(x=df.index, y=df['Volume'], name='Volume', marker_color=colors), row=2, col=1)
+    
+    fig.update_layout(
+        template='plotly_dark',
+        plot_bgcolor=TV_BG,
+        paper_bgcolor=TV_BG,
+        margin=dict(l=20, r=20, t=40, b=20),
+        xaxis_rangeslider_visible=False,
+        height=600,
+        showlegend=False
+    )
+    
+    fig.update_xaxes(showgrid=True, gridcolor=TV_GRID)
+    fig.update_yaxes(showgrid=True, gridcolor=TV_GRID)
+    
+    return fig
+
+# --- Render Pages ---
+def render_trade_ideas():
+    st.header("⚡ Trade Ideas Scanner")
+    st.markdown("Scans Top 20 Mega-Caps across multi-timeframe SuperTrends and volume exhaustion.")
+    
+    with st.spinner("Scanning Market..."):
+        ideas = scan_market()
         
-        cols = st.columns(3)
-        idx = 0
-        for sector_name in sorted(sector_summary.keys()):
-            s = sector_summary[sector_name]
-            with cols[idx % 3]:
-                regime_color = TV_GREEN if s['dominant_regime'] == 'BULL' else TV_RED if s['dominant_regime'] == 'BEAR' else "#FFD600"
-                st.markdown(f"""
-                <div style="background-color: {TV_PANEL}; border-left: 4px solid {regime_color}; padding: 12px; margin: 6px 0; border-radius: 4px;">
-                    <div style="font-size: 14px; font-weight: bold; color: white;">{sector_name}</div>
-                    <div style="font-size: 12px; color: #888; margin-top: 4px;">
-                        Stocks: {s['count']} | Avg Exhaust: {s['avg_exhaustion']:.0f} bars<br>
-                        Regime: <span style="color: {regime_color}; font-weight: bold;">{s['dominant_regime']}</span>
-                    </div>
-                    <div style="font-size: 11px; color: #aaa; margin-top: 6px;">
-                        Top Exhausted: {', '.join([f"{t[0]} ({t[1]})" for t in s.get('top_exhausted', [])[:3]])}
-                    </div>
+    if not ideas:
+        st.warning("No ideas generated.")
+        return
+        
+    for idea in ideas:
+        color_class = "stalking"
+        if "LONG" in idea['Direction']: color_class = "long"
+        elif "SHORT" in idea['Direction']: color_class = "short"
+        
+        conf_color = TV_GREEN if idea['ML_Confidence'] > 70 else ("#E6A23C" if idea['ML_Confidence'] > 50 else TV_RED)
+        
+        html = f"""
+        <div class="trade-card {color_class}">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3 style="margin:0;">{idea['Ticker']} <span style="font-size:0.6em; color:gray;">@ ${idea['Price']:.2f}</span></h3>
+                <span style="background-color:{TV_PANEL}; padding:5px 10px; border-radius:15px; font-weight:bold;">
+                    {idea['Direction']}
+                </span>
+            </div>
+            <div style="margin-top:10px;">
+                <strong>ML Confidence:</strong> 
+                <div style="width:100%; background-color:#333; border-radius:5px; height:10px; margin-top:5px;">
+                    <div style="width:{idea['ML_Confidence']}%; background-color:{conf_color}; height:100%; border-radius:5px;"></div>
                 </div>
-                """, unsafe_allow_html=True)
-            idx += 1
-    else:
-        st.info("Run a Market Radar scan first to populate sector data.")
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-top:15px; font-size:0.9em;">
+                <div>🟢 Entry: ${idea['Entry']:.2f}</div>
+                <div>🔴 Stop: ${idea['Stop']:.2f}</div>
+                <div>🎯 Target: ${idea['Target']:.2f}</div>
+            </div>
+            <p style="margin-top:15px; font-style:italic; color:#aaa;">🧠 WHY: {idea['Reason']}</p>
+        </div>
+        """
+        st.markdown(html, unsafe_allow_html=True)
+        if st.button(f"Chart {idea['Ticker']}", key=f"btn_{idea['Ticker']}"):
+            st.session_state.selected_ticker = idea['Ticker']
+            st.rerun()
 
-with tab_mtf:
-    st.markdown("## Multi-Timeframe Confluence Scanner")
-    if not MTF_AVAILABLE:
-        st.warning("mtf_confluence.py module not found.")
-    else:
-        mtf_tickers = st.text_input("Tickers (comma-separated)", value="AAPL, MSFT, NVDA, AMZN, META, GOOGL, TSLA, JPM, AVGO")
-        if st.button("Scan Confluence"):
-            ticker_list = [t.strip().upper() for t in mtf_tickers.split(",") if t.strip()]
-            with st.spinner(f"Scanning {len(ticker_list)} tickers across Daily + Intraday..."):
-                mtf_results = scan_confluence(ticker_list)
-                st.session_state['mtf_results'] = mtf_results
-        
-        if 'mtf_results' in st.session_state and st.session_state['mtf_results']:
-            for r in st.session_state['mtf_results']:
-                score = r['confluence_score']
-                score_color = TV_GREEN if score >= 75 else "#FFD600" if score >= 50 else TV_RED
-                rev_color = TV_GREEN if r['reversal_quality'] == 'HIGH' else "#FFD600" if r['reversal_quality'] == 'MEDIUM' else "#888"
-                
-                c1, c2, c3, c4 = st.columns([1, 1.5, 1.5, 1])
-                with c1:
-                    st.markdown(f"<div style='font-size: 18px; font-weight: bold; color: white; padding: 8px;'>{r['ticker']}</div>", unsafe_allow_html=True)
-                with c2:
-                    daily_col = TV_GREEN if r['daily_regime'] == 'BULL' else TV_RED if r['daily_regime'] == 'BEAR' else "#FFD600"
-                    intra_col = TV_GREEN if r['intraday_regime'] == 'BULL' else TV_RED if r['intraday_regime'] == 'BEAR' else "#FFD600"
-                    st.markdown(f"<div style='padding: 8px;'>Daily: <span style='color:{daily_col}; font-weight:bold;'>{r['daily_regime']}</span> | 5m: <span style='color:{intra_col}; font-weight:bold;'>{r['intraday_regime']}</span></div>", unsafe_allow_html=True)
-                with c3:
-                    st.markdown(f"<div style='padding: 8px;'>Score: <span style='color:{score_color}; font-weight:bold; font-size: 18px;'>{score}/100</span> ({r['confluence_label']})</div>", unsafe_allow_html=True)
-                with c4:
-                    st.markdown(f"<div style='padding: 8px;'>Reversal: <span style='color:{rev_color}; font-weight:bold;'>{r['reversal_quality']}</span></div>", unsafe_allow_html=True)
-                st.markdown(f"<hr style='margin: 2px 0; border-color: {TV_GRID};'>", unsafe_allow_html=True)
-
-with tab_reports:
-    st.markdown("## Bot Reports & Live Alert History")
+def render_chart_terminal():
+    st.header("📈 Chart Terminal")
     
-    if not TRACKER_AVAILABLE:
-        st.warning("trade_tracker.py module not found.")
-    else:
-        # --- HEADER STATS ---
-        stats = get_stats()
-        r1, r2, r3, r4 = st.columns(4)
-        with r1:
-            st.metric("Total Bot Alerts", stats['total_trades'])
-        with r2:
-            st.metric("Win Rate", f"{stats['win_rate']:.1f}%")
-        with r3:
-            st.metric("Avg PnL", f"{stats['avg_pnl_r']:+.2f}R")
-        with r4:
-            st.metric("Open Trades", stats['open_count'])
+    col1, col2, col3 = st.columns([1, 1, 3])
+    with col1:
+        ticker = st.text_input("Ticker", value=st.session_state.selected_ticker).upper()
+        st.session_state.selected_ticker = ticker
+    with col2:
+        tf = st.selectbox("Timeframe", ['5m', '15m', '1h', '1d', '1wk'], index=3)
+        st.session_state.chart_tf = tf
         
+    period_map = {'5m': '5d', '15m': '1mo', '1h': '1mo', '1d': '1y', '1wk': '5y'}
+    
+    df = fetch_data(ticker, period=period_map.get(tf, '1y'), interval=tf)
+    if df is None:
+        st.error("Failed to load data for this ticker.")
+        return
+        
+    chart_col, info_col = st.columns([3, 1])
+    with chart_col:
+        fig = render_wyckoff_chart(df, ticker, tf)
+        st.plotly_chart(fig, use_container_width=True)
+        
+    with info_col:
+        st.markdown("### Asset Intel")
+        st.markdown(f"**Asset:** {ticker}")
+        st.markdown(f"**Current Price:** ${df['Close'].iloc[-1]:.2f}")
+        st.markdown(f"**Current Vol:** {int(df['Volume'].iloc[-1]):,}")
         st.markdown("---")
-        
-        # --- FULL TRADE TABLE ---
-        st.markdown("### Live Alert Log")
-        st.caption("These are real-time alerts fired by the background bot across all timeframes (5m, 15m, 1h, 1d).")
-        
-        recent = get_recent_trades(100)
-        if recent:
-            import pandas as pd
-            df_trades = pd.DataFrame(recent)
-            
-            # Timeframe filter
-            tf_filter = st.selectbox("Filter by Timeframe:", ["ALL", "5m", "15m", "1h", "1d"], key="report_tf_filter")
-            if tf_filter != "ALL" and 'timeframe' in df_trades.columns:
-                df_trades = df_trades[df_trades['timeframe'] == tf_filter]
-            
-            # Direction filter
-            dir_filter = st.selectbox("Filter by Direction:", ["ALL", "LONG", "SHORT"], key="report_dir_filter")
-            if dir_filter != "ALL" and 'direction' in df_trades.columns:
-                df_trades = df_trades[df_trades['direction'] == dir_filter]
-            
-            # Display columns
-            display_cols = ['timestamp', 'ticker', 'direction', 'entry_price', 'stop_loss', 'take_profit', 'status', 'outcome', 'pnl_r']
-            if 'timeframe' in df_trades.columns:
-                display_cols.insert(2, 'timeframe')
-            if 'pcr' in df_trades.columns:
-                display_cols.append('pcr')
-            if 'sentiment' in df_trades.columns:
-                display_cols.append('sentiment')
-            
-            available_cols = [c for c in display_cols if c in df_trades.columns]
-            st.dataframe(df_trades[available_cols], use_container_width=True, hide_index=True)
-            
-            # --- PnL CHART ---
-            if 'pnl_r' in df_trades.columns and 'timestamp' in df_trades.columns:
-                pnl_trades = df_trades[df_trades['pnl_r'].notna()].copy()
-                if not pnl_trades.empty:
-                    st.markdown("### Cumulative PnL Curve (R-Units)")
-                    pnl_trades = pnl_trades.sort_values('timestamp')
-                    pnl_trades['cumulative_r'] = pnl_trades['pnl_r'].cumsum()
-                    
-                    import plotly.graph_objects as go
-                    pnl_fig = go.Figure()
-                    pnl_fig.add_trace(go.Scatter(
-                        x=pnl_trades['timestamp'], y=pnl_trades['cumulative_r'],
-                        mode='lines+markers', line=dict(color='#2962FF', width=2),
-                        marker=dict(size=6), fill='tozeroy', fillcolor='rgba(41, 98, 255, 0.1)'
-                    ))
-                    pnl_fig.update_layout(
-                        template='plotly_dark', height=350,
-                        margin=dict(l=40, r=20, t=20, b=40),
-                        xaxis_title='Date', yaxis_title='Cumulative R',
-                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
-                    )
-                    st.plotly_chart(pnl_fig, use_container_width=True)
+        if options_flow:
+            try:
+                flow = options_flow.get_options_flow(ticker)
+                st.markdown("**Options Flow**")
+                st.write(flow)
+            except:
+                st.markdown("Options Flow: N/A")
         else:
-            st.info("No bot alerts logged yet. The bot needs to detect a live Spring or UTAD to populate this page. Leave the bot running during market hours!")
-        
-        st.markdown("---")
-        st.markdown("### Scheduled Reports")
-        st.markdown('''
-        | Time (ET) | Report | Description |
-        |---|---|---|
-        | **9:15 AM** | Pre-Market Radar | Exhausted tickers approaching reversal zones |
-        | **12:30 PM** | Mid-Day Snapshot | Updated regimes + new setups since open |
-        | **2:45 PM** | Power Hour Alert | Final hour momentum shifts |
-        | **4:30 PM** | Daily Recap | Full day summary + tomorrow's watchlist |
-        ''')
-        st.caption("Reports are sent to your Email and Telegram automatically. You can also text /report or /recap to the Telegram bot anytime.")
+            st.markdown("Options Flow Module Offline")
 
-with tab_docs:
+def render_performance():
+    st.header("📊 Performance")
+    stats = get_stats()
+    
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Alerts", stats.get('total', 0))
+    col2.metric("Win Rate", f"{stats.get('win_rate', 0)}%")
+    col3.metric("Avg PnL", f"${stats.get('avg_pnl', 0)}")
+    col4.metric("Open Trades", stats.get('open', 0))
+    
+    st.markdown("### Trade Log")
+    trades_df = get_recent_trades(100)
+    if not trades_df.empty:
+        st.dataframe(trades_df)
+        
+        if 'pnl' in trades_df.columns:
+            trades_df['Cumulative PnL'] = trades_df['pnl'].cumsum()
+            st.line_chart(trades_df['Cumulative PnL'])
+    else:
+        st.info("No trades in database.")
+
+def render_ml_brain():
+    st.header("🧠 ML Brain Documentation")
     try:
-        with open('algo_documentation.md', 'r', encoding='utf-8') as md_file:
-            st.markdown(md_file.read())
-    except Exception as e:
-        st.warning('algo_documentation.md not found.')
+        with open("algo_documentation.md", "r") as f:
+            content = f.read()
+        st.markdown(content)
+    except FileNotFoundError:
+        st.warning("algo_documentation.md not found.")
+
+# --- Main App & Sidebar ---
+with st.sidebar:
+    st.title("Wyckoff Matrix")
+    st.markdown(f"<div style='background:{TV_GREEN}; color:white; padding:5px 10px; border-radius:5px; text-align:center; margin-bottom:20px;'>🤖 ML Managing All Parameters</div>", unsafe_allow_html=True)
+    
+    st.markdown("### Live Intel")
+    if st.session_state.selected_ticker:
+        st.info(f"Asset Personality: High Beta / Trend Follower\n\nCurrent Action: Monitoring {st.session_state.selected_ticker}")
+
+    st.markdown("### Market Radar")
+    for t in ['SPY', 'QQQ', 'IWM', 'VIX']:
+        if st.button(t, use_container_width=True):
+            st.session_state.selected_ticker = t
+            st.rerun()
+            
+    st.markdown("---")
+    if st.button("🔄 Rescan Market", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+
+tab1, tab2, tab3, tab4 = st.tabs(["Trade Ideas", "Chart Terminal", "Performance", "ML Brain"])
+
+with tab1:
+    render_trade_ideas()
+with tab2:
+    render_chart_terminal()
+with tab3:
+    render_performance()
+with tab4:
+    render_ml_brain()
