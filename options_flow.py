@@ -1,28 +1,16 @@
 import streamlit as st
-"""
-Options Flow Analysis Module
-Fetches options chain data from yfinance to detect unusual activity near Wyckoff zones.
-"""
-import yfinance as yf
-import numpy as np
-import datetime
+import os
+from dotenv import load_dotenv
+from public_api_sdk import PublicApiClient, ApiKeyAuthConfig
+from public_api_sdk.models import OptionChainRequest, OptionExpirationsRequest, OrderInstrument
 
+load_dotenv()
+API_KEY = os.getenv('PUBLIC_API_KEY')
 
 @st.cache_data(ttl=300)
 def get_options_flow(ticker):
     """
-    Analyze the options chain for a ticker to detect unusual institutional activity.
-    
-    Returns a dict with:
-    - put_call_ratio: Total put OI / total call OI
-    - put_call_label: "BEARISH SKEW", "BULLISH SKEW", "NEUTRAL"
-    - max_pain: The strike price where most options expire worthless
-    - unusual_calls: List of strikes with call volume > 3x avg
-    - unusual_puts: List of strikes with put volume > 3x avg
-    - total_call_oi: Total call open interest
-    - total_put_oi: Total put open interest
-    - nearest_expiry: The expiration date analyzed
-    - gamma_wall: Strike with highest total OI (acts as price magnet)
+    Analyze the options chain using Public.com API.
     """
     result = {
         'ticker': ticker,
@@ -38,126 +26,79 @@ def get_options_flow(ticker):
         'net_sentiment': 'N/A',
     }
     
+    if not API_KEY:
+        return result
+        
     try:
-        stock = yf.Ticker(ticker)
-        expirations = stock.options
+        client = PublicApiClient(auth_config=ApiKeyAuthConfig(api_secret_key=API_KEY))
+        accounts = client.get_accounts()
+        if not accounts.accounts: return result
+        account_id = accounts.accounts[0].account_id
         
-        if not expirations:
+        inst = OrderInstrument(symbol=ticker, type="EQUITY")
+        exp_req = OptionExpirationsRequest(instrument=inst)
+        exp_res = client.get_option_expirations(exp_req, account_id=account_id)
+        
+        if not exp_res.expirations:
             return result
+            
+        # Get the first two expirations to find liquidity
+        nearest = exp_res.expirations[0]
+        if len(exp_res.expirations) > 1:
+            # Often the current 0DTE has weird OI, check the next one
+            nearest = exp_res.expirations[1]
+            
+        result['nearest_expiry'] = nearest
         
-        # Use the nearest expiration (most liquid, most institutional activity)
-        nearest_exp = expirations[0]
-        result['nearest_expiry'] = nearest_exp
+        chain_req = OptionChainRequest(instrument=inst, expiration_date=nearest)
+        chain_res = client.get_option_chain(chain_req, account_id=account_id)
         
-        chain = stock.option_chain(nearest_exp)
-        calls = chain.calls
-        puts = chain.puts
-        
-        if calls.empty or puts.empty:
+        if not chain_res.calls and not chain_res.puts:
             return result
+            
+        calls = chain_res.calls
+        puts = chain_res.puts
+                
+        total_call_oi = sum(c.open_interest for c in calls if c.open_interest)
+        total_put_oi = sum(p.open_interest for p in puts if p.open_interest)
         
-        # Total OI
-        total_call_oi = int(calls['openInterest'].sum()) if 'openInterest' in calls.columns else 0
-        total_put_oi = int(puts['openInterest'].sum()) if 'openInterest' in puts.columns else 0
         result['total_call_oi'] = total_call_oi
         result['total_put_oi'] = total_put_oi
         
-        # Put/Call Ratio
         if total_call_oi > 0:
             pcr = total_put_oi / total_call_oi
             result['put_call_ratio'] = round(pcr, 2)
-            if pcr > 1.2:
-                result['put_call_label'] = 'BEARISH SKEW'
-            elif pcr < 0.7:
-                result['put_call_label'] = 'BULLISH SKEW'
-            else:
-                result['put_call_label'] = 'NEUTRAL'
-        
-        # Unusual Volume Detection (volume > 3x the average volume for that chain)
-        if 'volume' in calls.columns:
-            avg_call_vol = calls['volume'].mean()
-            if avg_call_vol > 0:
-                unusual_c = calls[calls['volume'] > 3 * avg_call_vol]
-                result['unusual_calls'] = [
-                    {'strike': float(row['strike']), 'volume': int(row['volume']), 'oi': int(row.get('openInterest', 0))}
-                    for _, row in unusual_c.iterrows()
-                ]
-        
-        if 'volume' in puts.columns:
-            avg_put_vol = puts['volume'].mean()
-            if avg_put_vol > 0:
-                unusual_p = puts[puts['volume'] > 3 * avg_put_vol]
-                result['unusual_puts'] = [
-                    {'strike': float(row['strike']), 'volume': int(row['volume']), 'oi': int(row.get('openInterest', 0))}
-                    for _, row in unusual_p.iterrows()
-                ]
-        
-        # Max Pain Calculation (strike where total dollar value of expiring options is minimized)
-        current_price = stock.info.get('regularMarketPrice', 0) or stock.info.get('currentPrice', 0)
-        
-        if 'openInterest' in calls.columns and 'openInterest' in puts.columns:
-            strikes = sorted(set(calls['strike'].tolist() + puts['strike'].tolist()))
-            min_pain = float('inf')
-            max_pain_strike = 0
+            if pcr > 1.2: result['put_call_label'] = 'BEARISH SKEW'
+            elif pcr < 0.7: result['put_call_label'] = 'BULLISH SKEW'
+            else: result['put_call_label'] = 'NEUTRAL'
             
-            for strike in strikes:
-                call_pain = 0
-                put_pain = 0
-                for _, row in calls.iterrows():
-                    if strike > row['strike']:
-                        call_pain += (strike - row['strike']) * row.get('openInterest', 0)
-                for _, row in puts.iterrows():
-                    if strike < row['strike']:
-                        put_pain += (row['strike'] - strike) * row.get('openInterest', 0)
-                total_pain = call_pain + put_pain
-                if total_pain < min_pain:
-                    min_pain = total_pain
-                    max_pain_strike = strike
-            
-            result['max_pain'] = float(max_pain_strike)
-        
-        # Gamma Wall (strike with highest combined OI = price magnet)
+        # Gamma Wall
         all_strikes = {}
-        if 'openInterest' in calls.columns:
-            for _, row in calls.iterrows():
-                s = float(row['strike'])
-                all_strikes[s] = all_strikes.get(s, 0) + row.get('openInterest', 0)
-        if 'openInterest' in puts.columns:
-            for _, row in puts.iterrows():
-                s = float(row['strike'])
-                all_strikes[s] = all_strikes.get(s, 0) + row.get('openInterest', 0)
-        
-        if all_strikes:
+        for c in calls:
+            s = float(c.option_details.strike_price) if c.option_details else 0
+            if s > 0: all_strikes[s] = all_strikes.get(s, 0) + (c.open_interest or 0)
+        for p in puts:
+            s = float(p.option_details.strike_price) if p.option_details else 0
+            if s > 0: all_strikes[s] = all_strikes.get(s, 0) + (p.open_interest or 0)
+            
+        if all_strikes and max(all_strikes.values()) > 0:
             gamma_wall = max(all_strikes, key=all_strikes.get)
             result['gamma_wall'] = float(gamma_wall)
-        
-        # Net sentiment combining P/C ratio with unusual activity
-        unusual_call_count = len(result['unusual_calls'])
-        unusual_put_count = len(result['unusual_puts'])
-        
-        if result['put_call_label'] == 'BULLISH SKEW' and unusual_call_count > unusual_put_count:
-            result['net_sentiment'] = 'STRONG BULLISH'
-        elif result['put_call_label'] == 'BEARISH SKEW' and unusual_put_count > unusual_call_count:
-            result['net_sentiment'] = 'STRONG BEARISH'
-        elif unusual_call_count > unusual_put_count + 2:
-            result['net_sentiment'] = 'BULLISH'
-        elif unusual_put_count > unusual_call_count + 2:
-            result['net_sentiment'] = 'BEARISH'
-        else:
-            result['net_sentiment'] = 'NEUTRAL'
-        
+            
+        # Sentiment
+        if result['put_call_label'] != 'N/A':
+            result['net_sentiment'] = result['put_call_label'].replace(' SKEW', '')
+            
     except Exception as e:
+        print(f"Error fetching options from Public: {e}")
         pass
-    
+        
     return result
-
 
 if __name__ == '__main__':
     flow = get_options_flow("AAPL")
-    print(f"AAPL Options Flow:")
+    print(f"AAPL Options Flow (Public.com API):")
     print(f"  P/C Ratio: {flow['put_call_ratio']} ({flow['put_call_label']})")
-    print(f"  Max Pain: ${flow['max_pain']}")
     print(f"  Gamma Wall: ${flow['gamma_wall']}")
     print(f"  Call OI: {flow['total_call_oi']:,} | Put OI: {flow['total_put_oi']:,}")
-    print(f"  Unusual Calls: {len(flow['unusual_calls'])} | Unusual Puts: {len(flow['unusual_puts'])}")
     print(f"  Net Sentiment: {flow['net_sentiment']}")
