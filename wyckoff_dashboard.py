@@ -401,6 +401,12 @@ if selected_tab == TABS[0]:
             "1h": "Swing Trade",
             "1d": "Long Term"
         }
+        expected_times = {
+            "5m": "1 - 4 Hours",
+            "15m": "1 - 3 Days",
+            "1h": "1 - 2 Weeks",
+            "1d": "1 - 3 Months"
+        }
         st.markdown(f"#### 🔥 TRIGGERED ({len(db_trades)} Live Bot Alerts)")
         for t in db_trades:
             # Reconstruct the card format from the DB record
@@ -412,7 +418,8 @@ if selected_tab == TABS[0]:
             
             tf = t.get('timeframe', '5m')
             trade_style = styles.get(tf, "Unknown")
-            reason = f"TF: {tf} ({trade_style}) | Context: {t.get('regime', 'Unknown')}"
+            exp_time = expected_times.get(tf, "Unknown")
+            reason = f"TF: {tf} | Style: {trade_style} ({exp_time}) | Context: {t.get('regime', 'Unknown')}"
             
             try:
                 risk = abs(float(t['entry_price']) - float(t['stop_loss']))

@@ -36,12 +36,21 @@ def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, reg
         return False
         
     styles = {
-        "5m": "Day Trade Scalp (Intraday)",
-        "15m": "Day Trade / Short Swing (1-2 days)",
-        "1h": "Swing Trade (Days to Weeks)",
-        "1d": "Long Term (Multiple Weeks)"
+        "5m": "Day Trade Scalp",
+        "15m": "Day Trade / Short Swing",
+        "1h": "Swing Trade",
+        "1d": "Long Term"
     }
+    
+    expected_times = {
+        "5m": "1 - 4 Hours",
+        "15m": "1 - 3 Days",
+        "1h": "1 - 2 Weeks",
+        "1d": "1 - 3 Months"
+    }
+    
     trade_style = styles.get(timeframe, "Unknown")
+    exp_time = expected_times.get(timeframe, "Unknown")
     
     try:
         risk = abs(float(entry_price) - float(stop_loss))
@@ -59,7 +68,8 @@ def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, reg
     message = (
         f"🚨 TRADE ALERT: {ticker}\n"
         f"Direction: {direction}\n"
-        f"Timeframe: {timeframe} - {trade_style}\n"
+        f"Style: {trade_style} ({timeframe})\n"
+        f"Expected Duration: {exp_time}\n"
         f"Entry: {entry_str}\n"
         f"Stop Loss: {sl_str}\n"
         f"Take Profit: {tp_str}\n"
