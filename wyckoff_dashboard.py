@@ -519,8 +519,8 @@ try:
 except: TRACKER_AVAILABLE = False
 
 # --- TABS ---
-tab_scanner, tab_sector, tab_mtf, tab_reports = st.tabs([
-    'Scanner', 'Sector Heatmap', 'Multi-TF Confluence', 'Live Bot Reports'
+tab_scanner, tab_sector, tab_mtf, tab_reports, tab_docs = st.tabs([
+    'Scanner', 'Sector Heatmap', 'Multi-TF Confluence', 'Live Bot Reports', '🧠 ML Architecture'
 ])
 
 with tab_scanner:
@@ -746,3 +746,10 @@ with tab_reports:
         | **4:30 PM** | Daily Recap | Full day summary + tomorrow's watchlist |
         ''')
         st.caption("Reports are sent to your Email and Telegram automatically. You can also text /report or /recap to the Telegram bot anytime.")
+
+with tab_docs:
+    try:
+        with open('algo_documentation.md', 'r', encoding='utf-8') as md_file:
+            st.markdown(md_file.read())
+    except Exception as e:
+        st.warning('algo_documentation.md not found.')
