@@ -407,8 +407,17 @@ if selected_tab == TABS[0]:
             "1h": "1 - 2 Weeks",
             "1d": "1 - 3 Months"
         }
-        st.markdown(f"#### 🔥 TRIGGERED ({len(db_trades)} Live Bot Alerts)")
+        filtered_db_trades = []
         for t in db_trades:
+            try:
+                risk = abs(float(t["entry_price"]) - float(t["stop_loss"]))
+                reward = abs(float(t["take_profit"]) - float(t["entry_price"]))
+                r_units = (reward / risk) if risk > 0 else 0
+                if r_units >= 1.5: filtered_db_trades.append(t)
+            except: pass
+            
+        st.markdown(f"#### ? TRIGGERED ({len(filtered_db_trades)} Live Bot Alerts)")
+        for t in filtered_db_trades:
             # Reconstruct the card format from the DB record
             border_color = TV_GREEN if "LONG" in t['direction'] else TV_RED
             dir_emoji = "🟢" if "LONG" in t['direction'] else "🔴"

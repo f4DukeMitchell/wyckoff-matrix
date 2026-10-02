@@ -50,7 +50,7 @@ TIMEFRAMES = [
     {"interval": "1d", "period": "2y", "lookback": 100}
 ]
 SL_BUFFER = 0.01
-MIN_R_UNITS = 1.0
+MIN_R_UNITS = 1.5
 VOL_LIMIT = 1.2
 
 last_alerted = {ticker: 0 for ticker in TICKERS}
@@ -285,14 +285,9 @@ def scan_market(interval, period, lookback):
                 risk = abs(price - sl)
                 reward = abs(tp - price)
                 r_units = (reward / risk) if risk > 0 else 0
-                if r_units < MIN_R_UNITS:
-                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED: {ticker} LONG - R-Units too low ({r_units:.2f}R)")
-                    last_alerted[ticker] = current_time
-                    continue
-                    
+                
                 regime = "BEARISH (Seeking Reversal)" if not u9[curr] and not u14[curr] else "MIXED"
                 
-                # send_email_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, flow, interval)
                 if TRACKER_ENABLED:
                     q = get_public_quotes(ticker) if OPTIONS_ENABLED else {'bid_ask_ratio': None, 'spread_width_pct': None}
                     log_alert(ticker, "LONG", price, sl, tp, regime, interval,
@@ -306,6 +301,12 @@ def scan_market(interval, period, lookback):
                               bid_ask_ratio=q.get('bid_ask_ratio'),
                               spread_width_pct=q.get('spread_width_pct'),
                               implied_volatility=flow.get('atm_iv') if flow else None)
+                
+                if r_units < MIN_R_UNITS:
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] SILENT LOG: {ticker} LONG - R-Units too low ({r_units:.2f}R)")
+                    last_alerted[ticker] = current_time
+                    continue
+
                 if TELEGRAM_ENABLED: tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, interval, flow)
                 last_alerted[ticker] = current_time
                 
@@ -328,14 +329,9 @@ def scan_market(interval, period, lookback):
                 risk = abs(sl - price)
                 reward = abs(price - tp)
                 r_units = (reward / risk) if risk > 0 else 0
-                if r_units < MIN_R_UNITS:
-                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED: {ticker} SHORT - R-Units too low ({r_units:.2f}R)")
-                    last_alerted[ticker] = current_time
-                    continue
-                    
+                
                 regime = "BULLISH (Seeking Reversal)" if u9[curr] and u14[curr] else "MIXED"
                 
-                # send_email_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, flow, interval)
                 if TRACKER_ENABLED:
                     q = get_public_quotes(ticker) if OPTIONS_ENABLED else {'bid_ask_ratio': None, 'spread_width_pct': None}
                     log_alert(ticker, "SHORT", price, sl, tp, regime, interval,
@@ -349,6 +345,12 @@ def scan_market(interval, period, lookback):
                               bid_ask_ratio=q.get('bid_ask_ratio'),
                               spread_width_pct=q.get('spread_width_pct'),
                               implied_volatility=flow.get('atm_iv') if flow else None)
+                
+                if r_units < MIN_R_UNITS:
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] SILENT LOG: {ticker} SHORT - R-Units too low ({r_units:.2f}R)")
+                    last_alerted[ticker] = current_time
+                    continue
+
                 if TELEGRAM_ENABLED: tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow)
                 last_alerted[ticker] = current_time
                 
