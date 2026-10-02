@@ -43,9 +43,12 @@ try:
         TICKERS = json.load(f)
 except:
     TICKERS = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "BRK-B", "LLY", "AVGO", "JPM", "V"]
-INTERVAL = "5m"
-PERIOD = "5d"
-LOOKBACK = 200        # Intraday Phase B lookback
+TIMEFRAMES = [
+    {"interval": "5m", "period": "5d", "lookback": 200},
+    {"interval": "15m", "period": "20d", "lookback": 150},
+    {"interval": "1h", "period": "60d", "lookback": 100},
+    {"interval": "1d", "period": "2y", "lookback": 100}
+]
 SL_BUFFER = 0.01      # 1% stop loss buffer for intraday volatility
 VOL_LIMIT = 1.2       # Intraday volume threshold
 # ==========================================
@@ -58,7 +61,7 @@ def send_email_alert(ticker, action, price, sl, tp, regime, options_flow=None):
     body = f"""
     Wyckoff Institutional Terminal Alert
     ------------------------------------
-    TICKER: {ticker} ({INTERVAL})
+    TICKER: {ticker} ({interval})
     ACTION: {action}
     
     ENTRY PRICE: ${price:.2f}
@@ -124,16 +127,16 @@ def get_supertrend(high, low, close, length, multiplier):
             if not in_uptrend[i] and upperband[i] > upperband[i-1]: upperband[i] = upperband[i-1]
     return in_uptrend
 
-def scan_market():
+def scan_market(interval, period, lookback):
     print(f"\n[{datetime.datetime.now().strftime('%H:%M:%S')}] ðŸ“¡ Scanning {len(TICKERS)} tickers for Phase C exhaustion...")
     
     # Bulk download is faster and prevents rate limits
-    data = yf.download(TICKERS, period=PERIOD, interval=INTERVAL, group_by='ticker', progress=False)
+    data = yf.download(TICKERS, period=period, interval=interval, group_by='ticker', progress=False)
     
     for ticker in TICKERS:
         try:
             df = data[ticker].dropna() if len(TICKERS) > 1 else data.dropna()
-            if df.empty or len(df) < LOOKBACK:
+            if df.empty or len(df) < lookback:
                 continue
                 
             highs = df['High'].values
@@ -218,13 +221,13 @@ reports_sent = {"morning": False, "lunch": False, "power": False}
 
 def send_market_report(session_name):
     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ðŸ“ Generating {session_name} Report...")
-    data = yf.download(TICKERS, period="10d", interval=INTERVAL, group_by='ticker', progress=False)
+    data = yf.download(TICKERS, period="10d", interval="1h", group_by='ticker', progress=False)
     
     exhausted = []
     for ticker in TICKERS:
         try:
             df = data[ticker].dropna() if len(TICKERS) > 1 else data.dropna()
-            if df.empty or len(df) < LOOKBACK: continue
+            if df.empty or len(df) < lookback: continue
             
             highs, lows, closes = df['High'].values, df['Low'].values, df['Close'].values
             u9 = get_supertrend(highs, lows, closes, 9, 9.0)
@@ -276,13 +279,13 @@ def send_market_report(session_name):
 
 def send_daily_recap():
     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Generating Daily Recap & Tomorrow's Watchlist...")
-    data = yf.download(TICKERS, period="10d", interval=INTERVAL, group_by='ticker', progress=False)
+    data = yf.download(TICKERS, period="10d", interval="1h", group_by='ticker', progress=False)
     
     exhausted = []
     for ticker in TICKERS:
         try:
             df = data[ticker].dropna() if len(TICKERS) > 1 else data.dropna()
-            if df.empty or len(df) < LOOKBACK: continue
+            if df.empty or len(df) < lookback: continue
             
             highs, lows, closes = df['High'].values, df['Low'].values, df['Close'].values
             u9 = get_supertrend(highs, lows, closes, 9, 9.0)
@@ -369,11 +372,14 @@ if __name__ == "__main__":
     print("ðŸ¦… WYCKOFF LIVE ALERT BOT INITIALIZED ðŸ¦…")
     print("========================================")
     print(f"Targeting: {len(TICKERS)} Mega-Cap Stocks")
-    print(f"Interval: {INTERVAL}")
+    print(f"Intervals: 5m, 15m, 1h, 1d")
     print("Bot is now running in the background. Press Ctrl+C to stop.\n")
     
     while True:
-        scan_market()
+        for tf in TIMEFRAMES:
+            scan_market(tf['interval'], tf['period'], tf['lookback'])
+            import time
+            time.sleep(2)
         
         # Check if any open trades have hit TP or SL
         if TRACKER_ENABLED:

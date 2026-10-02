@@ -18,6 +18,7 @@ def init_db():
                 entry_price REAL,
                 stop_loss REAL,
                 take_profit REAL,
+                timeframe TEXT,
                 regime TEXT,
                 timestamp TEXT,
                 outcome TEXT DEFAULT 'OPEN',
@@ -36,15 +37,15 @@ def init_db():
         if 'conn' in locals():
             conn.close()
 
-def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime, pcr=None, sentiment=None):
+def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe='5m', pcr=None, sentiment=None):
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         timestamp = datetime.datetime.now().isoformat()
         cursor.execute('''
-            INSERT INTO alerts (ticker, direction, entry_price, stop_loss, take_profit, regime, timestamp, pcr, sentiment)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (ticker, direction, entry_price, stop_loss, take_profit, regime, timestamp, pcr, sentiment))
+            INSERT INTO alerts (ticker, direction, entry_price, stop_loss, take_profit, regime, timestamp, pcr, sentiment, timeframe)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (ticker, direction, entry_price, stop_loss, take_profit, regime, timestamp, pcr, sentiment, timeframe))
         conn.commit()
         last_id = cursor.lastrowid
         return last_id
