@@ -309,9 +309,7 @@ def render_wyckoff_chart(ticker, interval, period, sl_buffer, tp_target, lookbac
     )
     fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor=TV_GRID, tickprefix="$")
     
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Return intel data for sidebar rendering
+    # Remove plotly_chart from here, return everything to the caller
     tot_longs = l_wins + l_loss
     tot_shorts = s_wins + s_loss
     long_wr = (l_wins / tot_longs * 100) if tot_longs > 0 else 0
@@ -319,6 +317,8 @@ def render_wyckoff_chart(ticker, interval, period, sl_buffer, tp_target, lookbac
     tot_units = l_units + s_units
     
     return {
+        "fig": fig,
+        "df": df_clean,
         "long_wr": long_wr, "short_wr": short_wr,
         "tot_longs": tot_longs, "tot_shorts": tot_shorts,
         "l_units": l_units, "s_units": s_units, "tot_units": tot_units,
@@ -373,50 +373,6 @@ with st.sidebar:
     st.markdown("### ⚙️ Backtest Risk Rules")
     sl_buffer = st.slider("Stop-Loss Buffer (%)", min_value=0.1, max_value=3.0, value=st.session_state.sl_val, step=0.1, key='sl_val', on_change=on_slider_change)
     tp_target = st.radio("Take Profit Target", ["Full Phase B Range", "50% Mid-Line"], index=0 if st.session_state.tp_val == "Full Phase B Range" else 1, key='tp_val', on_change=on_slider_change)
-    
-    st.markdown("### 📋 Market Radar")
-    watchlist_choice = st.selectbox("Watchlist Profile:", ["Top 20 Mega-Cap Tech", "S&P 500 (Massive Sweep)"], index=0)
-    sort_by = st.radio("Sort By:", ["Exhaustion (Bars)", "Historical Win Rate (%)", "Net Profit (Units)"], horizontal=True)
-    
-    if watchlist_choice == "S&P 500 (Massive Sweep)": tickers_to_scan = get_sp500_tickers()
-    else: tickers_to_scan = ["AAPL","MSFT","NVDA","AMZN","META","GOOGL","TSLA","BRK-B","LLY","AVGO","JPM","V","UNH","MA","PG","COST","HD","MRK","ABBV","CVX"]
-    
-    if st.button("🔄 Rescan Market"):
-        with st.spinner(f"Initiating {len(tickers_to_scan)} Ticker Sweep..."):
-            st.session_state['scan_data'] = fetch_and_analyze(tickers_to_scan, timeframe, dl_period, sl_buffer, tp_target, algo_lookback, algo_vol)
-        
-    if 'scan_data' not in st.session_state or st.session_state.get('last_tf') != timeframe or st.session_state.get('last_wl') != watchlist_choice or st.session_state.get('last_sl') != sl_buffer or st.session_state.get('last_tp') != tp_target or st.session_state.get('last_lb') != algo_lookback or st.session_state.get('last_vol') != algo_vol:
-        with st.spinner(f"Initiating {len(tickers_to_scan)} Ticker Sweep..."):
-            st.session_state['scan_data'] = fetch_and_analyze(tickers_to_scan, timeframe, dl_period, sl_buffer, tp_target, algo_lookback, algo_vol)
-            st.session_state['last_tf'] = timeframe
-            st.session_state['last_wl'] = watchlist_choice
-            st.session_state['last_sl'] = sl_buffer
-            st.session_state['last_tp'] = tp_target
-            st.session_state['last_lb'] = algo_lookback
-            st.session_state['last_vol'] = algo_vol
-        
-    df_res = st.session_state['scan_data']
-    if df_res is not None and not df_res.empty:
-        if sort_by == "Historical Win Rate (%)": df_res = df_res.sort_values(by=["WinRate", "Trades"], ascending=[False, False])
-        elif sort_by == "Net Profit (Units)": df_res = df_res.sort_values(by="NetUnits", ascending=False)
-        else: df_res = df_res.sort_values(by="Bars", ascending=False)
-            
-        for _, row in df_res.iterrows():
-            color = TV_GREEN if row['Regime'] == 'BULL' else TV_RED if row['Regime'] == 'BEAR' else TV_TEXT
-            net_u = row.get("NetUnits", 0)
-            u_color = TV_GREEN if net_u > 0 else TV_RED if net_u < 0 else TV_TEXT
-            
-            c1, c2 = st.columns([1.2, 2])
-            with c1:
-                if st.button(f"{row['Ticker']}", key=f"btn_{row['Ticker']}_{timeframe}_{watchlist_choice}_{sl_buffer}_{tp_target}_{algo_lookback}_{algo_vol}"):
-                    st.session_state['selected_ticker'] = row['Ticker']
-                    st.rerun()
-            with c2:
-                st.markdown(f"<div style='line-height: 1.2; margin-top: 5px;'>"
-                            f"<span style='color: {color}; font-size: 14px;'>{row['Regime']} ({row['Bars']})</span><br>"
-                            f"<span style='font-size: 11px; color: #888;'>Net: <strong style='color:{u_color};'>{net_u:+.1f}R</strong> | <strong style='color:{TV_GREEN};'>L:{row['Long_WR']}%</strong> / <strong style='color:{TV_RED};'>S:{row['Short_WR']}%</strong></span>"
-                            f"</div>", unsafe_allow_html=True)
-            st.markdown(f"<hr style='margin: 5px 0px; border-color: {TV_GRID};'>", unsafe_allow_html=True)
     
     # --- LIVE INTEL CARDS (rendered in sidebar) ---
     st.markdown("---")
@@ -481,6 +437,50 @@ with st.sidebar:
     else:
         st.info("Select a ticker to see Live Intel.")
 
+    st.markdown("### 📋 Market Radar")
+    watchlist_choice = st.selectbox("Watchlist Profile:", ["Top 20 Mega-Cap Tech", "S&P 500 (Massive Sweep)"], index=0)
+    sort_by = st.radio("Sort By:", ["Exhaustion (Bars)", "Historical Win Rate (%)", "Net Profit (Units)"], horizontal=True)
+    
+    if watchlist_choice == "S&P 500 (Massive Sweep)": tickers_to_scan = get_sp500_tickers()
+    else: tickers_to_scan = ["AAPL","MSFT","NVDA","AMZN","META","GOOGL","TSLA","BRK-B","LLY","AVGO","JPM","V","UNH","MA","PG","COST","HD","MRK","ABBV","CVX"]
+    
+    if st.button("🔄 Rescan Market"):
+        with st.spinner(f"Initiating {len(tickers_to_scan)} Ticker Sweep..."):
+            st.session_state['scan_data'] = fetch_and_analyze(tickers_to_scan, timeframe, dl_period, sl_buffer, tp_target, algo_lookback, algo_vol)
+        
+    if 'scan_data' not in st.session_state or st.session_state.get('last_tf') != timeframe or st.session_state.get('last_wl') != watchlist_choice or st.session_state.get('last_sl') != sl_buffer or st.session_state.get('last_tp') != tp_target or st.session_state.get('last_lb') != algo_lookback or st.session_state.get('last_vol') != algo_vol:
+        with st.spinner(f"Initiating {len(tickers_to_scan)} Ticker Sweep..."):
+            st.session_state['scan_data'] = fetch_and_analyze(tickers_to_scan, timeframe, dl_period, sl_buffer, tp_target, algo_lookback, algo_vol)
+            st.session_state['last_tf'] = timeframe
+            st.session_state['last_wl'] = watchlist_choice
+            st.session_state['last_sl'] = sl_buffer
+            st.session_state['last_tp'] = tp_target
+            st.session_state['last_lb'] = algo_lookback
+            st.session_state['last_vol'] = algo_vol
+        
+    df_res = st.session_state['scan_data']
+    if df_res is not None and not df_res.empty:
+        if sort_by == "Historical Win Rate (%)": df_res = df_res.sort_values(by=["WinRate", "Trades"], ascending=[False, False])
+        elif sort_by == "Net Profit (Units)": df_res = df_res.sort_values(by="NetUnits", ascending=False)
+        else: df_res = df_res.sort_values(by="Bars", ascending=False)
+            
+        for _, row in df_res.iterrows():
+            color = TV_GREEN if row['Regime'] == 'BULL' else TV_RED if row['Regime'] == 'BEAR' else TV_TEXT
+            net_u = row.get("NetUnits", 0)
+            u_color = TV_GREEN if net_u > 0 else TV_RED if net_u < 0 else TV_TEXT
+            
+            c1, c2 = st.columns([1.2, 2])
+            with c1:
+                if st.button(f"{row['Ticker']}", key=f"btn_{row['Ticker']}_{timeframe}_{watchlist_choice}_{sl_buffer}_{tp_target}_{algo_lookback}_{algo_vol}"):
+                    st.session_state['selected_ticker'] = row['Ticker']
+                    st.rerun()
+            with c2:
+                st.markdown(f"<div style='line-height: 1.2; margin-top: 5px;'>"
+                            f"<span style='color: {color}; font-size: 14px;'>{row['Regime']} ({row['Bars']})</span><br>"
+                            f"<span style='font-size: 11px; color: #888;'>Net: <strong style='color:{u_color};'>{net_u:+.1f}R</strong> | <strong style='color:{TV_GREEN};'>L:{row['Long_WR']}%</strong> / <strong style='color:{TV_RED};'>S:{row['Short_WR']}%</strong></span>"
+                            f"</div>", unsafe_allow_html=True)
+            st.markdown(f"<hr style='margin: 5px 0px; border-color: {TV_GRID};'>", unsafe_allow_html=True)
+    
 # =============================================================================
 # MULTI-PAGE UPGRADE: Sector Heatmap, Multi-TF Confluence, Options Flow, Trade Log
 # =============================================================================
@@ -513,6 +513,66 @@ with tab_scanner:
     intel_data = render_wyckoff_chart(st.session_state['selected_ticker'], timeframe, dl_period, sl_buffer, tp_target, algo_lookback, algo_vol)
     if intel_data:
         st.session_state['intel_data'] = intel_data
+        
+        c_chart, c_cards = st.columns([3.5, 1])
+        with c_chart:
+            st.plotly_chart(intel_data['fig'], use_container_width=True)
+        with c_cards:
+            with st.expander("🌊 Options Flow", expanded=True):
+                try:
+                    from options_flow import get_options_flow
+                    flow = get_options_flow(st.session_state['selected_ticker'])
+                    if flow:
+                        st.markdown(f"""
+                        <div style='font-size:13px;'>
+                            <div style='display:flex; justify-content:space-between;'><span>Sentiment:</span> <strong>{flow.get('net_sentiment')}</strong></div>
+                            <div style='display:flex; justify-content:space-between;'><span>Put/Call:</span> <strong>{flow.get('put_call_ratio')}</strong></div>
+                            <div style='display:flex; justify-content:space-between;'><span>Gamma Wall:</span> <strong style='color:#2962FF;'>${flow.get('gamma_wall')}</strong></div>
+                            <div style='display:flex; justify-content:space-between;'><span>Max Pain:</span> <strong>${flow.get('max_pain')}</strong></div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.write("No flow data.")
+                except: st.write("Module missing.")
+                
+            with st.expander("📊 Volume Heatmap (Profile)", expanded=True):
+                try:
+                    import plotly.graph_objects as go
+                    import pandas as pd
+                    df_chart = intel_data['df']
+                    # Mini volume profile
+                    vol_bins = pd.cut(df_chart['Close'], bins=15)
+                    vol_profile = df_chart.groupby(vol_bins, observed=False)['Volume'].sum()
+                    vp_fig = go.Figure(go.Bar(
+                        x=vol_profile.values,
+                        y=[f"${v.mid:.2f}" for v in vol_profile.index],
+                        orientation='h',
+                        marker_color='rgba(41, 98, 255, 0.6)'
+                    ))
+                    vp_fig.update_layout(
+                        margin=dict(l=0,r=0,t=0,b=0), 
+                        height=200, 
+                        paper_bgcolor='rgba(0,0,0,0)', 
+                        plot_bgcolor='rgba(0,0,0,0)', 
+                        xaxis=dict(visible=False), 
+                        yaxis=dict(tickfont=dict(size=10, color='#888'))
+                    )
+                    st.plotly_chart(vp_fig, use_container_width=True, config={'displayModeBar': False})
+                except Exception as e: st.write(f"Error: {e}")
+                
+            with st.expander("📝 Trade Log", expanded=True):
+                try:
+                    from trade_tracker import get_recent_trades
+                    import pandas as pd
+                    recent = get_recent_trades(20)
+                    if recent:
+                        recent_t = [t for t in recent if t['ticker'] == st.session_state['selected_ticker']]
+                        if recent_t:
+                            tdf = pd.DataFrame(recent_t)[['direction', 'outcome', 'pnl_r']]
+                            st.dataframe(tdf, use_container_width=True, hide_index=True)
+                        else: st.write("No trades found.")
+                    else: st.write("No trades found.")
+                except: st.write("Module missing.")
 
 with tab_sector:
     st.markdown("## Sector Rotation Heatmap")
