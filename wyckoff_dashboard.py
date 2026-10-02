@@ -362,11 +362,19 @@ with st.sidebar:
             st.session_state['selected_ticker'] = t
             st.rerun()
 
-# --- TABS ---
-tab_ideas, tab_chart, tab_perf, tab_ml = st.tabs(["🎯 Trade Ideas", "📊 Chart Terminal", "📈 Performance", "🧠 ML Brain"])
+# --- TABS (Programmatic Navigation) ---
+TABS = ["🎯 Trade Ideas", "📊 Chart Terminal", "📈 Performance", "🧠 ML Brain"]
+
+# Clean up stale session state from old version where active_tab was an integer
+if 'active_tab' not in st.session_state or st.session_state['active_tab'] not in TABS:
+    st.session_state['active_tab'] = TABS[0]
+
+# Use a horizontal radio button to simulate tabs that we can control via session state
+selected_tab = st.radio("Navigation", TABS, horizontal=True, label_visibility="collapsed", index=TABS.index(st.session_state['active_tab']))
+st.session_state['active_tab'] = selected_tab
 
 # ===== TAB 1: TRADE IDEAS =====
-with tab_ideas:
+if selected_tab == TABS[0]:
     st.markdown("### ⚡ Live Trade Ideas — ML Ranked")
     st.caption("Scanning Top 20 Mega-Caps for Wyckoff Phase C setups. Ranked by ML Confidence Score.")
 
@@ -408,6 +416,7 @@ with tab_ideas:
                 """, unsafe_allow_html=True)
                 if st.button(f"📊 Open {idea['Ticker']} Chart", key=f"idea_{idea['Ticker']}"):
                     st.session_state['selected_ticker'] = idea['Ticker']
+                    st.session_state['active_tab'] = TABS[1]
                     st.rerun()
 
         if stalking:
@@ -430,10 +439,11 @@ with tab_ideas:
                     """, unsafe_allow_html=True)
                     if st.button(f"Chart {idea['Ticker']}", key=f"stalk_{idea['Ticker']}"):
                         st.session_state['selected_ticker'] = idea['Ticker']
+                        st.session_state['active_tab'] = TABS[1]
                         st.rerun()
 
 # ===== TAB 2: CHART TERMINAL =====
-with tab_chart:
+elif selected_tab == TABS[1]:
     col_tk, col_tf = st.columns([2, 1])
     with col_tk:
         def update_ticker():
@@ -487,7 +497,7 @@ with tab_chart:
                     st.write("No backtest trades.")
 
 # ===== TAB 3: PERFORMANCE =====
-with tab_perf:
+elif selected_tab == TABS[2]:
     st.markdown("### 📈 Bot Performance & Trade Log")
     if not TRACKER_AVAILABLE:
         st.warning("trade_tracker.py module not found.")
@@ -532,7 +542,7 @@ with tab_perf:
             st.info("No bot alerts logged yet. Leave the bot running during market hours!")
 
 # ===== TAB 4: ML BRAIN =====
-with tab_ml:
+elif selected_tab == TABS[3]:
     try:
         with open('algo_documentation.md', 'r', encoding='utf-8') as md_file:
             st.markdown(md_file.read())
