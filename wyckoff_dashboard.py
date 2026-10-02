@@ -352,7 +352,7 @@ def render_wyckoff_chart(ticker, interval, period, sl_buffer, tp_target, lookbac
         st.markdown(f"""
 <div class="intel-card">
 <p style='color: #888; font-size: 12px; margin:0;'>STRATEGY PERFORMANCE</p>
-<p style='font-size: 11px; color: #666; margin-bottom: 12px;'>Historical 4-Pillar setups on this timeframe.</p>
+<p style='font-size: 11px; color: #666; margin-bottom: 12px;'>Backtested: {dates[0].strftime('%b %d, %Y')} &rarr; {dates[-1].strftime('%b %d, %Y')}</p>
 <div style='display: flex; justify-content: space-between;'><span>LONG (Springs):</span> <strong style='color:{TV_GREEN if long_wr >= 50 else TV_TEXT};'>{long_wr:.1f}% Win</strong></div>
 <div style='display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-bottom: 8px;'><span>Gain/Loss:</span> <strong style='color:{TV_GREEN if l_units > 0 else TV_RED if l_units < 0 else TV_TEXT};'>{l_units:+.2f}R Units</strong></div>
 <div style='display: flex; justify-content: space-between;'><span>SHORT (UTADs):</span> <strong style='color:{TV_RED if short_wr >= 50 else TV_TEXT};'>{short_wr:.1f}% Win</strong></div>
