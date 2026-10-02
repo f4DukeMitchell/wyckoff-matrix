@@ -519,8 +519,8 @@ try:
 except: TRACKER_AVAILABLE = False
 
 # --- TABS ---
-tab_scanner, tab_sector, tab_mtf, tab_options, tab_trades, tab_reports = st.tabs([
-    "Scanner", "Sector Heatmap", "Multi-TF Confluence", "Options Flow", "Trade Log", "Reports"
+tab_scanner, tab_sector, tab_mtf, tab_reports = st.tabs([
+    'Scanner', 'Sector Heatmap', 'Multi-TF Confluence', 'Live Bot Reports'
 ])
 
 with tab_scanner:
@@ -658,116 +658,6 @@ with tab_mtf:
                 with c4:
                     st.markdown(f"<div style='padding: 8px;'>Reversal: <span style='color:{rev_color}; font-weight:bold;'>{r['reversal_quality']}</span></div>", unsafe_allow_html=True)
                 st.markdown(f"<hr style='margin: 2px 0; border-color: {TV_GRID};'>", unsafe_allow_html=True)
-
-with tab_options:
-    st.markdown("## Options Flow Detector")
-    if not OPTIONS_AVAILABLE:
-        st.warning("options_flow.py module not found.")
-    else:
-        opt_ticker = st.text_input("Ticker Symbol", value=st.session_state.get('selected_ticker', 'AAPL'), key='opt_ticker_input')
-        if st.button("Scan Options Flow"):
-            with st.spinner(f"Fetching {opt_ticker} options chain..."):
-                flow = get_options_flow(opt_ticker.strip().upper())
-                st.session_state['options_flow'] = flow
-        
-        if 'options_flow' in st.session_state and st.session_state['options_flow']:
-            f = st.session_state['options_flow']
-            
-            # Main metrics
-            mc1, mc2, mc3, mc4 = st.columns(4)
-            pcr_color = TV_RED if f['put_call_label'] == 'BEARISH SKEW' else TV_GREEN if f['put_call_label'] == 'BULLISH SKEW' else "#FFD600"
-            sent_color = TV_GREEN if 'BULLISH' in f['net_sentiment'] else TV_RED if 'BEARISH' in f['net_sentiment'] else "#FFD600"
-            
-            with mc1:
-                st.markdown(f"""<div class='intel-card'>
-                    <div style='font-size: 11px; color: #888;'>PUT/CALL RATIO</div>
-                    <div style='font-size: 24px; font-weight: bold; color: {pcr_color};'>{f['put_call_ratio']}</div>
-                    <div style='font-size: 12px; color: {pcr_color};'>{f['put_call_label']}</div>
-                </div>""", unsafe_allow_html=True)
-            with mc2:
-                st.markdown(f"""<div class='intel-card'>
-                    <div style='font-size: 11px; color: #888;'>MAX PAIN</div>
-                    <div style='font-size: 24px; font-weight: bold; color: white;'>${f['max_pain']:,.2f}</div>
-                    <div style='font-size: 12px; color: #888;'>Exp: {f['nearest_expiry']}</div>
-                </div>""", unsafe_allow_html=True)
-            with mc3:
-                st.markdown(f"""<div class='intel-card'>
-                    <div style='font-size: 11px; color: #888;'>GAMMA WALL</div>
-                    <div style='font-size: 24px; font-weight: bold; color: #AB47BC;'>${f['gamma_wall']:,.2f}</div>
-                    <div style='font-size: 12px; color: #888;'>Price Magnet</div>
-                </div>""", unsafe_allow_html=True)
-            with mc4:
-                st.markdown(f"""<div class='intel-card'>
-                    <div style='font-size: 11px; color: #888;'>NET SENTIMENT</div>
-                    <div style='font-size: 24px; font-weight: bold; color: {sent_color};'>{f['net_sentiment']}</div>
-                    <div style='font-size: 12px; color: #888;'>Call OI: {f['total_call_oi']:,} | Put OI: {f['total_put_oi']:,}</div>
-                </div>""", unsafe_allow_html=True)
-            
-            # Unusual activity tables
-            uc1, uc2 = st.columns(2)
-            with uc1:
-                st.markdown(f"<div style='color: {TV_GREEN}; font-weight: bold;'>Unusual Call Activity ({len(f['unusual_calls'])} strikes)</div>", unsafe_allow_html=True)
-                if f['unusual_calls']:
-                    call_df = pd.DataFrame(f['unusual_calls'])
-                    st.dataframe(call_df, use_container_width=True, hide_index=True)
-                else:
-                    st.caption("No unusual call volume detected.")
-            with uc2:
-                st.markdown(f"<div style='color: {TV_RED}; font-weight: bold;'>Unusual Put Activity ({len(f['unusual_puts'])} strikes)</div>", unsafe_allow_html=True)
-                if f['unusual_puts']:
-                    put_df = pd.DataFrame(f['unusual_puts'])
-                    st.dataframe(put_df, use_container_width=True, hide_index=True)
-                else:
-                    st.caption("No unusual put volume detected.")
-
-with tab_trades:
-    st.markdown("## Trade Performance Tracker")
-    if not TRACKER_AVAILABLE:
-        st.warning("trade_tracker.py module not found. The alert bot will automatically populate trades here.")
-    else:
-        stats = get_stats()
-        
-        sc1, sc2, sc3, sc4 = st.columns(4)
-        wr_color = TV_GREEN if stats['win_rate'] >= 50 else TV_RED
-        pnl_color = TV_GREEN if stats['avg_pnl_r'] >= 0 else TV_RED
-        
-        with sc1:
-            st.markdown(f"""<div class='intel-card'>
-                <div style='font-size: 11px; color: #888;'>TOTAL TRADES</div>
-                <div style='font-size: 28px; font-weight: bold; color: white;'>{stats['total_trades']}</div>
-                <div style='font-size: 12px; color: #888;'>Open: {stats['open_count']}</div>
-            </div>""", unsafe_allow_html=True)
-        with sc2:
-            st.markdown(f"""<div class='intel-card'>
-                <div style='font-size: 11px; color: #888;'>WIN RATE</div>
-                <div style='font-size: 28px; font-weight: bold; color: {wr_color};'>{stats['win_rate']:.1f}%</div>
-                <div style='font-size: 12px; color: #888;'>W: {stats['wins']} | L: {stats['losses']}</div>
-            </div>""", unsafe_allow_html=True)
-        with sc3:
-            st.markdown(f"""<div class='intel-card'>
-                <div style='font-size: 11px; color: #888;'>AVG PnL (R)</div>
-                <div style='font-size: 28px; font-weight: bold; color: {pnl_color};'>{stats['avg_pnl_r']:+.2f}R</div>
-                <div style='font-size: 12px; color: #888;'>Per Trade</div>
-            </div>""", unsafe_allow_html=True)
-        with sc4:
-            best = stats.get('best_trade') or ('N/A', 0)
-            worst = stats.get('worst_trade') or ('N/A', 0)
-            st.markdown(f"""<div class='intel-card'>
-                <div style='font-size: 11px; color: #888;'>BEST / WORST</div>
-                <div style='font-size: 14px; color: {TV_GREEN};'>Best: {best[0]} ({best[1]:+.1f}R)</div>
-                <div style='font-size: 14px; color: {TV_RED};'>Worst: {worst[0]} ({worst[1]:+.1f}R)</div>
-            </div>""", unsafe_allow_html=True)
-        
-        recent = get_recent_trades(20)
-        if recent:
-            st.markdown("### Recent Trades")
-            trade_df = pd.DataFrame(recent)
-            st.dataframe(trade_df, use_container_width=True, hide_index=True)
-        else:
-            st.info("No trades logged yet. The alert bot will automatically record trades as signals fire.")
-
-
-
 
 with tab_reports:
     st.markdown("## Bot Reports & Live Alert History")
