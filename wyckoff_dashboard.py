@@ -332,7 +332,9 @@ def update_search():
     st.session_state['selected_ticker'] = st.session_state['search_input'].upper()
 
 col_tk, col_tf, col_btn = st.columns([2, 1, 5])
-with col_tk: st.text_input("ðŸ” Ticker:", value=st.session_state['selected_ticker'], key="search_input", on_change=update_search)
+with col_tk:
+    st.text_input("ðŸ” Ticker:", value=st.session_state['selected_ticker'], key="search_input", on_change=update_search)
+    price_placeholder = st.empty()
 with col_tf: timeframe = st.selectbox("â±ï¸ Timeframe:", ["5m", "15m", "1h", "1d", "1wk"], index=3)
 
 if timeframe in ["1d", "1wk"]: dl_period = "2y"
