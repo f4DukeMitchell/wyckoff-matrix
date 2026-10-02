@@ -50,6 +50,7 @@ TIMEFRAMES = [
     {"interval": "1d", "period": "2y", "lookback": 100}
 ]
 SL_BUFFER = 0.01
+MIN_R_UNITS = 1.0
 VOL_LIMIT = 1.2
 
 last_alerted = {ticker: 0 for ticker in TICKERS}
@@ -91,9 +92,9 @@ def send_email_alert(ticker, action, price, sl, tp, regime, options_flow=None, i
     msg.attach(MIMEText(body, 'plain', 'utf-8'))
     
     try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+        # server = smtplib.SMTP('smtp.gmail.com', 587)
+        # server.starttls()()
+        # server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
         # server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
         server.quit()
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] EMAIL SENT: {action} on {ticker}")
@@ -281,6 +282,14 @@ def scan_market(interval, period, lookback):
                 if flow and flow.get('gamma_wall', 0) > price and flow.get('gamma_wall', 0) < range_high[curr]:
                     tp = flow.get('gamma_wall', 0)
                     
+                risk = abs(price - sl)
+                reward = abs(tp - price)
+                r_units = (reward / risk) if risk > 0 else 0
+                if r_units < MIN_R_UNITS:
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED: {ticker} LONG - R-Units too low ({r_units:.2f}R)")
+                    last_alerted[ticker] = current_time
+                    continue
+                    
                 regime = "BEARISH (Seeking Reversal)" if not u9[curr] and not u14[curr] else "MIXED"
                 
                 # send_email_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, flow, interval)
@@ -315,6 +324,14 @@ def scan_market(interval, period, lookback):
                 
                 if flow and flow.get('gamma_wall', 0) < price and flow.get('gamma_wall', 0) > range_low[curr]:
                     tp = flow.get('gamma_wall', 0)
+                    
+                risk = abs(sl - price)
+                reward = abs(price - tp)
+                r_units = (reward / risk) if risk > 0 else 0
+                if r_units < MIN_R_UNITS:
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED: {ticker} SHORT - R-Units too low ({r_units:.2f}R)")
+                    last_alerted[ticker] = current_time
+                    continue
                     
                 regime = "BULLISH (Seeking Reversal)" if u9[curr] and u14[curr] else "MIXED"
                 
@@ -398,9 +415,9 @@ def send_market_report(session_name):
     msg.attach(MIMEText(body, 'plain', 'utf-8'))
     
     try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+        # server = smtplib.SMTP('smtp.gmail.com', 587)
+        # server.starttls()()
+        # server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
         # server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
         server.quit()
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {session_name} REPORT SENT!")
@@ -469,9 +486,9 @@ def send_daily_recap():
     msg.attach(MIMEText(body, 'plain', 'utf-8'))
     
     try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+        # server = smtplib.SMTP('smtp.gmail.com', 587)
+        # server.starttls()()
+        # server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
         # server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
         server.quit()
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Daily Recap Sent!")
@@ -500,9 +517,9 @@ def send_ai_progress_report():
         msg['Subject'] = "WYCKOFF AI: Daily Progress Report"
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
         
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+        # server = smtplib.SMTP('smtp.gmail.com', 587)
+        # server.starttls()()
+        # server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
         # server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
         server.quit()
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] AI Progress Report Sent!")
