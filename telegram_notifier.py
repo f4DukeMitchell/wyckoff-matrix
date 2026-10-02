@@ -5,7 +5,7 @@ TELEGRAM_BOT_TOKEN = '8870935798:AAFx5-TdD0qEwQ4nTSRIFw4RvdI87GSXnDc'
 TELEGRAM_CHAT_ID = '8610265859'
 
 # Optional: Set these to route different trade types to different groups
-TELEGRAM_CHAT_ID_DAY = None     # For 5m, 15m
+TELEGRAM_CHAT_ID_DAY = '-5547865201'    # WYCKOFF Day Trades (For 5m, 15m)
 TELEGRAM_CHAT_ID_SWING = None   # For 1h
 TELEGRAM_CHAT_ID_LONG = None    # For 1d
 
@@ -135,7 +135,7 @@ def check_callbacks():
     if not is_configured(): return
     
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
-    params = {"timeout": 5, "allowed_updates": ["callback_query"]}
+    params = {"timeout": 5, "allowed_updates": ["callback_query", "message"]}
     if _last_update_id:
         params["offset"] = _last_update_id + 1
         
@@ -146,6 +146,13 @@ def check_callbacks():
         updates = res.get("result", [])
         for u in updates:
             _last_update_id = u["update_id"]
+            
+            # Print group chat IDs for user setup
+            if "message" in u:
+                chat = u["message"].get("chat", {})
+                if chat.get("type") in ["group", "supergroup", "channel"]:
+                    print(f"\n[TELEGRAM SETUP] Detected new group: '{chat.get('title')}' -> Chat ID: {chat.get('id')}\n")
+            
             if "callback_query" in u:
                 cq = u["callback_query"]
                 data = cq.get("data", "")
