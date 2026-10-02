@@ -1,3 +1,4 @@
+import streamlit as st
 """
 Options Flow Analysis Module
 Fetches options chain data from yfinance to detect unusual activity near Wyckoff zones.
@@ -7,6 +8,7 @@ import numpy as np
 import datetime
 
 
+@st.cache_data(ttl=300)
 def get_options_flow(ticker):
     """
     Analyze the options chain for a ticker to detect unusual institutional activity.

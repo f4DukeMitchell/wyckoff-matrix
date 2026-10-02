@@ -541,7 +541,7 @@ with tab_scanner:
                     import pandas as pd
                     df_chart = intel_data['df']
                     # Mini volume profile
-                    vol_bins = pd.cut(df_chart['Close'], bins=15)
+                    vol_bins = pd.cut(df_chart['Close'], bins=30)
                     vol_profile = df_chart.groupby(vol_bins, observed=False)['Volume'].sum()
                     vp_fig = go.Figure(go.Bar(
                         x=vol_profile.values,
