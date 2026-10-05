@@ -208,9 +208,9 @@ def check_open_trades():
                     'exit_price': exit_price,
                     'outcome': outcome,
                     'pnl_r': pnl_r,
-                    'user_active': trade.get('user_active', 0),
-                    'telegram_alerted': trade.get('telegram_alerted', 0),
-                    'timeframe': trade.get('timeframe', '5m')
+                    'user_active': trade['user_active'] if 'user_active' in trade.keys() else 0,
+                    'telegram_alerted': trade['telegram_alerted'] if 'telegram_alerted' in trade.keys() else 0,
+                    'timeframe': trade['timeframe'] if 'timeframe' in trade.keys() else '5m'
                 })
                 
     except Exception as e:

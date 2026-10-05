@@ -96,7 +96,7 @@ def send_email_alert(ticker, action, price, sl, tp, regime, options_flow=None, i
         # server.starttls()()
         # server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
         # server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
-        server.quit()
+        # server.quit()
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] EMAIL SENT: {action} on {ticker}")
     except Exception as e:
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ERROR SENDING EMAIL: {e}")
@@ -449,7 +449,7 @@ def send_market_report(session_name):
         # server.starttls()()
         # server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
         # server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
-        server.quit()
+        # server.quit()
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {session_name} REPORT SENT!")
     except Exception as e:
         print(f"Error sending report: {e}")
@@ -520,7 +520,7 @@ def send_daily_recap():
         # server.starttls()()
         # server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
         # server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
-        server.quit()
+        # server.quit()
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Daily Recap Sent!")
     except Exception as e:
         print(f"Error sending recap: {e}")
