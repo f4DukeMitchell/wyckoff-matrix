@@ -336,9 +336,157 @@ def render_wyckoff_chart(ticker, interval, period):
             "short_wr": (s_wins / (s_wins + s_loss) * 100) if (s_wins + s_loss) > 0 else 0}
 
 # =============================================================================
+# TICKER TAPE & LIVE SYSTEM STATUS
+# =============================================================================
+@st.cache_data(ttl=30)
+def get_tape_and_status_data():
+    import sqlite3
+    stats = {
+        'open_count': 0, 'win_count': 0, 'loss_count': 0, 'user_active_count': 0,
+        'recent_alerts': [], 'macro': []
+    }
+    try:
+        conn = sqlite3.connect("wyckoff_trades.db")
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM alerts WHERE outcome = 'OPEN'")
+        stats['open_count'] = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM alerts WHERE outcome = 'WIN'")
+        stats['win_count'] = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM alerts WHERE outcome = 'LOSS'")
+        stats['loss_count'] = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM alerts WHERE user_active = 1")
+        stats['user_active_count'] = c.fetchone()[0]
+        c.execute("SELECT ticker, direction, timeframe, entry_price, stop_loss, take_profit, user_active, breakeven_set FROM alerts WHERE outcome = 'OPEN' ORDER BY id DESC LIMIT 10")
+        stats['recent_alerts'] = [dict(r) for r in c.fetchall()]
+        conn.close()
+    except Exception as e:
+        pass
+        
+    try:
+        macro_df = yf.download(["SPY", "QQQ", "^VIX"], period="2d", interval="1d", progress=False)
+        for sym, label in [("SPY", "SPY"), ("QQQ", "QQQ"), ("^VIX", "VIX")]:
+            if sym in macro_df['Close']:
+                s = macro_df['Close'][sym].dropna()
+                if len(s) >= 2:
+                    p0, p1 = float(s.iloc[-2]), float(s.iloc[-1])
+                    chg = ((p1 - p0) / p0) * 100
+                    stats['macro'].append((label, p1, chg))
+                elif len(s) == 1:
+                    stats['macro'].append((label, float(s.iloc[-1]), 0.0))
+    except:
+        pass
+    return stats
+
+def render_live_ticker_tape():
+    data = get_tape_and_status_data()
+    
+    # 1. Status Row Cards
+    now = datetime.datetime.now()
+    is_shield = (now.hour == 9 and 30 <= now.minute < 45)
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.markdown(f"""
+        <div style="background:{TV_PANEL}; border:1px solid {TV_GRID}; border-left:4px solid {TV_GREEN}; border-radius:6px; padding:8px 12px;">
+            <div style="font-size:10px; color:#888; text-transform:uppercase; font-weight:bold;">🤖 Scanner Engine</div>
+            <div style="font-size:14px; font-weight:bold; color:#FFF; margin-top:2px;">🟢 SCANNING LIVE</div>
+            <div style="font-size:10px; color:{TV_GREEN};">5m, 15m, 1h, 1d Active</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with col2:
+        st.markdown(f"""
+        <div style="background:{TV_PANEL}; border:1px solid {TV_GRID}; border-left:4px solid #3b82f6; border-radius:6px; padding:8px 12px;">
+            <div style="font-size:10px; color:#888; text-transform:uppercase; font-weight:bold;">⚡ Protection Shield</div>
+            <div style="font-size:14px; font-weight:bold; color:#FFF; margin-top:2px;">{"🛡️ OPENING SHIELD" if is_shield else "🛡️ WHIPSAW GUARD"}</div>
+            <div style="font-size:10px; color:#3b82f6;">Anti-Spam & BE Live</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with col3:
+        st.markdown(f"""
+        <div style="background:{TV_PANEL}; border:1px solid {TV_GRID}; border-left:4px solid #a855f7; border-radius:6px; padding:8px 12px;">
+            <div style="font-size:10px; color:#888; text-transform:uppercase; font-weight:bold;">🔗 Public.com Sync</div>
+            <div style="font-size:14px; font-weight:bold; color:#FFF; margin-top:2px;">🟢 ZERO-CLICK SYNC</div>
+            <div style="font-size:10px; color:#a855f7;">{data['user_active_count']} Active Monitored</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with col4:
+        tot_closed = data['win_count'] + data['loss_count']
+        wr = (data['win_count'] / tot_closed * 100) if tot_closed > 0 else 0
+        st.markdown(f"""
+        <div style="background:{TV_PANEL}; border:1px solid {TV_GRID}; border-left:4px solid #eab308; border-radius:6px; padding:8px 12px;">
+            <div style="font-size:10px; color:#888; text-transform:uppercase; font-weight:bold;">📈 Portfolio Tracker</div>
+            <div style="font-size:14px; font-weight:bold; color:#FFF; margin-top:2px;">{data['open_count']} Setups Watched</div>
+            <div style="font-size:10px; color:#eab308;">{data['win_count']}W / {data['loss_count']}L ({wr:.0f}% WR)</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # 2. Continuous Scrolling Ticker Tape
+    tape_items = []
+    for label, val, chg in data['macro']:
+        color = TV_GREEN if chg >= 0 else TV_RED
+        symbol = "▲" if chg >= 0 else "▼"
+        tape_items.append(f"<span style='color:#FFF; font-weight:bold;'>{label}</span> ${val:.2f} <span style='color:{color}; font-weight:bold;'>{symbol} {chg:+.2f}%</span>")
+        
+    for a in data['recent_alerts']:
+        sym = a['ticker']
+        d = a['direction']
+        tf = a.get('timeframe', '5m')
+        b_tag = " <span style='color:#3b82f6;'>[🛡️BE]</span>" if a.get('breakeven_set') else ""
+        u_tag = " <span style='color:#a855f7;'>[👤ACTIVE]</span>" if a.get('user_active') else ""
+        
+        try:
+            risk = abs(float(a['entry_price']) - float(a['stop_loss']))
+            reward = abs(float(a['take_profit']) - float(a['entry_price']))
+            r_val = (reward / risk) if risk > 0 else 0
+            r_str = f"{r_val:.1f}R"
+        except:
+            r_str = ""
+            
+        color = TV_GREEN if d == "LONG" else TV_RED
+        badge = "🟢 LONG" if d == "LONG" else "🔴 SHORT"
+        tape_items.append(f"<span style='color:#FFF; font-weight:bold;'>${sym}</span> <span style='color:{color};'>{badge} ({tf})</span> <span style='color:#FFD700;'>{r_str}</span>{b_tag}{u_tag}")
+
+    tape_content = " &nbsp;&nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp;&nbsp; ".join(tape_items) if tape_items else "Scanning market for Wyckoff setups..."
+    
+    marquee_html = f"""
+    <style>
+    @keyframes marquee {{
+      0%   {{ transform: translateX(0%); }}
+      100% {{ transform: translateX(-50%); }}
+    }}
+    .tape-container {{
+      width: 100%;
+      overflow: hidden;
+      background: #181b24;
+      border: 1px solid #2a2e39;
+      border-radius: 6px;
+      padding: 7px 0;
+      margin: 10px 0 16px 0;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.4);
+    }}
+    .tape-inner {{
+      display: inline-block;
+      white-space: nowrap;
+      animation: marquee 40s linear infinite;
+    }}
+    .tape-inner:hover {{
+      animation-play-state: paused;
+    }}
+    </style>
+    <div class="tape-container">
+      <div class="tape-inner">
+        {tape_content} &nbsp;&nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp;&nbsp; {tape_content}
+      </div>
+    </div>
+    """
+    st.markdown(marquee_html, unsafe_allow_html=True)
+
+# =============================================================================
 # MAIN UI
 # =============================================================================
 st.title("Wyckoff Matrix")
+render_live_ticker_tape()
 
 # --- SIDEBAR ---
 with st.sidebar:
