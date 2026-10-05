@@ -566,12 +566,14 @@ def get_live_db_trades(only_alerted=True):
         seen = set()
         deduped = []
         for r in rows:
-            key = (r['ticker'], r.get('timeframe', '5m'))
+            d = dict(r)
+            key = (d['ticker'], d.get('timeframe', '5m'))
             if key not in seen:
                 seen.add(key)
-                deduped.append(dict(r))
+                deduped.append(d)
         return deduped
-    except:
+    except Exception as e:
+        print(f"Error fetching live DB trades: {e}")
         return []
 
 # ===== TAB 1: TRADE IDEAS =====
