@@ -525,36 +525,17 @@ def send_daily_recap():
     except Exception as e:
         print(f"Error sending recap: {e}")
 
-def send_ai_progress_report():
-    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Running Daily AI Report...")
+def send_ai_progress_report(trigger_reason="Daily Post-Market Evolution"):
+    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Running AI Evolution Engine...")
     try:
-        result = subprocess.run(["python", "wyckoff_ml_engine.py"], capture_output=True, text=True, env={**os.environ, "PYTHONIOENCODING": "utf-8"})
-        output = result.stdout
-        
-        if "WHAT CAUSES WYCKOFF TRADES TO FAIL?" in output:
-            ai_text = output.split("WHAT CAUSES WYCKOFF TRADES TO FAIL? (FEATURE IMPORTANCE)")[1]
-        else:
-            ai_text = "\n" + output
-            
-        body = "DAILY WYCKOFF AI PROGRESS REPORT\n"
-        body += "--------------------------------------\n"
-        body += "The ML model just re-trained on the latest data.\n\n"
-        body += "WHAT CAUSES WYCKOFF TRADES TO FAIL?" + ai_text
-        
-        msg = MIMEMultipart()
-        msg['From'] = GMAIL_USER
-        msg['To'] = DESTINATION_EMAIL
-        msg['Subject'] = "WYCKOFF AI: Daily Progress Report"
-        msg.attach(MIMEText(body, 'plain', 'utf-8'))
-        
-        # server = smtplib.SMTP('smtp.gmail.com', 587)
-        # server.starttls()()
-        # server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        # server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
-        server.quit()
-        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] AI Progress Report Sent!")
+        from wyckoff_ml_engine import train_and_upgrade_model
+        success, report = train_and_upgrade_model(trigger_reason)
+        if success and TELEGRAM_ENABLED:
+            from telegram_notifier import send_message
+            send_message(report)
+            print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] AI Evolution Report sent to Telegram!")
     except Exception as e:
-        print(f"Error sending AI report: {e}")
+        print(f"Error running AI evolution engine: {e}")
 
 if __name__ == "__main__":
     print("========================================")

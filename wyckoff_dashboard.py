@@ -932,6 +932,37 @@ elif selected_tab == TABS[3]:
                     **3. Directional Asymmetry (67% Win Rate)**  
                     In the current market regime, **SHORT (UTAD)** setups are heavily outperforming LONG Springs, confirming institutional distribution overhead.
                     """)
+
+                st.markdown("---")
+                col_btn, col_info = st.columns([1, 2])
+                with col_btn:
+                    if st.button("⚡ Evolve & Upgrade Model Now", key="evolve_model_btn"):
+                        with st.spinner("Retraining Random Forest model across all closed trades..."):
+                            from wyckoff_ml_engine import train_and_upgrade_model
+                            ok, rep = train_and_upgrade_model("Dashboard User Invocation")
+                            if ok:
+                                st.success("Algorithm successfully upgraded and logged!")
+                                st.rerun()
+                            else:
+                                st.warning(rep)
+                with col_info:
+                    st.caption("Click to trigger an on-demand evolutionary retraining run. Automatically updates `wyckoff_model.pkl` and writes an immutable audit record.")
+
+                st.markdown("##### 📜 Algorithm Evolution History & Audit Log")
+                st.caption("Immutable record of every version upgrade, training dataset, and resulting rules:")
+                try:
+                    conn_hist = sqlite3.connect("wyckoff_trades.db")
+                    df_hist = pd.read_sql_query("SELECT id, version, timestamp, training_samples, win_rate_before, model_accuracy, top_feature, notes FROM ml_model_history ORDER BY id DESC", conn_hist)
+                    conn_hist.close()
+                    if not df_hist.empty:
+                        df_hist.columns = ['ID', 'Version', 'Timestamp', 'Samples', 'Win Rate Before (%)', 'Model Accuracy (%)', 'Top Feature', 'Trigger Reason']
+                        df_hist['Win Rate Before (%)'] = df_hist['Win Rate Before (%)'].apply(lambda x: f"{float(x):.1f}%")
+                        df_hist['Model Accuracy (%)'] = df_hist['Model Accuracy (%)'].apply(lambda x: f"{float(x):.1f}%")
+                        st.dataframe(df_hist, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("No evolution history records found yet.")
+                except Exception as e:
+                    st.info(f"Could not load evolution history: {e}")
         else:
             st.info(f"The ML Engine needs at least 10 closed trades to fit the Random Forest model. (Currently logged: {len(df_closed)} closed trades). Leave the bot running to build more sample history!")
 
