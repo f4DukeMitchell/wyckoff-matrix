@@ -11,7 +11,7 @@ import os
 
 # --- UPGRADE MODULES ---
 try:
-    from trade_tracker import log_alert, check_open_trades
+    from trade_tracker import log_alert, check_open_trades, has_open_alerted_trade, mark_trade_alerted, sync_public_positions
     TRACKER_ENABLED = True
 except:
     TRACKER_ENABLED = False
@@ -267,6 +267,17 @@ def scan_market(interval, period, lookback):
             current_time = time.time()
             
             if is_spring and (current_time - last_alerted.get(ticker, 0) > 900):
+                # Feature 2: Per-Ticker Duplicate Lock (Max 1 alert per stock on this timeframe)
+                if TRACKER_ENABLED and has_open_alerted_trade(ticker, interval):
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED DUPLICATE: {ticker} already has active alert on {interval}")
+                    last_alerted[ticker] = current_time
+                    continue
+
+                # Feature 4: Opening Drive Whipsaw Shield (9:30 - 9:45 AM EST)
+                if now.hour == 9 and 30 <= now.minute < 45 and interval == "5m":
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] OPENING SHIELD: {ticker} 5m Spring suppressed during 9:30-9:45 AM")
+                    continue
+
                 flow = None
                 if OPTIONS_ENABLED:
                     flow = get_options_flow(ticker)
@@ -308,10 +319,23 @@ def scan_market(interval, period, lookback):
                     last_alerted[ticker] = current_time
                     continue
 
-                if TELEGRAM_ENABLED: tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, interval, flow, trade_id)
+                if TELEGRAM_ENABLED:
+                    tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, interval, flow, trade_id)
+                    if TRACKER_ENABLED and trade_id: mark_trade_alerted(trade_id)
                 last_alerted[ticker] = current_time
                 
             elif is_utad and (current_time - last_alerted.get(ticker, 0) > 900):
+                # Feature 2: Per-Ticker Duplicate Lock
+                if TRACKER_ENABLED and has_open_alerted_trade(ticker, interval):
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED DUPLICATE: {ticker} already has active alert on {interval}")
+                    last_alerted[ticker] = current_time
+                    continue
+
+                # Feature 4: Opening Drive Whipsaw Shield
+                if now.hour == 9 and 30 <= now.minute < 45 and interval == "5m":
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] OPENING SHIELD: {ticker} 5m UTAD suppressed during 9:30-9:45 AM")
+                    continue
+
                 flow = None
                 if OPTIONS_ENABLED:
                     flow = get_options_flow(ticker)
@@ -353,7 +377,9 @@ def scan_market(interval, period, lookback):
                     last_alerted[ticker] = current_time
                     continue
 
-                if TELEGRAM_ENABLED: tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow, trade_id)
+                if TELEGRAM_ENABLED:
+                    tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow, trade_id)
+                    if TRACKER_ENABLED and trade_id: mark_trade_alerted(trade_id)
                 last_alerted[ticker] = current_time
                 
         except Exception as e:
@@ -560,14 +586,33 @@ if __name__ == "__main__":
                 
         if TRACKER_ENABLED:
             try:
+                # Feature 3: Auto-Sync with Public.com live portfolio
+                newly_active = sync_public_positions()
+                for t_id, sym in newly_active:
+                    sync_msg = f"🔗 Public.com Auto-Sync: Detected live position in {sym}!\nMarked ACTIVE in Wyckoff Tracker. Exit monitoring is now live."
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {sync_msg}")
+                    if TELEGRAM_ENABLED:
+                        from telegram_notifier import send_message
+                        send_message(sync_msg)
+
                 closed = check_open_trades()
                 for t in closed:
+                    # Feature 1: Breakeven Stop Ratchet event
+                    if t.get('is_breakeven'):
+                        b_msg = f"🛡️ BREAKEVEN RATCHET: {t.get('ticker')} is up +{t.get('current_r', 0):.1f}R!\nStop Loss moved to Entry (${t.get('entry_price', 0):.2f}). Risk is now $0.00!"
+                        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {b_msg}")
+                        if (t.get('user_active') == 1 or t.get('telegram_alerted') == 1) and TELEGRAM_ENABLED:
+                            from telegram_notifier import send_message
+                            send_message(b_msg)
+                        continue
+
                     msg = f"Trade Closed: {t.get('ticker', '?')} -> {t.get('outcome', '?')} ({t.get('pnl_r', 0):+.1f}R)"
                     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {msg}")
                     
-                    if t.get('user_active') == 1 and TELEGRAM_ENABLED:
+                    if (t.get('user_active') == 1 or t.get('telegram_alerted') == 1) and TELEGRAM_ENABLED:
                         from telegram_notifier import send_message
-                        alert_msg = f"🚨 EXIT ALERT: {t.get('ticker')} has hit its {t.get('outcome')} target!\nReturn: {t.get('pnl_r', 0):+.1f}R Units"
+                        emoji = "🎉" if t.get('outcome') == 'WIN' else ("🛡️" if t.get('outcome') == 'BREAKEVEN' else "🚨")
+                        alert_msg = f"{emoji} EXIT ALERT: {t.get('ticker')} has hit its {t.get('outcome')} target!\nReturn: {t.get('pnl_r', 0):+.1f}R Units"
                         send_message(alert_msg)
             except: pass
         

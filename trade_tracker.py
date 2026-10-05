@@ -40,6 +40,8 @@ def init_db():
             ("spread_width_pct", "REAL"),
             ("implied_volatility", "REAL"),
             ("user_active", "INTEGER DEFAULT 0"),
+            ("telegram_alerted", "INTEGER DEFAULT 0"),
+            ("breakeven_set", "INTEGER DEFAULT 0"),
         ]
         for col_name, col_type in new_cols:
             try: cursor.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")
@@ -142,9 +144,36 @@ def check_open_trades():
                 elif price >= stop_loss:
                     outcome = 'LOSS'
                     exit_price = price
+
+            # --- Feature 1: Breakeven Stop Ratchet (+0.75R) ---
+            if outcome == 'OPEN':
+                b_set = trade['breakeven_set'] if 'breakeven_set' in trade.keys() else 0
+                if not b_set:
+                    init_risk = abs(entry_price - stop_loss)
+                    curr_gain = (price - entry_price) if direction == 'LONG' else (entry_price - price)
+                    curr_r = (curr_gain / init_risk) if init_risk > 0 else 0
+                    if curr_r >= 0.75:
+                        cursor.execute("UPDATE alerts SET stop_loss = ?, breakeven_set = 1 WHERE id = ?", (entry_price, trade_id))
+                        conn.commit()
+                        closed_trades.append({
+                            'id': trade_id,
+                            'ticker': ticker,
+                            'direction': direction,
+                            'entry_price': entry_price,
+                            'current_r': curr_r,
+                            'is_breakeven': True,
+                            'outcome': 'BREAKEVEN_SET',
+                            'user_active': trade['user_active'] if 'user_active' in trade.keys() else 0,
+                            'telegram_alerted': trade['telegram_alerted'] if 'telegram_alerted' in trade.keys() else 0,
+                            'timeframe': trade['timeframe'] if 'timeframe' in trade.keys() else '5m'
+                        })
                     
             if outcome != 'OPEN':
-                if direction == 'LONG':
+                b_set = trade['breakeven_set'] if 'breakeven_set' in trade.keys() else 0
+                if b_set and outcome == 'LOSS':
+                    outcome = 'BREAKEVEN'
+                    pnl_r = 0.0
+                elif direction == 'LONG':
                     risk = entry_price - stop_loss
                     pnl_r = (exit_price - entry_price) / risk if risk != 0 else 0
                 else:
@@ -166,7 +195,9 @@ def check_open_trades():
                     'exit_price': exit_price,
                     'outcome': outcome,
                     'pnl_r': pnl_r,
-                    'user_active': trade.get('user_active', 0)
+                    'user_active': trade.get('user_active', 0),
+                    'telegram_alerted': trade.get('telegram_alerted', 0),
+                    'timeframe': trade.get('timeframe', '5m')
                 })
                 
     except Exception as e:
@@ -249,6 +280,78 @@ def get_recent_trades(n=20):
         if 'conn' in locals():
             conn.close()
     return trades
+
+def has_open_alerted_trade(ticker, timeframe=None):
+    """
+    Feature 2: Duplicate Lock.
+    Returns True if this ticker already has an active OPEN alert on Telegram.
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        if timeframe:
+            c.execute("SELECT COUNT(*) FROM alerts WHERE ticker = ? AND timeframe = ? AND outcome = 'OPEN' AND telegram_alerted = 1", (ticker, timeframe))
+        else:
+            c.execute("SELECT COUNT(*) FROM alerts WHERE ticker = ? AND outcome = 'OPEN' AND telegram_alerted = 1", (ticker,))
+        cnt = c.fetchone()[0]
+        conn.close()
+        return cnt > 0
+    except:
+        return False
+
+def mark_trade_alerted(trade_id):
+    """
+    Marks that a trade was broadcast to Telegram.
+    """
+    if not trade_id: return
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("UPDATE alerts SET telegram_alerted = 1 WHERE id = ?", (trade_id,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error marking trade {trade_id} as alerted: {e}")
+
+def sync_public_positions():
+    """
+    Feature 3: Auto-Sync with Public.com Portfolio.
+    Automatically marks user_active = 1 for any OPEN alert currently held in Public account.
+    """
+    api_key = os.getenv("PUBLIC_API_KEY")
+    if not api_key:
+        return []
+        
+    try:
+        from public_api_sdk import PublicApiClient, ApiKeyAuthConfig
+        client = PublicApiClient(auth_config=ApiKeyAuthConfig(api_secret_key=api_key))
+        accounts = client.get_accounts()
+        if not accounts.accounts:
+            return []
+        account_id = accounts.accounts[0].account_id
+        port = client.get_portfolio(account_id)
+        
+        held_symbols = set()
+        for p in (port.positions or []):
+            if hasattr(p, "instrument") and hasattr(p.instrument, "symbol"):
+                held_symbols.add(p.instrument.symbol.upper())
+                
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        
+        newly_active = []
+        c.execute("SELECT id, ticker FROM alerts WHERE outcome = 'OPEN' AND user_active = 0")
+        for row in c.fetchall():
+            t_id, sym = row[0], row[1].upper()
+            if sym in held_symbols:
+                c.execute("UPDATE alerts SET user_active = 1 WHERE id = ?", (t_id,))
+                newly_active.append((t_id, sym))
+                
+        conn.commit()
+        conn.close()
+        return newly_active
+    except Exception as e:
+        return []
 
 # Initialize database on import
 init_db()
