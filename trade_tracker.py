@@ -42,6 +42,7 @@ def init_db():
             ("user_active", "INTEGER DEFAULT 0"),
             ("telegram_alerted", "INTEGER DEFAULT 0"),
             ("breakeven_set", "INTEGER DEFAULT 0"),
+            ("model_version", "TEXT DEFAULT 'v1.0'"),
         ]
         for col_name, col_type in new_cols:
             try: cursor.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")
@@ -53,24 +54,36 @@ def init_db():
         if 'conn' in locals():
             conn.close()
 
+def get_active_model_version():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT version FROM ml_model_history WHERE status = 'ACTIVE' ORDER BY id DESC LIMIT 1")
+        row = c.fetchone()
+        conn.close()
+        return row[0] if row else 'v1.1'
+    except:
+        return 'v1.1'
+
 def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
               timeframe='5m', pcr=None, sentiment=None, bars_in_regime=0,
               vwap_distance=None, hour_of_day=None, spy_bullish=None, atr_expansion=None,
-              bid_ask_ratio=None, spread_width_pct=None, implied_volatility=None):
+              bid_ask_ratio=None, spread_width_pct=None, implied_volatility=None, model_version=None):
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         timestamp = datetime.datetime.now().isoformat()
+        active_version = model_version or get_active_model_version()
         cursor.execute('''
             INSERT INTO alerts (ticker, direction, entry_price, stop_loss, take_profit, regime,
                                 timestamp, pcr, sentiment, timeframe, bars_in_regime,
                                 vwap_distance, hour_of_day, spy_bullish, atr_expansion,
-                                bid_ask_ratio, spread_width_pct, implied_volatility)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                bid_ask_ratio, spread_width_pct, implied_volatility, model_version)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (ticker, direction, entry_price, stop_loss, take_profit, regime,
               timestamp, pcr, sentiment, timeframe, bars_in_regime,
               vwap_distance, hour_of_day, 1 if spy_bullish else 0 if spy_bullish is not None else None,
-              atr_expansion, bid_ask_ratio, spread_width_pct, implied_volatility))
+              atr_expansion, bid_ask_ratio, spread_width_pct, implied_volatility, active_version))
         conn.commit()
         last_id = cursor.lastrowid
         return last_id
@@ -206,9 +219,60 @@ def check_open_trades():
         if 'conn' in locals():
             conn.close()
             
+    if closed_trades:
+        has_exit = any(t.get('outcome') in ['WIN', 'LOSS', 'BREAKEVEN'] for t in closed_trades)
+        if has_exit:
+            update_realized_version_stats()
+            
     return closed_trades
 
-def get_stats():
+def update_realized_version_stats():
+    """Recalculate realized out-of-sample metrics for model versions in ml_model_history."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("""
+            SELECT model_version, 
+                   COUNT(*) as total_trades,
+                   SUM(CASE WHEN outcome = 'WIN' THEN 1 ELSE 0 END) as wins,
+                   SUM(pnl_r) as net_r,
+                   AVG(pnl_r) as avg_r
+            FROM alerts
+            WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN')
+            GROUP BY model_version
+        """)
+        rows = c.fetchall()
+        for version, total, wins, net_r, avg_r in rows:
+            if not version:
+                continue
+            wr = (wins / total * 100.0) if total > 0 else 0.0
+            net_r = net_r if net_r is not None else 0.0
+            avg_r = avg_r if avg_r is not None else 0.0
+            c.execute("""
+                UPDATE ml_model_history
+                SET realized_trades = ?, realized_win_rate = ?, realized_net_r = ?, realized_avg_r = ?
+                WHERE version = ?
+            """, (total, round(wr, 1), round(net_r, 2), round(avg_r, 2), version))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error updating realized version stats: {e}")
+
+def get_model_version_stats():
+    """Returns list of version history records."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT * FROM ml_model_history ORDER BY id DESC")
+        rows = c.fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        print(f"Error fetching model version stats: {e}")
+        return []
+
+def get_stats(model_version=None):
     stats = {
         'total_trades': 0,
         'wins': 0,
@@ -216,6 +280,7 @@ def get_stats():
         'open_count': 0,
         'win_rate': 0.0,
         'avg_pnl_r': 0.0,
+        'net_pnl_r': 0.0,
         'best_trade': None,
         'worst_trade': None
     }
@@ -225,33 +290,42 @@ def get_stats():
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         
-        cursor.execute("SELECT COUNT(*) as count FROM alerts")
+        where_v = " WHERE model_version = ?" if model_version else ""
+        params = (model_version,) if model_version else ()
+        
+        cursor.execute(f"SELECT COUNT(*) as count FROM alerts{where_v}", params)
         stats['total_trades'] = cursor.fetchone()['count']
         
-        cursor.execute("SELECT COUNT(*) as count FROM alerts WHERE outcome = 'WIN'")
+        w_clause = f"WHERE outcome = 'WIN' AND model_version = ?" if model_version else "WHERE outcome = 'WIN'"
+        cursor.execute(f"SELECT COUNT(*) as count FROM alerts {w_clause}", params)
         stats['wins'] = cursor.fetchone()['count']
         
-        cursor.execute("SELECT COUNT(*) as count FROM alerts WHERE outcome = 'LOSS'")
+        l_clause = f"WHERE outcome = 'LOSS' AND model_version = ?" if model_version else "WHERE outcome = 'LOSS'"
+        cursor.execute(f"SELECT COUNT(*) as count FROM alerts {l_clause}", params)
         stats['losses'] = cursor.fetchone()['count']
         
-        cursor.execute("SELECT COUNT(*) as count FROM alerts WHERE outcome = 'OPEN'")
+        o_clause = f"WHERE outcome = 'OPEN' AND model_version = ?" if model_version else "WHERE outcome = 'OPEN'"
+        cursor.execute(f"SELECT COUNT(*) as count FROM alerts {o_clause}", params)
         stats['open_count'] = cursor.fetchone()['count']
         
         closed_count = stats['wins'] + stats['losses']
         if closed_count > 0:
             stats['win_rate'] = (stats['wins'] / closed_count) * 100
             
-            cursor.execute("SELECT AVG(pnl_r) as avg_pnl FROM alerts WHERE pnl_r IS NOT NULL")
-            avg_row = cursor.fetchone()
-            if avg_row['avg_pnl'] is not None:
-                stats['avg_pnl_r'] = avg_row['avg_pnl']
+            pnl_clause = f"WHERE pnl_r IS NOT NULL AND model_version = ?" if model_version else "WHERE pnl_r IS NOT NULL"
+            cursor.execute(f"SELECT AVG(pnl_r) as avg_pnl, SUM(pnl_r) as net_pnl FROM alerts {pnl_clause}", params)
+            pnl_row = cursor.fetchone()
+            if pnl_row['avg_pnl'] is not None:
+                stats['avg_pnl_r'] = pnl_row['avg_pnl']
+            if pnl_row['net_pnl'] is not None:
+                stats['net_pnl_r'] = pnl_row['net_pnl']
                 
-            cursor.execute("SELECT ticker, pnl_r FROM alerts WHERE pnl_r IS NOT NULL ORDER BY pnl_r DESC LIMIT 1")
+            cursor.execute(f"SELECT ticker, pnl_r FROM alerts {pnl_clause} ORDER BY pnl_r DESC LIMIT 1", params)
             best_row = cursor.fetchone()
             if best_row:
                 stats['best_trade'] = f"{best_row['ticker']} ({best_row['pnl_r']:.2f}R)"
                 
-            cursor.execute("SELECT ticker, pnl_r FROM alerts WHERE pnl_r IS NOT NULL ORDER BY pnl_r ASC LIMIT 1")
+            cursor.execute(f"SELECT ticker, pnl_r FROM alerts {pnl_clause} ORDER BY pnl_r ASC LIMIT 1", params)
             worst_row = cursor.fetchone()
             if worst_row:
                 stats['worst_trade'] = f"{worst_row['ticker']} ({worst_row['pnl_r']:.2f}R)"

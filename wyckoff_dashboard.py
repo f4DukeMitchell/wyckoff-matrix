@@ -34,7 +34,7 @@ h1, h2, h3, p, span {{ color: #ffffff !important; }}
 
 # --- Imports ---
 try:
-    from trade_tracker import get_stats, get_recent_trades
+    from trade_tracker import get_stats, get_recent_trades, get_model_version_stats
     TRACKER_AVAILABLE = True
 except:
     TRACKER_AVAILABLE = False
@@ -734,23 +734,38 @@ elif selected_tab == TABS[2]:
     if not TRACKER_AVAILABLE:
         st.warning("trade_tracker.py module not found.")
     else:
-        stats = get_stats()
+        # Filters for Performance View
+        c_filter1, c_filter2 = st.columns([1, 1])
+        with c_filter1:
+            tf_filter = st.selectbox("Filter Timeframe:", ["ALL", "5m", "15m", "1h", "1d"], key="perf_tf")
+        with c_filter2:
+            ver_filter = st.selectbox("Filter Model Version:", ["ALL", "v1.1 (Active - ML Filtered)", "v1.0 (Decommissioned - Legacy)"], key="perf_ver")
+
+        # Determine target version tag
+        v_tag = None
+        if "v1.1" in ver_filter:
+            v_tag = "v1.1"
+        elif "v1.0" in ver_filter:
+            v_tag = "v1.0"
+
+        stats = get_stats(model_version=v_tag)
         r1, r2, r3, r4 = st.columns(4)
-        with r1: st.metric("Total Bot Alerts", stats['total_trades'])
-        with r2: st.metric("Win Rate", f"{stats['win_rate']:.1f}%")
-        with r3: st.metric("Avg PnL", f"{stats['avg_pnl_r']:+.2f}R")
-        with r4: st.metric("Open Trades", stats['open_count'])
+        with r1: st.metric("Total Bot Alerts", stats['total_trades'], help=f"Alerts logged under {ver_filter}")
+        with r2: st.metric("Win Rate", f"{stats['win_rate']:.1f}%", help="Win percentage of closed setups")
+        with r3: st.metric("Avg PnL / Trade", f"{stats['avg_pnl_r']:+.2f}R", delta=f"{stats['net_pnl_r']:+.2f}R Net")
+        with r4: st.metric("Open Trades", stats['open_count'], help="Currently active in database")
 
         st.markdown("---")
         st.markdown("### Live Alert Log")
-        recent = get_recent_trades(100)
+        recent = get_recent_trades(200)
         if recent:
             df_trades = pd.DataFrame(recent)
-            tf_filter = st.selectbox("Filter Timeframe:", ["ALL", "5m", "15m", "1h", "1d"], key="perf_tf")
+            if v_tag and 'model_version' in df_trades.columns:
+                df_trades = df_trades[df_trades['model_version'] == v_tag]
             if tf_filter != "ALL" and 'timeframe' in df_trades.columns:
                 df_trades = df_trades[df_trades['timeframe'] == tf_filter]
 
-            display_cols = ['timestamp', 'ticker', 'direction', 'entry_price', 'stop_loss', 'take_profit', 'outcome', 'pnl_r']
+            display_cols = ['timestamp', 'ticker', 'direction', 'model_version', 'entry_price', 'stop_loss', 'take_profit', 'outcome', 'pnl_r']
             if 'timeframe' in df_trades.columns: display_cols.insert(2, 'timeframe')
             if 'bars_in_regime' in df_trades.columns: display_cols.append('bars_in_regime')
             if 'vwap_distance' in df_trades.columns: display_cols.append('vwap_distance')
@@ -763,12 +778,14 @@ elif selected_tab == TABS[2]:
             if 'pnl_r' in df_trades.columns and 'timestamp' in df_trades.columns:
                 pnl_trades = df_trades[df_trades['pnl_r'].notna()].copy()
                 if not pnl_trades.empty:
-                    st.markdown("### Cumulative PnL Curve (R-Units)")
+                    st.markdown(f"### Cumulative PnL Curve ({ver_filter})")
                     pnl_trades = pnl_trades.sort_values('timestamp')
                     pnl_trades['cumulative_r'] = pnl_trades['pnl_r'].cumsum()
                     pnl_fig = go.Figure()
-                    pnl_fig.add_trace(go.Scatter(x=pnl_trades['timestamp'], y=pnl_trades['cumulative_r'], mode='lines+markers', line=dict(color='#2962FF', width=2), fill='tozeroy', fillcolor='rgba(41, 98, 255, 0.1)'))
-                    pnl_fig.update_layout(template='plotly_dark', height=350, margin=dict(l=40, r=20, t=20, b=40), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                    line_color = '#00E676' if v_tag == 'v1.1' else '#2962FF' if v_tag is None else '#FF5252'
+                    fill_color = 'rgba(0, 230, 118, 0.15)' if v_tag == 'v1.1' else 'rgba(41, 98, 255, 0.1)' if v_tag is None else 'rgba(255, 82, 82, 0.15)'
+                    pnl_fig.add_trace(go.Scatter(x=pnl_trades['timestamp'], y=pnl_trades['cumulative_r'], mode='lines+markers', line=dict(color=line_color, width=2), fill='tozeroy', fillcolor=fill_color))
+                    pnl_fig.update_layout(template='plotly_dark', height=350, margin=dict(l=40, r=20, t=20, b=40), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', yaxis_title="Cumulative Net R-Units")
                     st.plotly_chart(pnl_fig, use_container_width=True)
         else:
             st.info("No bot alerts logged yet. Leave the bot running during market hours!")
@@ -832,10 +849,110 @@ elif selected_tab == TABS[3]:
 
     st.markdown("---")
 
-    ml_tabs = st.tabs(["📊 Live Model Training & Insights", "🎯 Statistical Edge Breakdown", "📚 Algorithmic Documentation"])
+    ml_tabs = st.tabs(["🏆 Model Version Head-to-Head", "📊 Live Model Training & Insights", "🎯 Statistical Edge Breakdown", "📚 Algorithmic Documentation"])
+
+    # --- SUB-TAB 0: MODEL VERSION COMPARISON ---
+    with ml_tabs[0]:
+        st.markdown("#### 🏆 Model Version Head-to-Head Comparison & Historical Archive")
+        st.caption("Tracking how model upgrades improve win rate, isolate edge decay, and decommission legacy underperforming rules.")
+
+        history_records = get_model_version_stats() if TRACKER_AVAILABLE else []
+        if history_records:
+            df_hist = pd.DataFrame(history_records)
+
+            active_m = df_hist[df_hist['status'] == 'ACTIVE'].iloc[0] if not df_hist[df_hist['status'] == 'ACTIVE'].empty else None
+            legacy_m = df_hist[df_hist['status'] == 'DECOMMISSIONED'].iloc[0] if not df_hist[df_hist['status'] == 'DECOMMISSIONED'].empty else None
+
+            c_act, c_vs, c_leg = st.columns([5, 1, 5])
+            with c_act:
+                if active_m is not None:
+                    st.markdown(f"""
+                    <div style="background:{TV_PANEL}; border:2px solid {TV_GREEN}; border-radius:8px; padding:16px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:18px; font-weight:bold; color:{TV_GREEN};">🟢 CURRENT ACTIVE: {active_m['version']}</span>
+                            <span style="background:{TV_GREEN}; color:#000; font-size:11px; font-weight:bold; padding:2px 8px; border-radius:4px;">ACTIVE PRODUCTION</span>
+                        </div>
+                        <div style="font-size:12px; color:#888; margin-top:4px;">Activated: {str(active_m['created_at'])[:16].replace('T', ' ')}</div>
+                        <hr style="border-color:{TV_GRID}; margin:10px 0;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                            <span style="color:#AAA;">Realized Win Rate:</span>
+                            <span style="font-weight:bold; color:{TV_GREEN}; font-size:16px;">{active_m.get('realized_win_rate', 0.0):.1f}%</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                            <span style="color:#AAA;">Realized Net Expectancy:</span>
+                            <span style="font-weight:bold; color:{TV_GREEN}; font-size:16px;">{active_m.get('realized_net_r', 0.0):+.2f}R ({active_m.get('realized_avg_r', 0.0):+.2f}R avg)</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                            <span style="color:#AAA;">Realized Closed Trades:</span>
+                            <span style="font-weight:bold; color:#FFF;">{active_m.get('realized_trades', 0)} trades</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                            <span style="color:#AAA;">Primary Edge Driver:</span>
+                            <span style="font-weight:bold; color:#38bdf8;">{active_m.get('primary_feature', 'N/A')}</span>
+                        </div>
+                        <div style="font-size:11px; color:#CCC; background:#1e293b; padding:8px; border-radius:4px; margin-top:10px;">
+                            <b>Notes:</b> {active_m.get('deployment_reason', 'Automated ML safeguards active')}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            with c_vs:
+                st.markdown("<div style='text-align:center; padding-top:80px; font-weight:bold; font-size:20px; color:#666;'>VS</div>", unsafe_allow_html=True)
+            with c_leg:
+                if legacy_m is not None:
+                    st.markdown(f"""
+                    <div style="background:{TV_PANEL}; border:1px solid #ef4444; border-radius:8px; padding:16px; opacity:0.85;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:18px; font-weight:bold; color:#ef4444;">🔴 ARCHIVED: {legacy_m['version']}</span>
+                            <span style="background:#ef4444; color:#FFF; font-size:11px; font-weight:bold; padding:2px 8px; border-radius:4px;">DECOMMISSIONED</span>
+                        </div>
+                        <div style="font-size:12px; color:#888; margin-top:4px;">Decommissioned: Retired on v1.1 Deployment</div>
+                        <hr style="border-color:{TV_GRID}; margin:10px 0;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                            <span style="color:#AAA;">Realized Win Rate:</span>
+                            <span style="font-weight:bold; color:#ef4444; font-size:16px;">{legacy_m.get('realized_win_rate', 0.0):.1f}%</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                            <span style="color:#AAA;">Realized Net Expectancy:</span>
+                            <span style="font-weight:bold; color:#ef4444; font-size:16px;">{legacy_m.get('realized_net_r', 0.0):+.2f}R ({legacy_m.get('realized_avg_r', 0.0):+.2f}R avg)</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                            <span style="color:#AAA;">Historical Sample:</span>
+                            <span style="font-weight:bold; color:#FFF;">{legacy_m.get('realized_trades', 0)} closed trades</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                            <span style="color:#AAA;">Primary Edge Driver:</span>
+                            <span style="font-weight:bold; color:#AAA;">{legacy_m.get('primary_feature', 'Rule-Based Baseline')}</span>
+                        </div>
+                        <div style="font-size:11px; color:#CCC; background:#1e293b; padding:8px; border-radius:4px; margin-top:10px;">
+                            <b>Notes:</b> {legacy_m.get('deployment_reason', 'Legacy baseline prior to ML filters')}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            st.markdown("---")
+            st.markdown("##### 📜 Immutable Model Version History & Audit Registry")
+            st.caption("Each model deployment creates an immutable historical checkpoint preserving realized win rate and preventing model drift.")
+            
+            display_hist = df_hist[['version', 'status', 'created_at', 'realized_trades', 'realized_win_rate', 'realized_net_r', 'realized_avg_r', 'primary_feature', 'deployment_reason']].copy()
+            display_hist.columns = ['Version', 'Status', 'Deployed At', 'Trades', 'Realized Win %', 'Realized Net R', 'Avg R / Trade', 'Top Predictive Feature', 'Deployment Reason']
+            display_hist['Deployed At'] = display_hist['Deployed At'].apply(lambda x: str(x)[:16].replace('T', ' ') if x else '')
+            display_hist['Realized Win %'] = display_hist['Realized Win %'].apply(lambda x: f"{float(x):.1f}%" if pd.notna(x) else "N/A")
+            display_hist['Realized Net R'] = display_hist['Realized Net R'].apply(lambda x: f"{float(x):+.2f}R" if pd.notna(x) else "N/A")
+            display_hist['Avg R / Trade'] = display_hist['Avg R / Trade'].apply(lambda x: f"{float(x):+.2f}R" if pd.notna(x) else "N/A")
+            st.dataframe(display_hist, use_container_width=True, hide_index=True)
+
+            st.info("""
+            **🧠 Why Segregating Model Versions Protects Your Edge:**  
+            By locking in the historical stats of **v1.0 (Legacy)** and tracking **v1.1 (ML-Powered)** separately:
+            1. **No Dilution:** The legacy -0.34R average from unconstrained rule triggers cannot drag down the forward performance metrics of your new ML filters.
+            2. **Drift Detection:** If an active version begins degrading below its cross-validation baseline, the AI flags it for automated retrain/upgrade.
+            3. **Audit Trail:** Every rule adaptation and parameter shift is version-controlled with timestamps and mathematical justification.
+            """)
+        else:
+            st.info("No model version records found in `ml_model_history` yet.")
 
     # --- SUB-TAB 1: LIVE MODEL TRAINING ---
-    with ml_tabs[0]:
+    with ml_tabs[1]:
         st.markdown("#### 🔬 How the ML Feedback Loop Works")
         st.markdown("""
         1. **Feature Harvesting at Entry:** When a setup triggers, the bot freezes a snapshot of 10+ quantitative features:
@@ -967,7 +1084,7 @@ elif selected_tab == TABS[3]:
             st.info(f"The ML Engine needs at least 10 closed trades to fit the Random Forest model. (Currently logged: {len(df_closed)} closed trades). Leave the bot running to build more sample history!")
 
     # --- SUB-TAB 2: STATISTICAL EDGE BREAKDOWN ---
-    with ml_tabs[1]:
+    with ml_tabs[2]:
         st.markdown("#### 🎯 Segmented Win Rate Analysis")
         if not df_closed.empty:
             df_closed['target'] = (df_closed['outcome'] == 'WIN').astype(int)
@@ -1020,7 +1137,7 @@ elif selected_tab == TABS[3]:
             st.info("No closed trade records available yet.")
 
     # --- SUB-TAB 3: ALGORITHMIC ARCHITECTURE ---
-    with ml_tabs[2]:
+    with ml_tabs[3]:
         st.markdown("#### 📚 4-Pillar Algorithmic Architecture")
         try:
             with open('algo_documentation.md', 'r', encoding='utf-8') as md_file:
