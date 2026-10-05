@@ -357,7 +357,7 @@ def get_tape_and_status_data():
         stats['loss_count'] = c.fetchone()[0]
         c.execute("SELECT COUNT(*) FROM alerts WHERE user_active = 1")
         stats['user_active_count'] = c.fetchone()[0]
-        c.execute("SELECT ticker, direction, timeframe, entry_price, stop_loss, take_profit, user_active, breakeven_set FROM alerts WHERE outcome = 'OPEN' ORDER BY id DESC LIMIT 10")
+        c.execute("SELECT ticker, direction, timeframe, entry_price, stop_loss, take_profit, user_active, breakeven_set, timestamp FROM alerts WHERE outcome = 'OPEN' ORDER BY id DESC LIMIT 10")
         stats['recent_alerts'] = [dict(r) for r in c.fetchall()]
         conn.close()
     except Exception as e:
@@ -377,6 +377,32 @@ def get_tape_and_status_data():
     except:
         pass
     return stats
+
+def format_trade_time(ts_str):
+    if not ts_str: return ""
+    try:
+        dt = datetime.datetime.fromisoformat(str(ts_str).replace('Z', ''))
+        now = datetime.datetime.now()
+        if dt.date() == now.date():
+            return f"Today {dt.strftime('%I:%M %p')}"
+        elif (now.date() - dt.date()).days == 1:
+            return f"Yesterday {dt.strftime('%I:%M %p')}"
+        else:
+            return dt.strftime('%b %d, %I:%M %p')
+    except:
+        return str(ts_str)[:16]
+
+def format_trade_time_compact(ts_str):
+    if not ts_str: return ""
+    try:
+        dt = datetime.datetime.fromisoformat(str(ts_str).replace('Z', ''))
+        now = datetime.datetime.now()
+        if dt.date() == now.date():
+            return dt.strftime('%I:%M %p')
+        else:
+            return dt.strftime('%b %d')
+    except:
+        return ""
 
 def render_live_ticker_tape():
     data = get_tape_and_status_data()
@@ -445,7 +471,9 @@ def render_live_ticker_tape():
             
         color = TV_GREEN if d == "LONG" else TV_RED
         badge = "🟢 LONG" if d == "LONG" else "🔴 SHORT"
-        tape_items.append(f"<span style='color:#FFF; font-weight:bold;'>${sym}</span> <span style='color:{color};'>{badge} ({tf})</span> <span style='color:#FFD700;'>{r_str}</span>{b_tag}{u_tag}")
+        time_tag = format_trade_time_compact(a.get('timestamp'))
+        tf_label = f"{tf} • {time_tag}" if time_tag else tf
+        tape_items.append(f"<span style='color:#FFF; font-weight:bold;'>${sym}</span> <span style='color:{color};'>{badge} ({tf_label})</span> <span style='color:#FFD700;'>{r_str}</span>{b_tag}{u_tag}")
 
     tape_content = " &nbsp;&nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp;&nbsp; ".join(tape_items) if tape_items else "Scanning market for Wyckoff setups..."
     
@@ -576,7 +604,8 @@ if selected_tab == TABS[0]:
             tf = t.get('timeframe', '5m')
             trade_style = styles.get(tf, "Unknown")
             exp_time = expected_times.get(tf, "Unknown")
-            reason = f"TF: {tf} | Style: {trade_style} ({exp_time}) | Context: {t.get('regime', 'Unknown')}"
+            init_time_str = format_trade_time(t.get('timestamp'))
+            reason = f"Initiated: {init_time_str} | TF: {tf} | Style: {trade_style} ({exp_time}) | Context: {t.get('regime', 'Unknown')}"
             
             try:
                 risk = abs(float(t['entry_price']) - float(t['stop_loss']))
@@ -588,7 +617,7 @@ if selected_tab == TABS[0]:
             st.markdown(f"""
             <div style="background-color:{TV_PANEL}; border-left: 5px solid {border_color}; padding: 20px; border-radius: 10px; margin-bottom: 15px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h3 style="margin:0;">{dir_emoji} {t['ticker']} <span style="font-size:0.6em; color:#888;">@ ${t['entry_price']:.2f}</span></h3>
+                    <h3 style="margin:0;">{dir_emoji} {t['ticker']} <span style="font-size:0.6em; color:#888;">@ ${t['entry_price']:.2f}</span> <span style="font-size:0.5em; color:#3b82f6; font-weight:normal; margin-left:8px;">🗓️ {init_time_str}</span></h3>
                     <span style="background:{border_color}; color:white; padding:4px 12px; border-radius:15px; font-weight:bold; font-size:13px;">{t['direction']}</span>
                 </div>
                 <div style="margin-top:12px;">

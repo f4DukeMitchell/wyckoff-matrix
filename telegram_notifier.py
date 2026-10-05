@@ -1,4 +1,5 @@
 import requests
+import datetime
 
 # User must fill these in with valid credentials
 TELEGRAM_BOT_TOKEN = '8870935798:AAFx5-TdD0qEwQ4nTSRIFw4RvdI87GSXnDc'
@@ -73,10 +74,12 @@ def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, reg
         sl_str = str(stop_loss)
         tp_str = str(take_profit)
         
+    now_str = datetime.datetime.now().strftime('%b %d, %I:%M %p')
     message = (
         f"🚨 TRADE ALERT: {ticker}\n"
         f"Direction: {direction}\n"
         f"Style: {trade_style} ({timeframe})\n"
+        f"Initiated: {now_str}\n"
         f"Expected Duration: {exp_time}\n"
         f"Entry: {entry_str}\n"
         f"Stop Loss: {sl_str}\n"
