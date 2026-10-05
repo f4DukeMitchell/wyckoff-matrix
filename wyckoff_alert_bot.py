@@ -554,9 +554,19 @@ if __name__ == "__main__":
     
     while True:
         check_telegram_commands()
-        for tf in TIMEFRAMES:
-            scan_market(tf['interval'], tf['period'], tf['lookback'])
-            time.sleep(2)
+        
+        now = datetime.datetime.now()
+        # Market Hours check (Mon-Fri 9:30 AM - 4:00 PM EST)
+        is_weekday = now.weekday() < 5
+        market_open = (now.hour > 9 or (now.hour == 9 and now.minute >= 30)) and (now.hour < 16)
+        is_market_hours = is_weekday and market_open
+
+        if is_market_hours:
+            for tf in TIMEFRAMES:
+                scan_market(tf['interval'], tf['period'], tf['lookback'])
+                time.sleep(2)
+        else:
+            print(f"[{now.strftime('%H:%M:%S')}] Outside market hours (Mon-Fri 9:30am-4:00pm EST). Scan paused.")
         
         if TELEGRAM_ENABLED:
             try:
