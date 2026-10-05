@@ -11,7 +11,7 @@ import os
 
 # --- UPGRADE MODULES ---
 try:
-    from trade_tracker import log_alert, check_open_trades, has_open_alerted_trade, mark_trade_alerted, sync_public_positions
+    from trade_tracker import log_alert, check_open_trades, has_open_alerted_trade, has_open_trade, mark_trade_alerted, sync_public_positions
     TRACKER_ENABLED = True
 except:
     TRACKER_ENABLED = False
@@ -268,8 +268,8 @@ def scan_market(interval, period, lookback):
             
             if is_spring and (current_time - last_alerted.get(ticker, 0) > 900):
                 # Feature 2: Per-Ticker Duplicate Lock (Max 1 alert per stock on this timeframe)
-                if TRACKER_ENABLED and has_open_alerted_trade(ticker, interval):
-                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED DUPLICATE: {ticker} already has active alert on {interval}")
+                if TRACKER_ENABLED and (has_open_alerted_trade(ticker, interval) or has_open_trade(ticker, interval)):
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED DUPLICATE: {ticker} already has active open trade on {interval}")
                     last_alerted[ticker] = current_time
                     continue
 
@@ -326,8 +326,8 @@ def scan_market(interval, period, lookback):
                 
             elif is_utad and (current_time - last_alerted.get(ticker, 0) > 900):
                 # Feature 2: Per-Ticker Duplicate Lock
-                if TRACKER_ENABLED and has_open_alerted_trade(ticker, interval):
-                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED DUPLICATE: {ticker} already has active alert on {interval}")
+                if TRACKER_ENABLED and (has_open_alerted_trade(ticker, interval) or has_open_trade(ticker, interval)):
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED DUPLICATE: {ticker} already has active open trade on {interval}")
                     last_alerted[ticker] = current_time
                     continue
 

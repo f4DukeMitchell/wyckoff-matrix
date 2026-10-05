@@ -549,16 +549,28 @@ if 'active_tab' not in st.session_state or st.session_state['active_tab'] not in
 selected_tab = st.radio("Navigation", TABS, horizontal=True, label_visibility="collapsed", index=TABS.index(st.session_state['active_tab']))
 st.session_state['active_tab'] = selected_tab
 
-def get_live_db_trades():
+def get_live_db_trades(only_alerted=True):
     import sqlite3
     try:
         conn = sqlite3.connect("wyckoff_trades.db")
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
-        c.execute("SELECT * FROM alerts WHERE outcome = 'OPEN' ORDER BY id DESC")
+        if only_alerted:
+            c.execute("SELECT * FROM alerts WHERE outcome = 'OPEN' AND telegram_alerted = 1 ORDER BY id DESC")
+        else:
+            c.execute("SELECT * FROM alerts WHERE outcome = 'OPEN' ORDER BY id DESC")
         rows = c.fetchall()
         conn.close()
-        return [dict(r) for r in rows]
+        
+        # De-duplicate: Keep only newest alert per (ticker, timeframe)
+        seen = set()
+        deduped = []
+        for r in rows:
+            key = (r['ticker'], r.get('timeframe', '5m'))
+            if key not in seen:
+                seen.add(key)
+                deduped.append(dict(r))
+        return deduped
     except:
         return []
 
@@ -567,8 +579,12 @@ if selected_tab == TABS[0]:
     st.markdown("### ⚡ Live Trade Ideas — ML Ranked")
     st.caption("Scanning Top 20 Mega-Caps for Wyckoff Phase C setups. Ranked by ML Confidence Score.")
 
+    c_top_hdr, c_top_opt = st.columns([3, 1])
+    with c_top_opt:
+        show_silent_scans = st.checkbox("Include Silent ML Scans", value=False, help="Include un-alerted background market scans harvested for ML training")
+
     # Pull actual live triggered trades directly from the bot's database
-    db_trades = get_live_db_trades()
+    db_trades = get_live_db_trades(only_alerted=not show_silent_scans)
     
     if db_trades:
         styles = {
@@ -592,7 +608,8 @@ if selected_tab == TABS[0]:
                 if r_units >= 1.5: filtered_db_trades.append(t)
             except: pass
             
-        st.markdown(f"#### ? TRIGGERED ({len(filtered_db_trades)} Live Bot Alerts)")
+        with c_top_hdr:
+            st.markdown(f"#### ⚡ TRIGGERED ({len(filtered_db_trades)} Live Bot Alerts)")
         for t in filtered_db_trades:
             # Reconstruct the card format from the DB record
             border_color = TV_GREEN if "LONG" in t['direction'] else TV_RED

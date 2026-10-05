@@ -373,6 +373,24 @@ def has_open_alerted_trade(ticker, timeframe=None):
     except:
         return False
 
+def has_open_trade(ticker, timeframe=None):
+    """
+    Checks if any active OPEN record exists for this ticker and timeframe.
+    Prevents background loop from repeatedly inserting duplicate candidates.
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        if timeframe:
+            c.execute("SELECT COUNT(*) FROM alerts WHERE ticker = ? AND timeframe = ? AND outcome = 'OPEN'", (ticker, timeframe))
+        else:
+            c.execute("SELECT COUNT(*) FROM alerts WHERE ticker = ? AND outcome = 'OPEN'", (ticker,))
+        cnt = c.fetchone()[0]
+        conn.close()
+        return cnt > 0
+    except:
+        return False
+
 def mark_trade_alerted(trade_id):
     """
     Marks that a trade was broadcast to Telegram.
