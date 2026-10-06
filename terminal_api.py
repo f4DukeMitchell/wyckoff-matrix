@@ -238,6 +238,29 @@ def get_bars(ticker: str, interval: str = "5m"):
                     "text": "UTAD (SHORT)"
                 })
 
+        # Volume Profile (Volume at Price distribution)
+    vp_distribution = []
+    if len(closes) > 0 and (np.max(highs) - np.min(lows)) > 0:
+        p_min = float(np.min(lows))
+        p_max = float(np.max(highs))
+        num_bins = 24
+        bin_size = (p_max - p_min) / num_bins
+        bins = [0.0] * num_bins
+        for h, l, c, v in zip(highs, lows, closes, vols):
+            typical = (h + l + c) / 3.0
+            b_idx = min(num_bins - 1, max(0, int((typical - p_min) / bin_size)))
+            bins[b_idx] += float(v)
+            
+        max_v = max(bins) if max(bins) > 0 else 1.0
+        for b_i in range(num_bins):
+            p_level = p_min + (b_i + 0.5) * bin_size
+            pct = (bins[b_i] / max_v) * 100.0
+            vp_distribution.append({
+                "price": round(p_level, 2),
+                "volume": bins[b_i],
+                "pct": round(pct, 1)
+            })
+
     return {
         "ticker": ticker.upper(),
         "interval": interval,
@@ -247,7 +270,8 @@ def get_bars(ticker: str, interval: str = "5m"):
         "range_high": range_h_line,
         "range_low": range_l_line,
         "vwap": vwap_line,
-        "markers": markers
+        "markers": markers,
+        "volume_profile": vp_distribution
     }
 
 @app.get("/api/flow/{ticker}")

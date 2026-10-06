@@ -218,10 +218,82 @@
       grid-column: 2 / 3;
       grid-row: 1 / 2;
     }
-    #chart-view {
+    #chart-body {
       flex: 1;
+      display: flex;
+      flex-direction: row;
       width: 100%;
       height: 100%;
+      position: relative;
+      overflow: hidden;
+    }
+    #chart-view {
+      flex: 1;
+      height: 100%;
+      position: relative;
+    }
+    #vp-pane {
+      width: 72px;
+      height: 100%;
+      background: #0a0a0a;
+      border-left: 1px solid var(--wsr-border);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      user-select: none;
+    }
+    #vp-header {
+      font-size: 8px;
+      color: var(--wsr-muted);
+      text-align: center;
+      padding: 2px 0;
+      border-bottom: 1px solid #141414;
+      background: #000;
+      letter-spacing: 0.5px;
+    }
+    #vp-bars-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 6px 2px;
+      position: relative;
+    }
+    .vp-row {
+      display: flex;
+      align-items: center;
+      height: calc(100% / 24);
+      gap: 3px;
+      padding: 0 2px;
+    }
+    .vp-price {
+      font-size: 8px;
+      color: #666;
+      width: 30px;
+      text-align: right;
+      overflow: hidden;
+      white-space: nowrap;
+      font-family: monospace;
+    }
+    .vp-bar-wrapper {
+      flex: 1;
+      height: 70%;
+      background: #111;
+      border-radius: 1px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+    }
+    .vp-bar {
+      height: 100%;
+      background: rgba(0, 200, 255, 0.45);
+      border-right: 1px solid #00c8ff;
+      transition: width 0.2s ease;
+    }
+    .vp-bar.poc {
+      background: rgba(255, 140, 0, 0.75);
+      border-right: 2px solid #ff8c00;
     }
 
     /* BOTTOM FUNCTION BAR */
@@ -310,7 +382,15 @@
           <button class="term-btn" onclick="switchInterval('1d')">1D</button>
         </div>
       </div>
-      <div id="chart-view"></div>
+      <div id="chart-body">
+        <div id="chart-view"></div>
+        <div id="vp-pane">
+          <div id="vp-header">VOL @ PRICE</div>
+          <div id="vp-bars-container">
+            <!-- Populated via loadChartData -->
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- PANE 3: SCANNER RADAR (Top Right) -->
@@ -604,10 +684,46 @@
           }
           
           chart.timeScale().fitContent();
+
+          // Render Volume Profile (Volume at Price)
+          if (data.volume_profile && data.volume_profile.length > 0) {
+            renderVolumeProfile(data.volume_profile);
+          }
         }
       } catch (e) {
         console.error("Failed to load bars and indicators:", e);
       }
+    }
+
+    function renderVolumeProfile(vpData) {
+      const vpContainer = document.getElementById('vp-bars-container');
+      if (!vpContainer) return;
+      vpContainer.innerHTML = '';
+
+      // Find Point of Control (POC - max volume bin)
+      let maxVol = 0;
+      vpData.forEach(d => {
+        if (d.volume > maxVol) maxVol = d.volume;
+      });
+
+      // Bins are ordered lowest price to highest price
+      // Invert array so highest price displays at the top of the chart
+      const reversed = [...vpData].reverse();
+
+      reversed.forEach(bin => {
+        const row = document.createElement('div');
+        row.className = 'vp-row';
+        const isPOC = bin.volume === maxVol && maxVol > 0;
+        const widthPct = Math.min(100, Math.max(4, bin.pct));
+
+        row.innerHTML = `
+          <div class="vp-price" style="${isPOC ? 'color: var(--wsr-orange); font-weight: bold;' : ''}">$${bin.price.toFixed(1)}</div>
+          <div class="vp-bar-wrapper">
+            <div class="vp-bar ${isPOC ? 'poc' : ''}" style="width: ${widthPct}%;" title="Price: $${bin.price} | Vol: ${bin.volume.toLocaleString()}"></div>
+          </div>
+        `;
+        vpContainer.appendChild(row);
+      });
       loadOptionsFlow(currentTicker);
     }
 
