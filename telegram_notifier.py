@@ -129,13 +129,26 @@ def send_daily_recap(recap_text):
     message = f"DAILY RECAP\n{recap_text}"
     return send_message(message)
 
-def send_market_radar(radar_text):
-    """Sends market radar updates."""
+def send_market_radar(radar_data, session_name="Market Radar"):
+    """Sends formatted market radar updates."""
     if not is_configured():
         print("Telegram not configured. Skipping market radar.")
         return False
         
-    message = f"MARKET RADAR\n{radar_text}"
+    if isinstance(radar_data, str):
+        message = f"📡 WYCKOFF MARKET RADAR: {session_name}\n\n{radar_data}"
+    else:
+        message = f"📡 WYCKOFF MARKET RADAR: {session_name}\n"
+        message += "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        if not radar_data:
+            message += "No stocks currently showing deep regime exhaustion (>= 20 bars).\nMarket is balanced or in trend-following mode.\n"
+        else:
+            message += "Top Coiled Setups Stalking for Reversal:\n\n"
+            for t in radar_data:
+                # t is (ticker, regime, bars, target)
+                emoji = "🟢" if "SPRING" in str(t[3]) else "🔴"
+                message += f"{emoji} <b>{t[0]}</b>: {t[1]} Regime ({t[2]} bars deep)\n   🎯 Stalking: <code>{t[3]}</code>\n\n"
+        message += "⚡ <i>Wait for Micro (1,1) Supertrend confirmation before entry!</i>"
     return send_message(message)
 
 _last_update_id = None

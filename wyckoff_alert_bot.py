@@ -8,6 +8,18 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import subprocess
 import os
+try:
+    import zoneinfo
+    ET_TZ = zoneinfo.ZoneInfo("America/New_York")
+except Exception:
+    ET_TZ = None
+
+def get_market_now():
+    """Returns current datetime in America/New_York (EST/EDT) market time."""
+    if ET_TZ:
+        return datetime.datetime.now(ET_TZ)
+    return datetime.datetime.now()
+
 
 # --- UPGRADE MODULES ---
 try:
@@ -388,16 +400,16 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
 # PUBLIC.COM LIVE MARKET SCANNER (Primary Data Feed)
 # ===================================================================
 async def scan_market_public(interval, lookback):
-    print(f"\n[{datetime.datetime.now().strftime('%H:%M:%S')}] [PUBLIC.COM LIVE] Streaming {len(TICKERS)} tickers on {interval}...")
+    print(f"\n[{get_market_now().strftime('%H:%M:%S')}] [PUBLIC.COM LIVE] Streaming {len(TICKERS)} tickers on {interval}...")
     spy_bullish = await get_spy_trend_public()
-    now = datetime.datetime.now()
+    now = get_market_now()
     hour_of_day = now.hour + now.minute / 60.0
     
     count = 0
     async for ticker, df in stream_ticker_bars(TICKERS, interval=interval, delay_ms=0.08):
         count += 1
         evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_day, now)
-    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [PUBLIC.COM LIVE] Finished {count} tickers on {interval}.")
+    print(f"[{get_market_now().strftime('%H:%M:%S')}] [PUBLIC.COM LIVE] Finished {count} tickers on {interval}.")
 
 # Fallback bulk scanner (yfinance)
 def scan_market(interval, period, lookback):
@@ -406,10 +418,10 @@ def scan_market(interval, period, lookback):
         asyncio.run(scan_market_public(interval, lookback))
         return
         
-    print(f"\n[{datetime.datetime.now().strftime('%H:%M:%S')}] [FALLBACK YFINANCE] Scanning {len(TICKERS)} tickers on {interval}...")
+    print(f"\n[{get_market_now().strftime('%H:%M:%S')}] [FALLBACK YFINANCE] Scanning {len(TICKERS)} tickers on {interval}...")
     data = yf.download(TICKERS, period=period, interval=interval, group_by='ticker', progress=False)
     spy_bullish = get_spy_trend()
-    now = datetime.datetime.now()
+    now = get_market_now()
     hour_of_day = now.hour + now.minute / 60.0
     for ticker in TICKERS:
         try:
@@ -487,10 +499,12 @@ def send_market_report(session_name):
     except Exception as e:
         print(f"Error sending report: {e}")
     
-    if TELEGRAM_ENABLED and exhausted:
+    if TELEGRAM_ENABLED:
         try:
             tg_radar(exhausted[:5], session_name)
-        except: pass
+            print(f"[{get_market_now().strftime('%H:%M:%S')}] Telegram Radar sent for {session_name}!")
+        except Exception as e:
+            print(f"Error sending Telegram radar: {e}")
 
 def send_daily_recap():
     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Generating Daily Recap...")
@@ -588,7 +602,7 @@ if __name__ == "__main__":
     while True:
         check_telegram_commands()
         
-        now = datetime.datetime.now()
+        now = get_market_now()
         # Market Hours check (Mon-Fri 9:30 AM - 4:00 PM EST)
         is_weekday = now.weekday() < 5
         market_open = (now.hour > 9 or (now.hour == 9 and now.minute >= 30)) and (now.hour < 16)
@@ -674,7 +688,7 @@ if __name__ == "__main__":
                         send_message(alert_msg)
             except: pass
         
-        now = datetime.datetime.now()
+        now = get_market_now()
         current_date = now.date()
         
         if last_report_date != current_date:
