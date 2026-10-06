@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 
-from public_executor import get_account_capital_summary, calculate_test_allocation, execute_dollar_buy, execute_exit_sell
+from public_executor import get_account_capital_summary, calculate_test_allocation, execute_dollar_buy, execute_short_sell, execute_exit_sell
 from data_feed_public import get_public_bars_sync
 from options_flow import get_options_flow, get_public_quotes
 
@@ -395,15 +395,40 @@ def place_buy(order: OrderPayload):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.post("/api/order/short")
+def place_short(order: OrderPayload):
+    """Executes integer whole-share short sale on Public.com directly from the terminal."""
+    try:
+        res = execute_short_sell(order.ticker.upper(), order.amount)
+        if order.trade_id:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("UPDATE alerts SET user_active = 1 WHERE id = ?", (order.trade_id,))
+            conn.commit()
+            conn.close()
+        return {"success": True, "order": res}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 class ExitPayload(BaseModel):
     ticker: str
     trade_id: int | None = None
 
 @app.post("/api/order/exit")
 def place_exit(exit_req: ExitPayload):
-    """Executes full position exit on Public.com directly from the terminal."""
+    """Executes full position exit on Public.com directly from the terminal (covers shorts or sells longs)."""
     try:
-        res = execute_exit_sell(exit_req.ticker.upper())
+        direction = None
+        if exit_req.trade_id:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("SELECT direction FROM alerts WHERE id = ?", (exit_req.trade_id,))
+            row = c.fetchone()
+            if row:
+                direction = row[0]
+            conn.close()
+
+        res = execute_exit_sell(exit_req.ticker.upper(), direction=direction)
         if exit_req.trade_id:
             conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()

@@ -675,9 +675,11 @@ if __name__ == "__main__":
                         try:
                             from public_executor import execute_exit_sell
                             sym = t.get('ticker')
-                            sell_res = execute_exit_sell(sym)
+                            direction = t.get('direction')
+                            sell_res = execute_exit_sell(sym, direction=direction)
                             if sell_res.get('status') == 'SUBMITTED':
-                                broker_exit_info = f"\n🔄 Public.com Broker Exit Order Sent: Closed {sell_res.get('quantity', 'all')} shares."
+                                action = "Covered" if direction == 'SHORT' else "Sold"
+                                broker_exit_info = f"\n🔄 Public.com Broker Exit Order Sent: {action} {sell_res.get('quantity', 'all')} shares."
                         except Exception as e:
                             broker_exit_info = f"\n⚠️ Broker Exit Error: {e}"
 

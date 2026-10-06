@@ -204,6 +204,14 @@
       background: var(--wsr-green);
       color: var(--wsr-black);
     }
+    .term-btn-short {
+      border-color: var(--wsr-red);
+      color: var(--wsr-red);
+    }
+    .term-btn-short:hover {
+      background: var(--wsr-red);
+      color: var(--wsr-white);
+    }
     .term-btn-exit {
       border-color: var(--wsr-red);
       color: var(--wsr-red);
@@ -873,14 +881,19 @@
             }
           }
 
+          const isLong = s.direction === 'LONG';
+          const btnClass = isLong ? 'term-btn term-btn-buy' : 'term-btn term-btn-short';
+          const btnText = isLong ? '1% BUY' : '1% SHORT';
+          const btnAction = isLong ? `executeBuy('${s.ticker}', ${s.id})` : `executeShort('${s.ticker}', ${s.id})`;
+
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td class="c-cyan" onclick="loadChartData('${s.ticker}', '${s.timeframe || '5m'}')"><b>${s.ticker}</b></td>
-            <td class="${s.direction === 'LONG' ? 'c-green' : 'c-red'}">${s.direction}</td>
+            <td class="${isLong ? 'c-green' : 'c-red'}">${s.direction}</td>
             <td>$${s.entry_price ? s.entry_price.toFixed(2) : '--'}</td>
             <td><b class="c-yellow">${s.timeframe || '5m'}</b></td>
             <td class="c-muted" style="font-size: 10px;">${timeDisplay}</td>
-            <td><button class="term-btn term-btn-buy" onclick="executeBuy('${s.ticker}', ${s.id})">1% BUY</button></td>
+            <td><button class="${btnClass}" onclick="${btnAction}">${btnText}</button></td>
           `;
           scanTbody.appendChild(tr);
         });
@@ -1222,6 +1235,28 @@
           fetchState();
         } else {
           alert(`Error: ${d.detail || 'Execution failed'}`);
+        }
+      } catch (e) {
+        alert(`Execution Error: ${e}`);
+      }
+    }
+
+    async function executeShort(ticker, tradeId) {
+      const slotVal = parseFloat(document.getElementById('slot-val').innerText.replace('$', '')) || 67.70;
+      if (!confirm(`Execute 1% SHORT for ${ticker} on Public.com?\n(Note: Shorts are executed in whole integer shares)`)) return;
+      
+      try {
+        const res = await fetch('/api/order/short', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ticker: ticker, amount: slotVal, trade_id: tradeId})
+        });
+        const d = await res.json();
+        if (d.success) {
+          alert(`Short Order Submitted: ${ticker} (${d.order.shares} share(s) @ ~$${d.order.share_price.toFixed(2)}) on Public.com!`);
+          fetchState();
+        } else {
+          alert(`Short Execution Error: ${d.detail || 'Failed'}`);
         }
       } catch (e) {
         alert(`Execution Error: ${e}`);
