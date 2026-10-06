@@ -601,7 +601,7 @@
               <th onclick="sortScanner('direction')">SETUP &#x25B4;&#x25BE;</th>
               <th onclick="sortScanner('entry_price')">ENTRY &#x25B4;&#x25BE;</th>
               <th onclick="sortScanner('timeframe')">TF &#x25B4;&#x25BE;</th>
-              <th onclick="sortScanner('timestamp')">SIGNAL TIME &#x25B4;&#x25BE;</th>
+              <th onclick="sortScanner('timestamp')">SIGNAL TIME (EST) &#x25B4;&#x25BE;</th>
               <th>TRADE</th>
             </tr>
           </thead>
@@ -840,6 +840,50 @@
       renderScannerTable();
     }
 
+    function formatSignalTimeEST(timestampStr) {
+      if (!timestampStr) return '--';
+      try {
+        let cleanStr = timestampStr.split('.')[0];
+        // Timezone-aware ISO string (e.g. 2026-10-06T10:23:54-04:00 or with Z)
+        if (timestampStr.includes('-04:') || timestampStr.includes('-05:') || timestampStr.endsWith('Z')) {
+          const dt = new Date(timestampStr);
+          if (!isNaN(dt.getTime())) {
+            const formatted = dt.toLocaleString('en-US', {
+              timeZone: 'America/New_York',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true
+            });
+            return formatted.replace(',', '');
+          }
+        }
+        // Naive string from server
+        const parts = cleanStr.split('T');
+        if (parts.length === 2) {
+          const dateParts = parts[0].split('-');
+          const timeParts = parts[1].split(':');
+          if (dateParts.length === 3 && timeParts.length >= 2) {
+            const mo = dateParts[1];
+            const da = dateParts[2];
+            let ho = parseInt(timeParts[0], 10);
+            const mi = timeParts[1];
+            // If logged in UTC by GCP VM during market hours (13:00 - 22:00 UTC = 09:00 - 18:00 EDT)
+            if (ho >= 13 && ho <= 22) {
+              ho -= 4;
+            }
+            const ampm = ho >= 12 ? 'PM' : 'AM';
+            let ho12 = ho % 12;
+            ho12 = ho12 ? ho12 : 12;
+            const hoStr = String(ho12).padStart(2, '0');
+            return `${mo}/${da} ${hoStr}:${mi} ${ampm}`;
+          }
+        }
+      } catch (e) {}
+      return timestampStr.substring(5, 16).replace('T', ' ');
+    }
+
     function renderScannerTable() {
       const scanTbody = document.querySelector('#tbl-scanner tbody');
       if (!scanTbody) return;
@@ -863,23 +907,7 @@
 
       if (filtered.length > 0) {
         filtered.forEach(s => {
-          let timeDisplay = '--';
-          if (s.timestamp) {
-            try {
-              const dt = new Date(s.timestamp);
-              if (!isNaN(dt.getTime())) {
-                const mo = String(dt.getMonth() + 1).padStart(2, '0');
-                const da = String(dt.getDate()).padStart(2, '0');
-                const ho = String(dt.getHours()).padStart(2, '0');
-                const mi = String(dt.getMinutes()).padStart(2, '0');
-                timeDisplay = `${mo}/${da} ${ho}:${mi}`;
-              } else {
-                timeDisplay = s.timestamp.substring(5, 16).replace('T', ' ');
-              }
-            } catch (err) {
-              timeDisplay = s.timestamp.substring(5, 16).replace('T', ' ');
-            }
-          }
+          let timeDisplay = formatSignalTimeEST(s.timestamp);
 
           const isLong = s.direction === 'LONG';
           const btnClass = isLong ? 'term-btn term-btn-buy' : 'term-btn term-btn-short';

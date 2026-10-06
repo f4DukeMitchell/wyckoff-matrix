@@ -3,6 +3,16 @@ import yfinance as yf
 import datetime
 import os
 import pandas as pd
+try:
+    import zoneinfo
+    ET_TZ = zoneinfo.ZoneInfo("America/New_York")
+except:
+    ET_TZ = None
+
+def get_est_now():
+    if ET_TZ:
+        return datetime.datetime.now(ET_TZ)
+    return datetime.datetime.now()
 
 DB_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(DB_DIR, "wyckoff_trades.db")
@@ -122,7 +132,7 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        timestamp = datetime.datetime.now().isoformat()
+        timestamp = get_est_now().isoformat()
         active_version = model_version or get_active_model_version()
         cursor.execute('''
             INSERT INTO alerts (ticker, direction, entry_price, stop_loss, take_profit, regime,
