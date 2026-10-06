@@ -104,14 +104,17 @@ def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, reg
     if trade_id:
         from public_executor import calculate_test_allocation
         alloc_1pct = calculate_test_allocation(0.01)
-        reply_markup = {
-            "inline_keyboard": [
-                [
-                    {"text": f"🚀 BUY 1% (${alloc_1pct:.2f}) on Public", "callback_data": f"buy_1pct_{trade_id}_{ticker}"},
-                    {"text": "Track Only 🟢", "callback_data": f"in_trade_{trade_id}"}
-                ]
+        if direction == "LONG":
+            buttons = [
+                {"text": f"🚀 BUY 1% (${alloc_1pct:.2f}) on Public", "callback_data": f"buy_1pct_{trade_id}_{ticker}"},
+                {"text": "Track Only 🟢", "callback_data": f"in_trade_{trade_id}"}
             ]
-        }
+        else:
+            # SHORT setups cannot be bought long on Public equity cash
+            buttons = [
+                {"text": "Track SHORT Only 🔴", "callback_data": f"in_trade_{trade_id}"}
+            ]
+        reply_markup = {"inline_keyboard": [buttons]}
         
     target_chat = None
     if timeframe in ["5m", "15m"] and TELEGRAM_CHAT_ID_DAY: target_chat = TELEGRAM_CHAT_ID_DAY
