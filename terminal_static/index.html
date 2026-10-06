@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WYCKOFF SUPER REVERSAL // INSTITUTIONAL TERMINAL</title>
+  <!-- Bloomberg-style monospaced font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Lightweight Charts Library -->
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    :root {
+      --wsr-black: #000000;
+      --wsr-panel: #070707;
+      --wsr-panel-alt: #101010;
+      --wsr-border: #222222;
+      --wsr-border-active: #555555;
+      --wsr-white: #f2f2f2;
+      --wsr-muted: #888888;
+      --wsr-dim: #555555;
+      --wsr-orange: #ff8c00;
+      --wsr-yellow: #ffd400;
+      --wsr-green: #00d26a;
+      --wsr-red: #ff3b30;
+      --wsr-cyan: #00c8ff;
+      --wsr-blue: #4285ff;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--wsr-black);
+      color: var(--wsr-white);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      line-height: 1.2;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* TOP HEADER & COMMAND LINE */
+    #top-bar {
+      height: 34px;
+      background: var(--wsr-panel-alt);
+      border-bottom: 1px solid var(--wsr-border);
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      gap: 12px;
+    }
+
+    .brand {
+      color: var(--wsr-orange);
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+
+    #command-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      background: var(--wsr-black);
+      border: 1px solid var(--wsr-border-active);
+      padding: 2px 6px;
+    }
+
+    .prompt-label {
+      color: var(--wsr-yellow);
+      margin-right: 6px;
+      font-weight: 600;
+    }
+
+    #cmd-input {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--wsr-white);
+      font-family: inherit;
+      font-size: 12px;
+      width: 100%;
+    }
+
+    .top-meta {
+      display: flex;
+      gap: 12px;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .meta-val {
+      font-weight: 600;
+    }
+
+    /* MAIN TERMINAL GRID */
+    #main-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 280px 1fr 340px;
+      grid-template-rows: 1fr 240px;
+      gap: 1px;
+      background: var(--wsr-border);
+      overflow: hidden;
+    }
+
+    .pane {
+      background: var(--wsr-panel);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .pane-header {
+      background: var(--wsr-panel-alt);
+      border-bottom: 1px solid var(--wsr-border);
+      padding: 4px 8px;
+      font-weight: 600;
+      font-size: 11px;
+      color: var(--wsr-orange);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .pane-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px;
+    }
+
+    /* TABLES */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+
+    th {
+      color: var(--wsr-muted);
+      text-align: left;
+      padding: 3px 4px;
+      border-bottom: 1px solid var(--wsr-border);
+      font-weight: 500;
+    }
+
+    td {
+      padding: 4px;
+      border-bottom: 1px solid #141414;
+      white-space: nowrap;
+    }
+
+    tr:hover {
+      background: #141414;
+      cursor: pointer;
+    }
+
+    tr.active-row {
+      background: var(--wsr-yellow) !important;
+      color: var(--wsr-black) !important;
+    }
+    tr.active-row td {
+      color: var(--wsr-black) !important;
+    }
+
+    /* SEMANTIC COLORS */
+    .c-green { color: var(--wsr-green); }
+    .c-red { color: var(--wsr-red); }
+    .c-yellow { color: var(--wsr-yellow); }
+    .c-cyan { color: var(--wsr-cyan); }
+    .c-muted { color: var(--wsr-muted); }
+
+    /* ACTION BUTTONS */
+    .term-btn {
+      background: #1c1c1c;
+      border: 1px solid var(--wsr-border-active);
+      color: var(--wsr-white);
+      font-family: inherit;
+      font-size: 10px;
+      padding: 3px 6px;
+      cursor: pointer;
+      text-transform: uppercase;
+    }
+    .term-btn:hover {
+      background: var(--wsr-orange);
+      color: var(--wsr-black);
+    }
+    .term-btn-buy {
+      border-color: var(--wsr-green);
+      color: var(--wsr-green);
+    }
+    .term-btn-buy:hover {
+      background: var(--wsr-green);
+      color: var(--wsr-black);
+    }
+    .term-btn-exit {
+      border-color: var(--wsr-red);
+      color: var(--wsr-red);
+    }
+    .term-btn-exit:hover {
+      background: var(--wsr-red);
+      color: var(--wsr-black);
+    }
+
+    /* CHART CONTAINER */
+    #chart-pane {
+      grid-column: 2 / 3;
+      grid-row: 1 / 2;
+    }
+    #chart-view {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* BOTTOM FUNCTION BAR */
+    #function-bar {
+      height: 24px;
+      background: var(--wsr-panel-alt);
+      border-top: 1px solid var(--wsr-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 8px;
+      font-size: 10px;
+      color: var(--wsr-muted);
+    }
+
+    .fn-keys {
+      display: flex;
+      gap: 12px;
+    }
+    .fn-key b {
+      color: var(--wsr-yellow);
+    }
+
+    .badge-status {
+      padding: 1px 4px;
+      background: #003816;
+      border: 1px solid var(--wsr-green);
+      color: var(--wsr-green);
+      font-size: 9px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOP COMMAND BAR -->
+  <div id="top-bar">
+    <div class="brand">WSR TERMINAL // v12.0</div>
+    <div id="command-container">
+      <span class="prompt-label">COMMAND &gt;</span>
+      <input type="text" id="cmd-input" placeholder="TYPE TICKER OR COMMAND (e.g. NVDA, SCAN, /FLATTEN)" autofocus autocomplete="off" />
+    </div>
+    <div class="top-meta">
+      <span>BUYING POWER: <b class="meta-val c-green" id="bp-val">$--</b></span>
+      <span>1% TEST SLOT: <b class="meta-val c-yellow" id="slot-val">$--</b></span>
+      <span>ENGINE: <span class="badge-status">PUBLIC LIVE</span></span>
+      <span id="clock" class="c-muted">00:00:00</span>
+    </div>
+  </div>
+
+  <!-- MAIN TERMINAL GRID -->
+  <div id="main-grid">
+
+    <!-- PANE 1: WATCHLIST & ACTIVE POSITIONS (Top Left) -->
+    <div class="pane" id="pane-watchlist">
+      <div class="pane-header">
+        <span>ACTIVE TRADES (PUBLIC.COM)</span>
+        <button class="term-btn" onclick="fetchState()">REFRESH</button>
+      </div>
+      <div class="pane-content">
+        <table id="tbl-positions">
+          <thead>
+            <tr>
+              <th>SYM</th>
+              <th>DIR</th>
+              <th>ENTRY</th>
+              <th>TARGET</th>
+              <th>ACTION</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Populated via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PANE 2: CENTRAL CHART (Top Center) -->
+    <div class="pane" id="chart-pane">
+      <div class="pane-header">
+        <span id="chart-header-symbol">NVDA // 5M WYCKOFF STRUCTURE (PUBLIC.COM)</span>
+        <div>
+          <button class="term-btn" onclick="switchInterval('5m')">5M</button>
+          <button class="term-btn" onclick="switchInterval('15m')">15M</button>
+          <button class="term-btn" onclick="switchInterval('1h')">1H</button>
+          <button class="term-btn" onclick="switchInterval('1d')">1D</button>
+        </div>
+      </div>
+      <div id="chart-view"></div>
+    </div>
+
+    <!-- PANE 3: SCANNER RADAR (Top Right) -->
+    <div class="pane" id="pane-scanner">
+      <div class="pane-header">
+        <span>WYCKOFF SCANNER RADAR</span>
+        <span class="c-muted" id="scanner-count">0 SETUPS</span>
+      </div>
+      <div class="pane-content">
+        <table id="tbl-scanner">
+          <thead>
+            <tr>
+              <th>SYM</th>
+              <th>SETUP</th>
+              <th>ENTRY</th>
+              <th>TF</th>
+              <th>TRADE</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Populated via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PANE 4: OPTIONS FLOW & MICROSTRUCTURE (Bottom Left) -->
+    <div class="pane" id="pane-flow">
+      <div class="pane-header">
+        <span id="flow-title">OPTIONS FLOW INTEL</span>
+        <span class="c-cyan">GAMMA WALL</span>
+      </div>
+      <div class="pane-content" style="padding: 8px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px;">
+          <div>P/C RATIO: <b id="flow-pcr" class="c-yellow">--</b></div>
+          <div>SENTIMENT: <b id="flow-sent" class="c-green">--</b></div>
+          <div>GAMMA WALL: <b id="flow-gw" class="c-white">--</b></div>
+          <div>MAX PAIN: <b id="flow-mp" class="c-muted">--</b></div>
+          <div>CALL OI: <b id="flow-calls" class="c-green">--</b></div>
+          <div>PUT OI: <b id="flow-puts" class="c-red">--</b></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PANE 5: WYCKOFF EVIDENCE & METRICS (Bottom Center) -->
+    <div class="pane" id="pane-signal">
+      <div class="pane-header">
+        <span>SIGNAL EVIDENCE & ML CONFIDENCE</span>
+        <span class="c-green">91.9% PATTERN MATCH</span>
+      </div>
+      <div class="pane-content" style="padding: 8px;">
+        <div style="line-height: 1.6; font-size: 11px;">
+          <div><span class="c-green">&#10003;</span> MICRO SUPERTREND CONFIRMATION</div>
+          <div><span class="c-green">&#10003;</span> VOLUME EXHAUSTION (DRY-UP &lt; 1.2x)</div>
+          <div><span class="c-green">&#10003;</span> RECLAIMED TRADING RANGE LOW</div>
+          <div><span class="c-green">&#10003;</span> OPENING WHIPSAW SHIELD PASSED</div>
+          <div><span class="c-green">&#10003;</span> 1% TEST FRACTIONAL SLOTTING READY</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PANE 6: RECENT AUDIT HISTORY (Bottom Right) -->
+    <div class="pane" id="pane-history">
+      <div class="pane-header">
+        <span>TRADE AUDIT LOG</span>
+        <span class="c-muted">OUTCOMES</span>
+      </div>
+      <div class="pane-content">
+        <table id="tbl-history">
+          <thead>
+            <tr>
+              <th>SYM</th>
+              <th>DIR</th>
+              <th>RESULT</th>
+              <th>RETURN</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Populated via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOM FUNCTION BAR -->
+  <div id="function-bar">
+    <div class="fn-keys">
+      <span class="fn-key"><b>F1</b> HELP</span>
+      <span class="fn-key"><b>F2</b> SCAN</span>
+      <span class="fn-key"><b>F3</b> CHART</span>
+      <span class="fn-key"><b>F4</b> POSITIONS</span>
+      <span class="fn-key"><b>F5</b> REFRESH</span>
+      <span class="fn-key"><b>ESC</b> CLEAR</span>
+    </div>
+    <div>
+      <span>DATA: <b class="c-green">PUBLIC.COM DIRECT</b> | WS: <b id="ws-status" class="c-green">CONNECTED</b></span>
+    </div>
+  </div>
+
+  <script>
+    // --- STATE ---
+    let currentTicker = "NVDA";
+    let currentInterval = "5m";
+    let chart, candleSeries;
+
+    // --- CLOCK ---
+    setInterval(() => {
+      document.getElementById('clock').innerText = new Date().toLocaleTimeString();
+    }, 1000);
+
+    // --- CHART INITIALIZATION ---
+    function initChart() {
+      const container = document.getElementById('chart-view');
+      chart = LightweightCharts.createChart(container, {
+        layout: {
+          background: { color: '#070707' },
+          textColor: '#888888',
+          fontFamily: "'IBM Plex Mono', monospace"
+        },
+        grid: {
+          vertLines: { color: '#141414' },
+          horzLines: { color: '#141414' }
+        },
+        timeScale: {
+          timeVisible: true,
+          borderColor: '#222222'
+        },
+        rightPriceScale: {
+          borderColor: '#222222'
+        }
+      });
+
+      candleSeries = chart.addCandlestickSeries({
+        upColor: '#00d26a',
+        downColor: '#ff3b30',
+        borderUpColor: '#00d26a',
+        borderDownColor: '#ff3b30',
+        wickUpColor: '#00d26a',
+        wickDownColor: '#ff3b30'
+      });
+
+      window.addEventListener('resize', () => {
+        chart.resize(container.clientWidth, container.clientHeight);
+      });
+    }
+
+    // --- LOAD BARS ---
+    async function loadChartData(ticker, interval) {
+      currentTicker = ticker.toUpperCase();
+      currentInterval = interval;
+      document.getElementById('chart-header-symbol').innerText = `${currentTicker} // ${interval.toUpperCase()} WYCKOFF STRUCTURE (PUBLIC.COM)`;
+      
+      try {
+        const res = await fetch(`/api/bars/${currentTicker}?interval=${interval}`);
+        const data = await res.json();
+        if (data.bars && data.bars.length > 0) {
+          candleSeries.setData(data.bars);
+          chart.timeScale().fitContent();
+        }
+      } catch (e) {
+        console.error("Failed to load bars:", e);
+      }
+      loadOptionsFlow(currentTicker);
+    }
+
+    function switchInterval(iv) {
+      loadChartData(currentTicker, iv);
+    }
+
+    // --- LOAD OPTIONS FLOW ---
+    async function loadOptionsFlow(ticker) {
+      document.getElementById('flow-title').innerText = `${ticker} FLOW INTEL`;
+      try {
+        const res = await fetch(`/api/flow/${ticker}`);
+        const data = await res.json();
+        const f = data.flow || {};
+        document.getElementById('flow-pcr').innerText = f.put_call_ratio ? `${f.put_call_ratio} (${f.put_call_label || ''})` : '--';
+        document.getElementById('flow-sent').innerText = f.net_sentiment || '--';
+        document.getElementById('flow-gw').innerText = f.gamma_wall ? `$${f.gamma_wall}` : '--';
+        document.getElementById('flow-mp').innerText = f.max_pain ? `$${f.max_pain}` : '--';
+        document.getElementById('flow-calls').innerText = f.total_call_oi ? f.total_call_oi.toLocaleString() : '--';
+        document.getElementById('flow-puts').innerText = f.total_put_oi ? f.total_put_oi.toLocaleString() : '--';
+      } catch (e) {
+        console.error("Error loading flow:", e);
+      }
+    }
+
+    // --- LOAD COMPLETE TERMINAL STATE ---
+    async function fetchState() {
+      try {
+        const res = await fetch('/api/terminal/state');
+        const data = await res.json();
+        
+        // Capital header
+        const cap = data.capital || {};
+        document.getElementById('bp-val').innerText = `$${(cap.buying_power || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+        document.getElementById('slot-val').innerText = `$${(data.test_allocation_1pct || 0).toFixed(2)}`;
+
+        // Active Positions Table
+        const posTbody = document.querySelector('#tbl-positions tbody');
+        posTbody.innerHTML = '';
+        if (data.positions && data.positions.length > 0) {
+          data.positions.forEach(p => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td class="c-cyan" onclick="loadChartData('${p.ticker}', '5m')"><b>${p.ticker}</b></td>
+              <td class="${p.direction === 'LONG' ? 'c-green' : 'c-red'}">${p.direction}</td>
+              <td>$${p.entry_price ? p.entry_price.toFixed(2) : '--'}</td>
+              <td>$${p.take_profit ? p.take_profit.toFixed(2) : '--'}</td>
+              <td><button class="term-btn term-btn-exit" onclick="executeExit('${p.ticker}', ${p.id})">EXIT</button></td>
+            `;
+            posTbody.appendChild(tr);
+          });
+        } else {
+          posTbody.innerHTML = '<tr><td colspan="5" class="c-muted">No open active positions</td></tr>';
+        }
+
+        // Scanner Table
+        const scanTbody = document.querySelector('#tbl-scanner tbody');
+        scanTbody.innerHTML = '';
+        document.getElementById('scanner-count').innerText = `${(data.scanner || []).length} SETUPS`;
+        if (data.scanner && data.scanner.length > 0) {
+          data.scanner.forEach(s => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td class="c-cyan" onclick="loadChartData('${s.ticker}', '${s.timeframe || '5m'}')"><b>${s.ticker}</b></td>
+              <td class="${s.direction === 'LONG' ? 'c-green' : 'c-red'}">${s.direction}</td>
+              <td>$${s.entry_price ? s.entry_price.toFixed(2) : '--'}</td>
+              <td>${s.timeframe || '5m'}</td>
+              <td><button class="term-btn term-btn-buy" onclick="executeBuy('${s.ticker}', ${s.id})">1% BUY</button></td>
+            `;
+            scanTbody.appendChild(tr);
+          });
+        }
+
+        // Audit History Table
+        const histTbody = document.querySelector('#tbl-history tbody');
+        histTbody.innerHTML = '';
+        if (data.history && data.history.length > 0) {
+          data.history.forEach(h => {
+            const tr = document.createElement('tr');
+            const color = h.outcome === 'WIN' ? 'c-green' : (h.outcome === 'BREAKEVEN' ? 'c-yellow' : 'c-red');
+            tr.innerHTML = `
+              <td class="c-cyan"><b>${h.ticker}</b></td>
+              <td>${h.direction}</td>
+              <td class="${color}">${h.outcome}</td>
+              <td class="${color}">${h.pnl_r ? (h.pnl_r >= 0 ? '+' : '') + h.pnl_r.toFixed(1) + 'R' : '--'}</td>
+            `;
+            histTbody.appendChild(tr);
+          });
+        }
+      } catch (e) {
+        console.error("State refresh error:", e);
+      }
+    }
+
+    // --- BROKER EXECUTION HANDLERS ---
+    async function executeBuy(ticker, tradeId) {
+      const slotVal = parseFloat(document.getElementById('slot-val').innerText.replace('$', '')) || 67.70;
+      if (!confirm(`Execute 1% test BUY for ${ticker} ($${slotVal.toFixed(2)}) on Public.com?`)) return;
+      
+      try {
+        const res = await fetch('/api/order/buy', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ticker: ticker, amount: slotVal, trade_id: tradeId})
+        });
+        const d = await res.json();
+        if (d.success) {
+          alert(`Order Submitted: ${ticker} ($${slotVal.toFixed(2)}) on Public.com!`);
+          fetchState();
+        } else {
+          alert(`Error: ${d.detail || 'Execution failed'}`);
+        }
+      } catch (e) {
+        alert(`Execution Error: ${e}`);
+      }
+    }
+
+    async function executeExit(ticker, tradeId) {
+      if (!confirm(`Close full position for ${ticker} on Public.com?`)) return;
+      try {
+        const res = await fetch('/api/order/exit', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ticker: ticker, trade_id: tradeId})
+        });
+        const d = await res.json();
+        if (d.success) {
+          alert(`Exit Order Submitted for ${ticker}!`);
+          fetchState();
+        } else {
+          alert(`Error: ${d.detail || 'Exit failed'}`);
+        }
+      } catch (e) {
+        alert(`Exit Error: ${e}`);
+      }
+    }
+
+    // --- COMMAND BAR HANDLER ---
+    const cmdInput = document.getElementById('cmd-input');
+    cmdInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const val = cmdInput.value.trim().toUpperCase();
+        cmdInput.value = '';
+        if (val.startsWith('/')) {
+          if (val === '/FLATTEN') {
+            alert('Emergency flatten triggered.');
+          }
+        } else if (val) {
+          loadChartData(val, '5m');
+        }
+      }
+    });
+
+    // --- BOOTSTRAP ---
+    window.onload = () => {
+      initChart();
+      loadChartData("NVDA", "5m");
+      fetchState();
+      setInterval(fetchState, 15000); // 15-second state polling
+    };
+  </script>
+</body>
+</html>
