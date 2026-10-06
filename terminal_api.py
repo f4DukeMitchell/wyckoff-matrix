@@ -89,22 +89,133 @@ def get_terminal_state():
 
 @app.get("/api/bars/{ticker}")
 def get_bars(ticker: str, interval: str = "5m"):
-    """Fetches clean OHLCV bars directly from Public.com broker feed."""
+    """
+    Fetches clean OHLCV bars directly from Public.com broker feed,
+    and calculates Wyckoff Trading Range (High/Low), Micro/Macro SuperTrends, VWAP,
+    and Spring / UTAD reversal event markers.
+    """
+    import numpy as np
+    import pandas as pd
+    from wyckoff_alert_bot import get_supertrend, calc_vwap
+
     df = get_public_bars_sync(ticker.upper(), interval)
-    if df.empty:
-        return {"ticker": ticker.upper(), "bars": []}
+    if df.empty or len(df) < 20:
+        return {"ticker": ticker.upper(), "bars": [], "indicators": {}}
         
+    highs = df['High'].values.astype(float)
+    lows = df['Low'].values.astype(float)
+    closes = df['Close'].values.astype(float)
+    vols = df['Volume'].values.astype(float)
+
+    # 1. SuperTrend Lines
+    u1, line1 = get_supertrend(highs, lows, closes, 1, 1.0)
+    u9, line9 = get_supertrend(highs, lows, closes, 9, 9.0)
+
+    # 2. Wyckoff Trading Range Channel (Lookback 50-100 bars)
+    lookback = min(100, max(20, len(df) // 2))
+    range_high = pd.Series(highs).rolling(lookback, min_periods=15).max().shift(1).values
+    range_low = pd.Series(lows).rolling(lookback, min_periods=15).min().shift(1).values
+
+    # 3. Relative Volume (Institutional Dry-Up Check)
+    vol_sma = pd.Series(vols).rolling(20, min_periods=1).mean().values
+    with np.errstate(divide='ignore', invalid='ignore'):
+        rel_vol = np.where(vol_sma > 0, vols / vol_sma, 1.0)
+
+    # 4. Anchored / Rolling VWAP
+    vwap_vals = calc_vwap(highs, lows, closes, vols)
+
     bars = []
-    for idx, row in df.iterrows():
+    st_line = []
+    range_h_line = []
+    range_l_line = []
+    vwap_line = []
+    volume_bars = []
+    markers = []
+
+    for idx, (t_idx, row) in enumerate(df.iterrows()):
+        t_sec = int(t_idx.timestamp())
+        
         bars.append({
-            "time": int(idx.timestamp()),
+            "time": t_sec,
             "open": float(row['Open']),
             "high": float(row['High']),
             "low": float(row['Low']),
             "close": float(row['Close']),
-            "volume": float(row['Volume'])
         })
-    return {"ticker": ticker.upper(), "interval": interval, "bars": bars}
+
+        # Volume histogram with dry-up coloring
+        is_dry = rel_vol[idx] < 1.2
+        volume_bars.append({
+            "time": t_sec,
+            "value": float(row['Volume']),
+            "color": '#ffd400' if is_dry else ('#00d26a' if row['Close'] >= row['Open'] else '#ff3b30')
+        })
+
+        # SuperTrend line (Trend Directional Color)
+        if not np.isnan(line9[idx]):
+            st_line.append({
+                "time": t_sec,
+                "value": float(line9[idx])
+            })
+
+        # Trading Range High
+        if not np.isnan(range_high[idx]):
+            range_h_line.append({
+                "time": t_sec,
+                "value": float(range_high[idx])
+            })
+
+        # Trading Range Low
+        if not np.isnan(range_low[idx]):
+            range_l_line.append({
+                "time": t_sec,
+                "value": float(range_low[idx])
+            })
+
+        # VWAP
+        if idx < len(vwap_vals) and vwap_vals[idx] > 0:
+            vwap_line.append({
+                "time": t_sec,
+                "value": float(vwap_vals[idx])
+            })
+
+        # 5. Detect Spring and UTAD markers
+        if idx >= 1 and not np.isnan(range_low[idx]) and not np.isnan(range_high[idx]):
+            c_below = (lows[idx] < range_low[idx]) or (lows[idx-1] < range_low[idx-1])
+            c_above = (highs[idx] > range_high[idx]) or (highs[idx-1] > range_high[idx-1])
+            vol_dry = rel_vol[idx] < 1.2
+            
+            is_spring = c_below and u1[idx] and not u1[idx-1] and not u9[idx] and vol_dry
+            is_utad = c_above and not u1[idx] and u1[idx-1] and u9[idx] and vol_dry
+
+            if is_spring:
+                markers.append({
+                    "time": t_sec,
+                    "position": "belowBar",
+                    "color": "#00d26a",
+                    "shape": "arrowUp",
+                    "text": "SPRING (LONG)"
+                })
+            elif is_utad:
+                markers.append({
+                    "time": t_sec,
+                    "position": "aboveBar",
+                    "color": "#ff3b30",
+                    "shape": "arrowDown",
+                    "text": "UTAD (SHORT)"
+                })
+
+    return {
+        "ticker": ticker.upper(),
+        "interval": interval,
+        "bars": bars,
+        "volume": volume_bars,
+        "supertrend": st_line,
+        "range_high": range_h_line,
+        "range_low": range_l_line,
+        "vwap": vwap_line,
+        "markers": markers
+    }
 
 @app.get("/api/flow/{ticker}")
 def get_flow(ticker: str):

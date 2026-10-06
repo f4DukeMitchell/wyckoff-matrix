@@ -416,7 +416,7 @@
     // --- STATE ---
     let currentTicker = "NVDA";
     let currentInterval = "5m";
-    let chart, candleSeries;
+    let chart, candleSeries, volumeSeries, stSeries, rhSeries, rlSeries, vwapSeries;
 
     // --- CLOCK ---
     setInterval(() => {
@@ -441,10 +441,15 @@
           borderColor: '#222222'
         },
         rightPriceScale: {
-          borderColor: '#222222'
+          borderColor: '#222222',
+          scaleMargins: {
+            top: 0.1,
+            bottom: 0.25
+          }
         }
       });
 
+      // 1. Candlestick Series
       candleSeries = chart.addCandlestickSeries({
         upColor: '#00d26a',
         downColor: '#ff3b30',
@@ -454,12 +459,52 @@
         wickDownColor: '#ff3b30'
       });
 
+      // 2. Volume Histogram (Bottom 20%)
+      volumeSeries = chart.addHistogramSeries({
+        priceFormat: { type: 'volume' },
+        priceScaleId: '', // separate overlay scale
+        scaleMargins: {
+          top: 0.8,
+          bottom: 0
+        }
+      });
+
+      // 3. Trading Range High (Resistance Channel - Yellow/Cyan)
+      rhSeries = chart.addLineSeries({
+        color: '#ff8c00',
+        lineWidth: 1,
+        lineStyle: 2, // Dashed
+        title: 'TR HIGH'
+      });
+
+      // 4. Trading Range Low (Support Channel - Yellow/Cyan)
+      rlSeries = chart.addLineSeries({
+        color: '#00c8ff',
+        lineWidth: 1,
+        lineStyle: 2, // Dashed
+        title: 'TR LOW'
+      });
+
+      // 5. Macro SuperTrend (9, 9.0)
+      stSeries = chart.addLineSeries({
+        color: '#ffd400',
+        lineWidth: 2,
+        title: 'SUPERTREND'
+      });
+
+      // 6. Institutional VWAP
+      vwapSeries = chart.addLineSeries({
+        color: '#9933ff',
+        lineWidth: 1,
+        title: 'VWAP'
+      });
+
       window.addEventListener('resize', () => {
         chart.resize(container.clientWidth, container.clientHeight);
       });
     }
 
-    // --- LOAD BARS ---
+    // --- LOAD BARS & INDICATORS ---
     async function loadChartData(ticker, interval) {
       currentTicker = ticker.toUpperCase();
       currentInterval = interval;
@@ -468,12 +513,27 @@
       try {
         const res = await fetch(`/api/bars/${currentTicker}?interval=${interval}`);
         const data = await res.json();
+        
         if (data.bars && data.bars.length > 0) {
           candleSeries.setData(data.bars);
+          
+          if (data.volume) volumeSeries.setData(data.volume);
+          if (data.range_high) rhSeries.setData(data.range_high);
+          if (data.range_low) rlSeries.setData(data.range_low);
+          if (data.supertrend) stSeries.setData(data.supertrend);
+          if (data.vwap) vwapSeries.setData(data.vwap);
+          
+          // Set Spring & UTAD event markers
+          if (data.markers && data.markers.length > 0) {
+            candleSeries.setMarkers(data.markers);
+          } else {
+            candleSeries.setMarkers([]);
+          }
+          
           chart.timeScale().fitContent();
         }
       } catch (e) {
-        console.error("Failed to load bars:", e);
+        console.error("Failed to load bars and indicators:", e);
       }
       loadOptionsFlow(currentTicker);
     }
