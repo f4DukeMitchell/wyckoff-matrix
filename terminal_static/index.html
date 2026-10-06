@@ -436,6 +436,7 @@
               <th onclick="sortScanner('direction')">SETUP &#x25B4;&#x25BE;</th>
               <th onclick="sortScanner('entry_price')">ENTRY &#x25B4;&#x25BE;</th>
               <th onclick="sortScanner('timeframe')">TF &#x25B4;&#x25BE;</th>
+              <th onclick="sortScanner('timestamp')">SIGNAL TIME &#x25B4;&#x25BE;</th>
               <th>TRADE</th>
             </tr>
           </thead>
@@ -584,18 +585,37 @@
 
       if (filtered.length > 0) {
         filtered.forEach(s => {
+          let timeDisplay = '--';
+          if (s.timestamp) {
+            try {
+              const dt = new Date(s.timestamp);
+              if (!isNaN(dt.getTime())) {
+                const mo = String(dt.getMonth() + 1).padStart(2, '0');
+                const da = String(dt.getDate()).padStart(2, '0');
+                const ho = String(dt.getHours()).padStart(2, '0');
+                const mi = String(dt.getMinutes()).padStart(2, '0');
+                timeDisplay = `${mo}/${da} ${ho}:${mi}`;
+              } else {
+                timeDisplay = s.timestamp.substring(5, 16).replace('T', ' ');
+              }
+            } catch (err) {
+              timeDisplay = s.timestamp.substring(5, 16).replace('T', ' ');
+            }
+          }
+
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td class="c-cyan" onclick="loadChartData('${s.ticker}', '${s.timeframe || '5m'}')"><b>${s.ticker}</b></td>
             <td class="${s.direction === 'LONG' ? 'c-green' : 'c-red'}">${s.direction}</td>
             <td>$${s.entry_price ? s.entry_price.toFixed(2) : '--'}</td>
             <td><b class="c-yellow">${s.timeframe || '5m'}</b></td>
+            <td class="c-muted" style="font-size: 10px;">${timeDisplay}</td>
             <td><button class="term-btn term-btn-buy" onclick="executeBuy('${s.ticker}', ${s.id})">1% BUY</button></td>
           `;
           scanTbody.appendChild(tr);
         });
       } else {
-        scanTbody.innerHTML = `<tr><td colspan="5" class="c-muted">No ${activeTFFilter} setups detected</td></tr>`;
+        scanTbody.innerHTML = `<tr><td colspan="6" class="c-muted">No ${activeTFFilter} setups detected</td></tr>`;
       }
     }
 
