@@ -100,9 +100,14 @@ def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, reg
         
     reply_markup = None
     if trade_id:
+        from public_executor import calculate_test_allocation
+        alloc_1pct = calculate_test_allocation(0.01)
         reply_markup = {
             "inline_keyboard": [
-                [{"text": "I'm in this trade! 🟢", "callback_data": f"in_trade_{trade_id}"}]
+                [
+                    {"text": f"🚀 BUY 1% (${alloc_1pct:.2f}) on Public", "callback_data": f"buy_1pct_{trade_id}_{ticker}"},
+                    {"text": "Track Only 🟢", "callback_data": f"in_trade_{trade_id}"}
+                ]
             ]
         }
         
@@ -133,7 +138,7 @@ def send_market_radar(radar_text):
 
 _last_update_id = None
 def check_callbacks():
-    """Polls Telegram for button clicks and updates the DB."""
+    """Polls Telegram for button clicks and executes orders or updates the DB."""
     global _last_update_id
     if not is_configured(): return
     
@@ -160,12 +165,48 @@ def check_callbacks():
                 cq = u["callback_query"]
                 data = cq.get("data", "")
                 cq_id = cq.get("id")
+                from_chat_id = cq.get("message", {}).get("chat", {}).get("id")
                 
-                # Answer the query so the button stops spinning
-                ans_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery"
-                requests.post(ans_url, json={"callback_query_id": cq_id, "text": "Trade marked as ACTIVE! 🟢"})
-                
-                if data.startswith("in_trade_"):
+                if data.startswith("buy_1pct_"):
+                    # Live Broker Execution via Public.com
+                    parts = data.split("_")
+                    trade_id = int(parts[2])
+                    ticker = parts[3].upper()
+                    
+                    ans_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery"
+                    requests.post(ans_url, json={"callback_query_id": cq_id, "text": f"Submitting 1% BUY for {ticker}..."})
+                    
+                    try:
+                        from public_executor import calculate_test_allocation, execute_dollar_buy
+                        alloc = calculate_test_allocation(0.01)
+                        order_res = execute_dollar_buy(ticker, alloc)
+                        
+                        # Mark trade active in database
+                        import sqlite3
+                        conn = sqlite3.connect("wyckoff_trades.db")
+                        c = conn.cursor()
+                        c.execute("UPDATE alerts SET user_active = 1 WHERE id = ?", (trade_id,))
+                        conn.commit()
+                        conn.close()
+                        
+                        exec_msg = (
+                            f"✅ PUBLIC.COM ORDER EXECUTED!\n"
+                            f"Symbol: {ticker}\n"
+                            f"Allocation: 1% (${alloc:.2f})\n"
+                            f"Status: {order_res.get('status')}\n"
+                            f"Order UUID: {order_res.get('order_id')}\n\n"
+                            f"🛡️ Stop Loss & Breakeven Ratchet (+0.75R) are now active in the Wyckoff engine."
+                        )
+                        send_message(exec_msg, chat_id=from_chat_id)
+                        print(f"Executed 1% test BUY for {ticker} (${alloc:.2f}) on Public.com.")
+                    except Exception as e:
+                        err_msg = f"❌ Order Execution Failed for {ticker}: {str(e)}"
+                        send_message(err_msg, chat_id=from_chat_id)
+                        print(f"Order error: {e}")
+                        
+                elif data.startswith("in_trade_"):
+                    ans_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery"
+                    requests.post(ans_url, json={"callback_query_id": cq_id, "text": "Trade marked as ACTIVE! 🟢"})
                     try:
                         trade_id = int(data.split("_")[2])
                         import sqlite3
