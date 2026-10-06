@@ -317,16 +317,22 @@
     <div class="pane" id="pane-scanner">
       <div class="pane-header">
         <span>WYCKOFF SCANNER RADAR</span>
-        <span class="c-muted" id="scanner-count">0 SETUPS</span>
+        <div style="display: flex; gap: 4px;">
+          <button class="term-btn tf-filter-btn active-tf" onclick="filterByTF('ALL')">ALL</button>
+          <button class="term-btn tf-filter-btn" onclick="filterByTF('5m')">5M</button>
+          <button class="term-btn tf-filter-btn" onclick="filterByTF('15m')">15M</button>
+          <button class="term-btn tf-filter-btn" onclick="filterByTF('1h')">1H</button>
+          <button class="term-btn tf-filter-btn" onclick="filterByTF('1d')">1D</button>
+        </div>
       </div>
       <div class="pane-content">
         <table id="tbl-scanner">
           <thead>
             <tr>
-              <th>SYM</th>
-              <th>SETUP</th>
-              <th>ENTRY</th>
-              <th>TF</th>
+              <th onclick="sortScanner('ticker')">SYM &#x25B4;&#x25BE;</th>
+              <th onclick="sortScanner('direction')">SETUP &#x25B4;&#x25BE;</th>
+              <th onclick="sortScanner('entry_price')">ENTRY &#x25B4;&#x25BE;</th>
+              <th onclick="sortScanner('timeframe')">TF &#x25B4;&#x25BE;</th>
               <th>TRADE</th>
             </tr>
           </thead>
@@ -417,11 +423,78 @@
     let currentTicker = "NVDA";
     let currentInterval = "5m";
     let chart, candleSeries, volumeSeries, stSeries, rhSeries, rlSeries, vwapSeries;
+    let rawScannerData = [];
+    let activeTFFilter = 'ALL';
+    let currentSortField = 'id';
+    let sortAsc = false;
 
     // --- CLOCK ---
     setInterval(() => {
       document.getElementById('clock').innerText = new Date().toLocaleTimeString();
     }, 1000);
+
+    // --- FILTER & SORT FUNCTIONS ---
+    function filterByTF(tf) {
+      activeTFFilter = tf;
+      document.querySelectorAll('.tf-filter-btn').forEach(btn => {
+        if (btn.innerText.toUpperCase() === tf.toUpperCase()) {
+          btn.style.background = 'var(--wsr-orange)';
+          btn.style.color = 'var(--wsr-black)';
+        } else {
+          btn.style.background = '#1c1c1c';
+          btn.style.color = 'var(--wsr-white)';
+        }
+      });
+      renderScannerTable();
+    }
+
+    function sortScanner(field) {
+      if (currentSortField === field) {
+        sortAsc = !sortAsc;
+      } else {
+        currentSortField = field;
+        sortAsc = true;
+      }
+      renderScannerTable();
+    }
+
+    function renderScannerTable() {
+      const scanTbody = document.querySelector('#tbl-scanner tbody');
+      if (!scanTbody) return;
+      scanTbody.innerHTML = '';
+
+      let filtered = rawScannerData.filter(s => {
+        if (activeTFFilter === 'ALL') return true;
+        return (s.timeframe || '').toLowerCase() === activeTFFilter.toLowerCase();
+      });
+
+      // Sort
+      filtered.sort((a, b) => {
+        let valA = a[currentSortField] || '';
+        let valB = b[currentSortField] || '';
+        if (typeof valA === 'string') valA = valA.toLowerCase();
+        if (typeof valB === 'string') valB = valB.toLowerCase();
+        if (valA < valB) return sortAsc ? -1 : 1;
+        if (valA > valB) return sortAsc ? 1 : -1;
+        return 0;
+      });
+
+      if (filtered.length > 0) {
+        filtered.forEach(s => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td class="c-cyan" onclick="loadChartData('${s.ticker}', '${s.timeframe || '5m'}')"><b>${s.ticker}</b></td>
+            <td class="${s.direction === 'LONG' ? 'c-green' : 'c-red'}">${s.direction}</td>
+            <td>$${s.entry_price ? s.entry_price.toFixed(2) : '--'}</td>
+            <td><b class="c-yellow">${s.timeframe || '5m'}</b></td>
+            <td><button class="term-btn term-btn-buy" onclick="executeBuy('${s.ticker}', ${s.id})">1% BUY</button></td>
+          `;
+          scanTbody.appendChild(tr);
+        });
+      } else {
+        scanTbody.innerHTML = `<tr><td colspan="5" class="c-muted">No ${activeTFFilter} setups detected</td></tr>`;
+      }
+    }
 
     // --- CHART INITIALIZATION ---
     function initChart() {
@@ -590,23 +663,9 @@
           posTbody.innerHTML = '<tr><td colspan="5" class="c-muted">No open active positions</td></tr>';
         }
 
-        // Scanner Table
-        const scanTbody = document.querySelector('#tbl-scanner tbody');
-        scanTbody.innerHTML = '';
-        document.getElementById('scanner-count').innerText = `${(data.scanner || []).length} SETUPS`;
-        if (data.scanner && data.scanner.length > 0) {
-          data.scanner.forEach(s => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-              <td class="c-cyan" onclick="loadChartData('${s.ticker}', '${s.timeframe || '5m'}')"><b>${s.ticker}</b></td>
-              <td class="${s.direction === 'LONG' ? 'c-green' : 'c-red'}">${s.direction}</td>
-              <td>$${s.entry_price ? s.entry_price.toFixed(2) : '--'}</td>
-              <td>${s.timeframe || '5m'}</td>
-              <td><button class="term-btn term-btn-buy" onclick="executeBuy('${s.ticker}', ${s.id})">1% BUY</button></td>
-            `;
-            scanTbody.appendChild(tr);
-          });
-        }
+        // Cache scanner data for filtering & sorting
+        rawScannerData = data.scanner || [];
+        renderScannerTable();
 
         // Audit History Table
         const histTbody = document.querySelector('#tbl-history tbody');

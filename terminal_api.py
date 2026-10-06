@@ -58,12 +58,18 @@ def get_terminal_state():
     """)
     active_positions = [dict(r) for r in c.fetchall()]
     
-    # Recent scanner signals (all OPEN setups)
+    # Recent scanner signals (distinct latest setup per ticker & timeframe)
     c.execute("""
-        SELECT id, ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe, timestamp, outcome, model_version, user_active
-        FROM alerts
-        WHERE outcome = 'OPEN'
-        ORDER BY id DESC LIMIT 50
+        SELECT a.id, a.ticker, a.direction, a.entry_price, a.stop_loss, a.take_profit, 
+               a.regime, a.timeframe, a.timestamp, a.outcome, a.model_version, a.user_active
+        FROM alerts a
+        INNER JOIN (
+            SELECT ticker, timeframe, MAX(id) as max_id
+            FROM alerts
+            WHERE outcome = 'OPEN'
+            GROUP BY ticker, timeframe
+        ) latest ON a.id = latest.max_id
+        ORDER BY a.id DESC LIMIT 100
     """)
     scanner_results = [dict(r) for r in c.fetchall()]
     
