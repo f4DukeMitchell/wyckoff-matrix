@@ -202,6 +202,37 @@ def execute_exit_position(ticker, quantity=None, direction=None):
         'response': res
     }
 
+def get_live_prices(tickers):
+    """
+    Fetches real-time market prices for a list of tickers via Public.com API quotes.
+    Falls back to yfinance if not available.
+    """
+    if not tickers:
+        return {}
+    prices = {}
+    try:
+        client = get_client()
+        acc_id = get_account_id()
+        instruments = [OrderInstrument(symbol=t.upper(), type='EQUITY') for t in tickers]
+        quotes = client.get_quotes(instruments, account_id=acc_id)
+        for q in quotes:
+            sym = getattr(getattr(q, 'instrument', None), 'symbol', None)
+            if sym and getattr(q, 'last', None):
+                prices[sym.upper()] = float(q.last)
+    except Exception as e:
+        print(f"Error fetching Public.com quotes: {e}")
+        
+    missing = [t.upper() for t in tickers if t.upper() not in prices]
+    if missing:
+        try:
+            import yfinance as yf
+            for t in missing:
+                t_obj = yf.Ticker(t)
+                prices[t] = float(t_obj.fast_info.last_price)
+        except:
+            pass
+    return prices
+
 # Backward compatibility alias
 execute_exit_sell = execute_exit_position
 

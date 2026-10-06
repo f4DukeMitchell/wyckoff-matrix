@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 
-from public_executor import get_account_capital_summary, calculate_test_allocation, execute_dollar_buy, execute_short_sell, execute_exit_sell
+from public_executor import get_account_capital_summary, calculate_test_allocation, execute_dollar_buy, execute_short_sell, execute_exit_sell, get_live_prices
 from data_feed_public import get_public_bars_sync
 from options_flow import get_options_flow, get_public_quotes
 
@@ -56,7 +56,29 @@ def get_terminal_state():
         WHERE outcome = 'OPEN' AND user_active = 1
         ORDER BY id DESC
     """)
-    active_positions = [dict(r) for r in c.fetchall()]
+    raw_positions = [dict(r) for r in c.fetchall()]
+    active_tickers = list(set([p['ticker'] for p in raw_positions if p.get('ticker')]))
+    live_prices = get_live_prices(active_tickers) if active_tickers else {}
+    
+    active_positions = []
+    for pos in raw_positions:
+        ticker = pos.get('ticker')
+        entry = float(pos.get('entry_price') or 0.0)
+        sl = float(pos.get('stop_loss') or 0.0)
+        is_long = (pos.get('direction') or 'LONG').upper() == 'LONG'
+        curr_price = live_prices.get(ticker)
+        
+        pos['current_price'] = curr_price
+        if curr_price and entry > 0:
+            pnl_pct = ((curr_price - entry) / entry * 100.0) if is_long else ((entry - curr_price) / entry * 100.0)
+            risk = abs(entry - sl) if sl > 0 else 0.0
+            r_mult = ((curr_price - entry) / risk) if (is_long and risk > 0) else (((entry - curr_price) / risk) if risk > 0 else 0.0)
+            pos['unrealized_pnl_pct'] = round(pnl_pct, 2)
+            pos['unrealized_r'] = round(r_mult, 2)
+        else:
+            pos['unrealized_pnl_pct'] = 0.0
+            pos['unrealized_r'] = 0.0
+        active_positions.append(pos)
     
     # Recent scanner signals (distinct latest setup per ticker & timeframe)
     c.execute("""

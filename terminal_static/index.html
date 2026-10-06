@@ -545,6 +545,8 @@
               <th>SYM</th>
               <th>DIR</th>
               <th>ENTRY</th>
+              <th>CURRENT</th>
+              <th>P&L (R)</th>
               <th>TARGET</th>
               <th>ACTION</th>
             </tr>
@@ -1207,18 +1209,29 @@
         posTbody.innerHTML = '';
         if (data.positions && data.positions.length > 0) {
           data.positions.forEach(p => {
+            const isLong = p.direction === 'LONG';
+            const currPrice = p.current_price ? `$${p.current_price.toFixed(2)}` : '--';
+            const pnlR = p.unrealized_r !== undefined && p.unrealized_r !== null ? p.unrealized_r : 0;
+            const pnlPct = p.unrealized_pnl_pct !== undefined && p.unrealized_pnl_pct !== null ? p.unrealized_pnl_pct : 0;
+            const isProfit = pnlR >= 0;
+            const pnlClass = isProfit ? 'c-green' : 'c-red';
+            const pnlSign = isProfit ? '+' : '';
+            const pnlDisplay = p.current_price ? `${pnlSign}${pnlR.toFixed(2)}R (${pnlSign}${pnlPct.toFixed(1)}%)` : '--';
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
               <td class="c-cyan" onclick="loadChartData('${p.ticker}', '5m')"><b>${p.ticker}</b></td>
-              <td class="${p.direction === 'LONG' ? 'c-green' : 'c-red'}">${p.direction}</td>
+              <td class="${isLong ? 'c-green' : 'c-red'}">${p.direction}</td>
               <td>$${p.entry_price ? p.entry_price.toFixed(2) : '--'}</td>
+              <td><b class="c-white">${currPrice}</b></td>
+              <td class="${pnlClass}"><b>${pnlDisplay}</b></td>
               <td>$${p.take_profit ? p.take_profit.toFixed(2) : '--'}</td>
               <td><button class="term-btn term-btn-exit" onclick="executeExit('${p.ticker}', ${p.id})">EXIT</button></td>
             `;
             posTbody.appendChild(tr);
           });
         } else {
-          posTbody.innerHTML = '<tr><td colspan="5" class="c-muted">No open active positions</td></tr>';
+          posTbody.innerHTML = '<tr><td colspan="7" class="c-muted">No open active positions</td></tr>';
         }
 
         // Cache scanner data for filtering & sorting
