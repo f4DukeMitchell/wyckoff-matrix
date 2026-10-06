@@ -73,18 +73,55 @@ def get_options_flow(ticker):
             elif pcr < 0.7: result['put_call_label'] = 'BULLISH SKEW'
             else: result['put_call_label'] = 'NEUTRAL'
             
-        # Gamma Wall
+        # Gamma Wall & Max Pain
         all_strikes = {}
+        strike_call_oi = {}
+        strike_put_oi = {}
+
         for c in calls:
             s = float(c.option_details.strike_price) if c.option_details else 0
-            if s > 0: all_strikes[s] = all_strikes.get(s, 0) + (c.open_interest or 0)
+            if s > 0:
+                oi = int(c.open_interest or 0)
+                all_strikes[s] = all_strikes.get(s, 0) + oi
+                strike_call_oi[s] = strike_call_oi.get(s, 0) + oi
+
         for p in puts:
             s = float(p.option_details.strike_price) if p.option_details else 0
-            if s > 0: all_strikes[s] = all_strikes.get(s, 0) + (p.open_interest or 0)
-            
+            if s > 0:
+                oi = int(p.open_interest or 0)
+                all_strikes[s] = all_strikes.get(s, 0) + oi
+                strike_put_oi[s] = strike_put_oi.get(s, 0) + oi
+
         if all_strikes and max(all_strikes.values()) > 0:
             gamma_wall = max(all_strikes, key=all_strikes.get)
             result['gamma_wall'] = float(gamma_wall)
+
+            # --- MAX PAIN CALCULATION ---
+            # Max Pain is the strike price where the total payout to option buyers
+            # (loss to option sellers / market makers) is minimized upon expiration.
+            # Loss = sum(max(0, S - strike) * Call_OI) + sum(max(0, strike - S) * Put_OI)
+            sorted_strikes = sorted(all_strikes.keys())
+            min_loss = float('inf')
+            max_pain_strike = None
+
+            for eval_strike in sorted_strikes:
+                total_loss = 0.0
+                # Call loss if price settles at eval_strike
+                for c_strike, c_oi in strike_call_oi.items():
+                    if eval_strike > c_strike:
+                        total_loss += (eval_strike - c_strike) * c_oi * 100.0
+
+                # Put loss if price settles at eval_strike
+                for p_strike, p_oi in strike_put_oi.items():
+                    if eval_strike < p_strike:
+                        total_loss += (p_strike - eval_strike) * p_oi * 100.0
+
+                if total_loss < min_loss:
+                    min_loss = total_loss
+                    max_pain_strike = eval_strike
+
+            if max_pain_strike is not None:
+                result['max_pain'] = float(max_pain_strike)
             
             # Extract IV at the Gamma Wall strike
             for c in calls + puts:
