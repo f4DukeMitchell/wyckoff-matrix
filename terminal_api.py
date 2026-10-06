@@ -426,6 +426,80 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
+@app.get("/api/ml/overview")
+def get_ml_overview():
+    """
+    Returns complete ML status:
+    - Active champion model details (version, accuracy, win rate, samples)
+    - Feature importances
+    - Algorithmic execution rules
+    - Model evolution timeline
+    - Out-of-sample real performance statistics
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    
+    # Get latest active model
+    c.execute("SELECT * FROM ml_model_history ORDER BY id DESC LIMIT 1")
+    latest = c.fetchone()
+    
+    # Get all history
+    c.execute("SELECT * FROM ml_model_history ORDER BY id DESC")
+    history_rows = [dict(r) for r in c.fetchall()]
+    
+    # Count closed trades in database
+    c.execute("SELECT COUNT(*), SUM(CASE WHEN outcome = 'WIN' THEN 1 ELSE 0 END) FROM alerts WHERE outcome != 'OPEN'")
+    tot_trades, tot_wins = c.fetchone()
+    tot_trades = tot_trades or 0
+    tot_wins = tot_wins or 0
+    overall_win_rate = (tot_wins / tot_trades * 100.0) if tot_trades else 0.0
+
+    conn.close()
+    
+    latest_dict = dict(latest) if latest else {}
+    if latest_dict:
+        try:
+            latest_dict['feature_importances'] = json.loads(latest_dict.get('feature_importances_json') or '{}')
+        except:
+            latest_dict['feature_importances'] = {}
+        try:
+            latest_dict['rules'] = json.loads(latest_dict.get('rules_generated') or '[]')
+        except:
+            latest_dict['rules'] = []
+
+    for h in history_rows:
+        try:
+            h['feature_importances'] = json.loads(h.get('feature_importances_json') or '{}')
+        except:
+            h['feature_importances'] = {}
+        try:
+            h['rules'] = json.loads(h.get('rules_generated') or '[]')
+        except:
+            h['rules'] = []
+
+    return {
+        "status": "ONLINE",
+        "champion_model": latest_dict,
+        "history": history_rows,
+        "total_corpus_trades": tot_trades,
+        "overall_win_rate": round(overall_win_rate, 1),
+        "scheduled_daily_evolution": "16:15 EST"
+    }
+
+@app.post("/api/ml/evolve")
+def trigger_ml_evolution():
+    """Triggers an on-demand training cycle of the Random Forest model."""
+    try:
+        from wyckoff_ml_engine import train_and_upgrade_model
+        success, report = train_and_upgrade_model("Terminal User On-Demand Trigger")
+        return {
+            "success": success,
+            "report": report
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Mount static web assets
 app.mount("/", StaticFiles(directory="terminal_static", html=True), name="static")
 
