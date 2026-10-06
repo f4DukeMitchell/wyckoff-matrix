@@ -28,6 +28,12 @@ try:
 except:
     OPTIONS_ENABLED = False
 
+try:
+    from data_feed_public import stream_ticker_bars, get_spy_trend_public, get_public_bars_sync
+    PUBLIC_DATA_ENABLED = True
+except Exception as e:
+    PUBLIC_DATA_ENABLED = False
+
 # ==========================================
 # USER CONFIGURATION
 # ==========================================
@@ -194,196 +200,213 @@ def check_telegram_commands():
     except:
         pass
 
+def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_day, now):
+    """
+    Core Wyckoff detection and trade evaluation on a ticker DataFrame.
+    Shared by both Public.com streaming scan and fallback bulk scans.
+    """
+    try:
+        if df.empty or len(df) < lookback:
+            return
+            
+        if isinstance(df.columns, pd.MultiIndex):
+            highs = df['High'].iloc[:, 0].values.astype(float)
+            lows = df['Low'].iloc[:, 0].values.astype(float)
+            closes = df['Close'].iloc[:, 0].values.astype(float)
+            vols = df['Volume'].iloc[:, 0].values.astype(float)
+        else:
+            highs = df['High'].values.astype(float)
+            lows = df['Low'].values.astype(float)
+            closes = df['Close'].values.astype(float)
+            vols = df['Volume'].values.astype(float)
+            
+        u1 = get_supertrend(highs, lows, closes, 1, 1.0)
+        u9 = get_supertrend(highs, lows, closes, 9, 9.0)
+        u14 = get_supertrend(highs, lows, closes, 14, 14.0)
+        
+        # --- Bars in Regime ---
+        curr_u9 = u9[-1]
+        curr_u14 = u14[-1]
+        bars_in_regime = 0
+        for i in range(len(u9)-1, -1, -1):
+            if u9[i] == curr_u9 and u14[i] == curr_u14:
+                bars_in_regime += 1
+            else:
+                break
+        
+        # --- Institutional Features ---
+        vwap = calc_vwap(highs, lows, closes, vols)
+        vwap_distance = (closes[-1] - vwap[-1]) / vwap[-1] * 100 if vwap[-1] > 0 else 0
+        
+        atr_exp = calc_atr_expansion(highs, lows, closes)
+        atr_expansion = float(atr_exp[-1])
+        
+        vol_sma = pd.Series(vols).rolling(20, min_periods=1).mean().values
+        with np.errstate(divide='ignore', invalid='ignore'):
+            rel_vol = np.where(vol_sma > 0, vols / vol_sma, 1.0)
+        
+        range_high = pd.Series(highs).rolling(lookback, min_periods=20).max().shift(1).values
+        range_low = pd.Series(lows).rolling(lookback, min_periods=20).min().shift(1).values
+        
+        curr = len(df) - 1
+        if pd.isna(range_high[curr]): return
+        
+        c_below = (lows[curr] < range_low[curr]) or (lows[curr-1] < range_low[curr-1])
+        c_above = (highs[curr] > range_high[curr]) or (highs[curr-1] > range_high[curr-1])
+        vol_dry = rel_vol[curr] < VOL_LIMIT
+        
+        is_spring = c_below and u1[curr] and not u1[curr-1] and not u9[curr] and vol_dry
+        is_utad = c_above and not u1[curr] and u1[curr-1] and u9[curr] and vol_dry
+        
+        current_time = time.time()
+        
+        if is_spring and (current_time - last_alerted.get(ticker, 0) > 900):
+            if TRACKER_ENABLED and (has_open_alerted_trade(ticker, interval) or has_open_trade(ticker, interval)):
+                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED DUPLICATE: {ticker} already has active open trade on {interval}")
+                last_alerted[ticker] = current_time
+                return
+
+            if now.hour == 9 and 30 <= now.minute < 45 and interval == "5m":
+                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] OPENING SHIELD: {ticker} 5m Spring suppressed during 9:30-9:45 AM")
+                return
+
+            flow = None
+            if OPTIONS_ENABLED:
+                flow = get_options_flow(ticker)
+                if flow.get('put_call_ratio', 0) > 1.3:
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED: {ticker} LONG - P/C: {flow.get('put_call_ratio')}")
+                    last_alerted[ticker] = current_time
+                    return
+            
+            price = closes[curr]
+            sl = min(lows[curr], lows[curr-1]) * (1.0 - SL_BUFFER)
+            tp = range_low[curr] + ((range_high[curr] - range_low[curr]) * 0.5)
+            
+            if flow and flow.get('gamma_wall', 0) > price and flow.get('gamma_wall', 0) < range_high[curr]:
+                tp = flow.get('gamma_wall', 0)
+                
+            risk = abs(price - sl)
+            reward = abs(tp - price)
+            r_units = (reward / risk) if risk > 0 else 0
+            
+            regime = "BEARISH (Seeking Reversal)" if not u9[curr] and not u14[curr] else "MIXED"
+            
+            trade_id = None
+            if TRACKER_ENABLED:
+                q = get_public_quotes(ticker) if OPTIONS_ENABLED else {'bid_ask_ratio': None, 'spread_width_pct': None}
+                trade_id = log_alert(ticker, "LONG", price, sl, tp, regime, interval,
+                          flow.get('put_call_ratio') if flow else None,
+                          flow.get('net_sentiment') if flow else None,
+                          bars_in_regime,
+                          vwap_distance=vwap_distance,
+                          hour_of_day=hour_of_day,
+                          spy_bullish=spy_bullish,
+                          atr_expansion=atr_expansion,
+                          bid_ask_ratio=q.get('bid_ask_ratio'),
+                          spread_width_pct=q.get('spread_width_pct'),
+                          implied_volatility=flow.get('atm_iv') if flow else None)
+            
+            if r_units < MIN_R_UNITS:
+                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] SILENT LOG: {ticker} LONG - R-Units too low ({r_units:.2f}R)")
+                last_alerted[ticker] = current_time
+                return
+
+            if TELEGRAM_ENABLED:
+                tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, interval, flow, trade_id)
+                if TRACKER_ENABLED and trade_id: mark_trade_alerted(trade_id)
+            last_alerted[ticker] = current_time
+            
+        elif is_utad and (current_time - last_alerted.get(ticker, 0) > 900):
+            if TRACKER_ENABLED and (has_open_alerted_trade(ticker, interval) or has_open_trade(ticker, interval)):
+                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED DUPLICATE: {ticker} already has active open trade on {interval}")
+                last_alerted[ticker] = current_time
+                return
+
+            if now.hour == 9 and 30 <= now.minute < 45 and interval == "5m":
+                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] OPENING SHIELD: {ticker} 5m UTAD suppressed during 9:30-9:45 AM")
+                return
+
+            flow = None
+            if OPTIONS_ENABLED:
+                flow = get_options_flow(ticker)
+                if flow.get('put_call_ratio', 0) < 0.7:
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED: {ticker} SHORT - P/C: {flow.get('put_call_ratio')}")
+                    last_alerted[ticker] = current_time
+                    return
+                    
+            price = closes[curr]
+            sl = max(highs[curr], highs[curr-1]) * (1.0 + SL_BUFFER)
+            tp = range_high[curr] - ((range_high[curr] - range_low[curr]) * 0.5)
+            
+            if flow and flow.get('gamma_wall', 0) < price and flow.get('gamma_wall', 0) > range_low[curr]:
+                tp = flow.get('gamma_wall', 0)
+                
+            risk = abs(sl - price)
+            reward = abs(price - tp)
+            r_units = (reward / risk) if risk > 0 else 0
+            
+            regime = "BULLISH (Seeking Reversal)" if u9[curr] and u14[curr] else "MIXED"
+            
+            trade_id = None
+            if TRACKER_ENABLED:
+                q = get_public_quotes(ticker) if OPTIONS_ENABLED else {'bid_ask_ratio': None, 'spread_width_pct': None}
+                trade_id = log_alert(ticker, "SHORT", price, sl, tp, regime, interval,
+                          flow.get('put_call_ratio') if flow else None,
+                          flow.get('net_sentiment') if flow else None,
+                          bars_in_regime,
+                          vwap_distance=vwap_distance,
+                          hour_of_day=hour_of_day,
+                          spy_bullish=spy_bullish,
+                          atr_expansion=atr_expansion,
+                          bid_ask_ratio=q.get('bid_ask_ratio'),
+                          spread_width_pct=q.get('spread_width_pct'),
+                          implied_volatility=flow.get('atm_iv') if flow else None)
+            
+            if r_units < MIN_R_UNITS:
+                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] SILENT LOG: {ticker} SHORT - R-Units too low ({r_units:.2f}R)")
+                last_alerted[ticker] = current_time
+                return
+
+            if TELEGRAM_ENABLED:
+                tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow, trade_id)
+                if TRACKER_ENABLED and trade_id: mark_trade_alerted(trade_id)
+            last_alerted[ticker] = current_time
+    except Exception as e:
+        pass
+
 # ===================================================================
-# HYBRID SCAN: yfinance bulk download + institutional feature tracking
+# PUBLIC.COM LIVE MARKET SCANNER (Primary Data Feed)
 # ===================================================================
-def scan_market(interval, period, lookback):
-    print(f"\n[{datetime.datetime.now().strftime('%H:%M:%S')}] Scanning {len(TICKERS)} tickers on {interval}...")
-    
-    # BULK DOWNLOAD via yfinance (fast, handles 510 tickers in one call)
-    data = yf.download(TICKERS, period=period, interval=interval, group_by='ticker', progress=False)
-    
-    # Get SPY macro trend (cached per scan cycle)
-    spy_bullish = get_spy_trend()
+async def scan_market_public(interval, lookback):
+    print(f"\n[{datetime.datetime.now().strftime('%H:%M:%S')}] [PUBLIC.COM LIVE] Streaming {len(TICKERS)} tickers on {interval}...")
+    spy_bullish = await get_spy_trend_public()
     now = datetime.datetime.now()
     hour_of_day = now.hour + now.minute / 60.0
     
+    count = 0
+    async for ticker, df in stream_ticker_bars(TICKERS, interval=interval, delay_ms=0.08):
+        count += 1
+        evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_day, now)
+    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [PUBLIC.COM LIVE] Finished {count} tickers on {interval}.")
+
+# Fallback bulk scanner (yfinance)
+def scan_market(interval, period, lookback):
+    if PUBLIC_DATA_ENABLED:
+        import asyncio
+        asyncio.run(scan_market_public(interval, lookback))
+        return
+        
+    print(f"\n[{datetime.datetime.now().strftime('%H:%M:%S')}] [FALLBACK YFINANCE] Scanning {len(TICKERS)} tickers on {interval}...")
+    data = yf.download(TICKERS, period=period, interval=interval, group_by='ticker', progress=False)
+    spy_bullish = get_spy_trend()
+    now = datetime.datetime.now()
+    hour_of_day = now.hour + now.minute / 60.0
     for ticker in TICKERS:
         try:
             df = data[ticker].dropna() if len(TICKERS) > 1 else data.dropna()
-            if df.empty or len(df) < lookback:
-                continue
-            
-            # Flatten MultiIndex if present
-            if isinstance(df.columns, pd.MultiIndex):
-                highs = df['High'].iloc[:, 0].values.astype(float)
-                lows = df['Low'].iloc[:, 0].values.astype(float)
-                closes = df['Close'].iloc[:, 0].values.astype(float)
-                vols = df['Volume'].iloc[:, 0].values.astype(float)
-            else:
-                highs = df['High'].values.astype(float)
-                lows = df['Low'].values.astype(float)
-                closes = df['Close'].values.astype(float)
-                vols = df['Volume'].values.astype(float)
-                
-            u1 = get_supertrend(highs, lows, closes, 1, 1.0)
-            u9 = get_supertrend(highs, lows, closes, 9, 9.0)
-            u14 = get_supertrend(highs, lows, closes, 14, 14.0)
-            
-            # --- Bars in Regime ---
-            curr_u9 = u9[-1]
-            curr_u14 = u14[-1]
-            bars_in_regime = 0
-            for i in range(len(u9)-1, -1, -1):
-                if u9[i] == curr_u9 and u14[i] == curr_u14:
-                    bars_in_regime += 1
-                else:
-                    break
-            
-            # --- Institutional Features ---
-            vwap = calc_vwap(highs, lows, closes, vols)
-            vwap_distance = (closes[-1] - vwap[-1]) / vwap[-1] * 100 if vwap[-1] > 0 else 0
-            
-            atr_exp = calc_atr_expansion(highs, lows, closes)
-            atr_expansion = float(atr_exp[-1])
-            
-            vol_sma = pd.Series(vols).rolling(20, min_periods=1).mean().values
-            with np.errstate(divide='ignore', invalid='ignore'):
-                rel_vol = np.where(vol_sma > 0, vols / vol_sma, 1.0)
-            
-            range_high = pd.Series(highs).rolling(lookback, min_periods=20).max().shift(1).values
-            range_low = pd.Series(lows).rolling(lookback, min_periods=20).min().shift(1).values
-            
-            curr = len(df) - 1
-            if pd.isna(range_high[curr]): continue
-            
-            c_below = (lows[curr] < range_low[curr]) or (lows[curr-1] < range_low[curr-1])
-            c_above = (highs[curr] > range_high[curr]) or (highs[curr-1] > range_high[curr-1])
-            vol_dry = rel_vol[curr] < VOL_LIMIT
-            
-            is_spring = c_below and u1[curr] and not u1[curr-1] and not u9[curr] and vol_dry
-            is_utad = c_above and not u1[curr] and u1[curr-1] and u9[curr] and vol_dry
-            
-            current_time = time.time()
-            
-            if is_spring and (current_time - last_alerted.get(ticker, 0) > 900):
-                # Feature 2: Per-Ticker Duplicate Lock (Max 1 alert per stock on this timeframe)
-                if TRACKER_ENABLED and (has_open_alerted_trade(ticker, interval) or has_open_trade(ticker, interval)):
-                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED DUPLICATE: {ticker} already has active open trade on {interval}")
-                    last_alerted[ticker] = current_time
-                    continue
+            evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_day, now)
+        except: pass
 
-                # Feature 4: Opening Drive Whipsaw Shield (9:30 - 9:45 AM EST)
-                if now.hour == 9 and 30 <= now.minute < 45 and interval == "5m":
-                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] OPENING SHIELD: {ticker} 5m Spring suppressed during 9:30-9:45 AM")
-                    continue
-
-                flow = None
-                if OPTIONS_ENABLED:
-                    flow = get_options_flow(ticker)
-                    if flow.get('put_call_ratio', 0) > 1.3:
-                        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED: {ticker} LONG - P/C: {flow.get('put_call_ratio')}")
-                        last_alerted[ticker] = current_time
-                        continue
-                
-                price = closes[curr]
-                sl = min(lows[curr], lows[curr-1]) * (1.0 - SL_BUFFER)
-                tp = range_low[curr] + ((range_high[curr] - range_low[curr]) * 0.5)
-                
-                if flow and flow.get('gamma_wall', 0) > price and flow.get('gamma_wall', 0) < range_high[curr]:
-                    tp = flow.get('gamma_wall', 0)
-                    
-                risk = abs(price - sl)
-                reward = abs(tp - price)
-                r_units = (reward / risk) if risk > 0 else 0
-                
-                regime = "BEARISH (Seeking Reversal)" if not u9[curr] and not u14[curr] else "MIXED"
-                
-                trade_id = None
-                if TRACKER_ENABLED:
-                    q = get_public_quotes(ticker) if OPTIONS_ENABLED else {'bid_ask_ratio': None, 'spread_width_pct': None}
-                    trade_id = log_alert(ticker, "LONG", price, sl, tp, regime, interval,
-                              flow.get('put_call_ratio') if flow else None,
-                              flow.get('net_sentiment') if flow else None,
-                              bars_in_regime,
-                              vwap_distance=vwap_distance,
-                              hour_of_day=hour_of_day,
-                              spy_bullish=spy_bullish,
-                              atr_expansion=atr_expansion,
-                              bid_ask_ratio=q.get('bid_ask_ratio'),
-                              spread_width_pct=q.get('spread_width_pct'),
-                              implied_volatility=flow.get('atm_iv') if flow else None)
-                
-                if r_units < MIN_R_UNITS:
-                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] SILENT LOG: {ticker} LONG - R-Units too low ({r_units:.2f}R)")
-                    last_alerted[ticker] = current_time
-                    continue
-
-                if TELEGRAM_ENABLED:
-                    tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, interval, flow, trade_id)
-                    if TRACKER_ENABLED and trade_id: mark_trade_alerted(trade_id)
-                last_alerted[ticker] = current_time
-                
-            elif is_utad and (current_time - last_alerted.get(ticker, 0) > 900):
-                # Feature 2: Per-Ticker Duplicate Lock
-                if TRACKER_ENABLED and (has_open_alerted_trade(ticker, interval) or has_open_trade(ticker, interval)):
-                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED DUPLICATE: {ticker} already has active open trade on {interval}")
-                    last_alerted[ticker] = current_time
-                    continue
-
-                # Feature 4: Opening Drive Whipsaw Shield
-                if now.hour == 9 and 30 <= now.minute < 45 and interval == "5m":
-                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] OPENING SHIELD: {ticker} 5m UTAD suppressed during 9:30-9:45 AM")
-                    continue
-
-                flow = None
-                if OPTIONS_ENABLED:
-                    flow = get_options_flow(ticker)
-                    if flow.get('put_call_ratio', 0) < 0.7:
-                        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED: {ticker} SHORT - P/C: {flow.get('put_call_ratio')}")
-                        last_alerted[ticker] = current_time
-                        continue
-                        
-                price = closes[curr]
-                sl = max(highs[curr], highs[curr-1]) * (1.0 + SL_BUFFER)
-                tp = range_high[curr] - ((range_high[curr] - range_low[curr]) * 0.5)
-                
-                if flow and flow.get('gamma_wall', 0) < price and flow.get('gamma_wall', 0) > range_low[curr]:
-                    tp = flow.get('gamma_wall', 0)
-                    
-                risk = abs(sl - price)
-                reward = abs(price - tp)
-                r_units = (reward / risk) if risk > 0 else 0
-                
-                regime = "BULLISH (Seeking Reversal)" if u9[curr] and u14[curr] else "MIXED"
-                
-                trade_id = None
-                if TRACKER_ENABLED:
-                    q = get_public_quotes(ticker) if OPTIONS_ENABLED else {'bid_ask_ratio': None, 'spread_width_pct': None}
-                    trade_id = log_alert(ticker, "SHORT", price, sl, tp, regime, interval,
-                              flow.get('put_call_ratio') if flow else None,
-                              flow.get('net_sentiment') if flow else None,
-                              bars_in_regime,
-                              vwap_distance=vwap_distance,
-                              hour_of_day=hour_of_day,
-                              spy_bullish=spy_bullish,
-                              atr_expansion=atr_expansion,
-                              bid_ask_ratio=q.get('bid_ask_ratio'),
-                              spread_width_pct=q.get('spread_width_pct'),
-                              implied_volatility=flow.get('atm_iv') if flow else None)
-                
-                if r_units < MIN_R_UNITS:
-                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] SILENT LOG: {ticker} SHORT - R-Units too low ({r_units:.2f}R)")
-                    last_alerted[ticker] = current_time
-                    continue
-
-                if TELEGRAM_ENABLED:
-                    tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow, trade_id)
-                    if TRACKER_ENABLED and trade_id: mark_trade_alerted(trade_id)
-                last_alerted[ticker] = current_time
-                
-        except Exception as e:
-            pass
 
 last_report_date = None
 reports_sent = {"morning": False, "lunch": False, "power": False}
@@ -562,9 +585,31 @@ if __name__ == "__main__":
         is_market_hours = is_weekday and market_open
 
         if is_market_hours:
-            for tf in TIMEFRAMES:
-                scan_market(tf['interval'], tf['period'], tf['lookback'])
-                time.sleep(2)
+            # 1. 5m and 15m scanned EVERY cycle (real-time broker stream)
+            scan_market('5m', '5d', 200)
+            scan_market('15m', '20d', 150)
+
+            # 2. 1h scanned at the top of each hour (between :00 and :10)
+            if now.minute < 10 and not reports_sent.get("hourly_1h_scanned", False):
+                scan_market('1h', '60d', 100)
+                reports_sent["hourly_1h_scanned"] = True
+            elif now.minute >= 10:
+                reports_sent["hourly_1h_scanned"] = False
+
+            # 3. 1d scanned 3x a day: Open (9:35am), Midday (1:00pm), Close (3:45pm)
+            is_open_scan = (now.hour == 9 and 35 <= now.minute < 45 and not reports_sent.get("daily_open", False))
+            is_mid_scan  = (now.hour == 13 and now.minute < 15 and not reports_sent.get("daily_mid", False))
+            is_close_scan = (now.hour == 15 and 45 <= now.minute < 58 and not reports_sent.get("daily_close", False))
+
+            if is_open_scan:
+                scan_market('1d', '2y', 100)
+                reports_sent["daily_open"] = True
+            elif is_mid_scan:
+                scan_market('1d', '2y', 100)
+                reports_sent["daily_mid"] = True
+            elif is_close_scan:
+                scan_market('1d', '2y', 100)
+                reports_sent["daily_close"] = True
         else:
             print(f"[{now.strftime('%H:%M:%S')}] Outside market hours (Mon-Fri 9:30am-4:00pm EST). Scan paused.")
         
@@ -611,7 +656,10 @@ if __name__ == "__main__":
         current_date = now.date()
         
         if last_report_date != current_date:
-            reports_sent = {"morning": False, "lunch": False, "power": False, "ai": False, "recap": False}
+            reports_sent = {
+                "morning": False, "lunch": False, "power": False, "ai": False, "recap": False,
+                "daily_open": False, "daily_mid": False, "daily_close": False, "hourly_1h_scanned": False
+            }
             last_report_date = current_date
             
         if now.hour == 9 and 15 <= now.minute < 30 and not reports_sent["morning"]:

@@ -45,6 +45,12 @@ try:
 except:
     OPTIONS_AVAILABLE = False
 
+try:
+    from data_feed_public import get_public_bars_sync
+    PUBLIC_BARS_AVAILABLE = True
+except:
+    PUBLIC_BARS_AVAILABLE = False
+
 # --- Session State ---
 if 'selected_ticker' not in st.session_state: st.session_state['selected_ticker'] = "MSFT"
 if 'active_tab' not in st.session_state: st.session_state['active_tab'] = 0
@@ -224,7 +230,18 @@ def scan_trade_ideas():
 # CHART RENDERING ENGINE
 # =============================================================================
 def render_wyckoff_chart(ticker, interval, period):
-    df = yf.download(ticker, period=period, interval=interval, progress=False)
+    df = pd.DataFrame()
+    # 1. Try Public.com broker feed first (Real-time live broker candles)
+    if PUBLIC_BARS_AVAILABLE and interval in ['5m', '15m', '1h', '1d']:
+        try:
+            df = get_public_bars_sync(ticker, interval)
+        except:
+            df = pd.DataFrame()
+
+    # 2. Fallback to yfinance if Public.com feed returned empty
+    if df.empty:
+        df = yf.download(ticker, period=period, interval=interval, progress=False)
+
     if df.empty:
         st.error(f"No data found for {ticker} on {interval}.")
         return None
