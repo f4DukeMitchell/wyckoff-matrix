@@ -11,7 +11,9 @@ import os
 
 # --- UPGRADE MODULES ---
 try:
-    from trade_tracker import log_alert, check_open_trades, has_open_alerted_trade, has_open_trade, mark_trade_alerted, sync_public_positions
+    from trade_tracker import (log_alert, check_open_trades, has_open_alerted_trade,
+                               has_open_trade, mark_trade_alerted, sync_public_positions,
+                               calculate_ml_confidence)
     TRACKER_ENABLED = True
 except:
     TRACKER_ENABLED = False
@@ -291,6 +293,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
             
             regime = "BEARISH (Seeking Reversal)" if not u9[curr] and not u14[curr] else "MIXED"
             
+            # Calculate Real ML Model Win Probability
+            ml_conf = calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_of_day, "LONG") if TRACKER_ENABLED else None
+
             trade_id = None
             if TRACKER_ENABLED:
                 q = get_public_quotes(ticker) if OPTIONS_ENABLED else {'bid_ask_ratio': None, 'spread_width_pct': None}
@@ -304,7 +309,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           atr_expansion=atr_expansion,
                           bid_ask_ratio=q.get('bid_ask_ratio'),
                           spread_width_pct=q.get('spread_width_pct'),
-                          implied_volatility=flow.get('atm_iv') if flow else None)
+                          implied_volatility=flow.get('atm_iv') if flow else None,
+                          ml_confidence=ml_conf)
             
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] SILENT LOG: {ticker} LONG - R-Units too low ({r_units:.2f}R)")
@@ -312,7 +318,7 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                 return
 
             if TELEGRAM_ENABLED:
-                tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, interval, flow, trade_id)
+                tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, interval, flow, trade_id, ml_confidence=ml_conf)
                 if TRACKER_ENABLED and trade_id: mark_trade_alerted(trade_id)
             last_alerted[ticker] = current_time
             
@@ -347,6 +353,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
             
             regime = "BULLISH (Seeking Reversal)" if u9[curr] and u14[curr] else "MIXED"
             
+            # Calculate Real ML Model Win Probability
+            ml_conf = calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_of_day, "SHORT") if TRACKER_ENABLED else None
+
             trade_id = None
             if TRACKER_ENABLED:
                 q = get_public_quotes(ticker) if OPTIONS_ENABLED else {'bid_ask_ratio': None, 'spread_width_pct': None}
@@ -360,7 +369,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           atr_expansion=atr_expansion,
                           bid_ask_ratio=q.get('bid_ask_ratio'),
                           spread_width_pct=q.get('spread_width_pct'),
-                          implied_volatility=flow.get('atm_iv') if flow else None)
+                          implied_volatility=flow.get('atm_iv') if flow else None,
+                          ml_confidence=ml_conf)
             
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] SILENT LOG: {ticker} SHORT - R-Units too low ({r_units:.2f}R)")
@@ -368,7 +378,7 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                 return
 
             if TELEGRAM_ENABLED:
-                tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow, trade_id)
+                tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow, trade_id, ml_confidence=ml_conf)
                 if TRACKER_ENABLED and trade_id: mark_trade_alerted(trade_id)
             last_alerted[ticker] = current_time
     except Exception as e:

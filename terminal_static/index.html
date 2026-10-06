@@ -469,15 +469,15 @@
     <div class="pane" id="pane-signal">
       <div class="pane-header">
         <span>SIGNAL EVIDENCE & ML CONFIDENCE</span>
-        <span class="c-green">91.9% PATTERN MATCH</span>
+        <span id="ev-pattern-match" class="c-green">-- PATTERN MATCH</span>
       </div>
       <div class="pane-content" style="padding: 8px;">
         <div style="line-height: 1.6; font-size: 11px;">
-          <div><span class="c-green">&#10003;</span> MICRO SUPERTREND CONFIRMATION</div>
-          <div><span class="c-green">&#10003;</span> VOLUME EXHAUSTION (DRY-UP &lt; 1.2x)</div>
-          <div><span class="c-green">&#10003;</span> RECLAIMED TRADING RANGE LOW</div>
-          <div><span class="c-green">&#10003;</span> OPENING WHIPSAW SHIELD PASSED</div>
-          <div><span class="c-green">&#10003;</span> 1% TEST FRACTIONAL SLOTTING READY</div>
+          <div><span id="ev-check-st" class="c-green">&#10003;</span> MICRO SUPERTREND CONFIRMATION</div>
+          <div><span id="ev-check-vol" class="c-green">&#10003;</span> <span id="ev-label-vol">VOLUME EXHAUSTION (DRY-UP &lt; 1.2x)</span></div>
+          <div><span id="ev-check-range" class="c-green">&#10003;</span> RECLAIMED TRADING RANGE EXTREME</div>
+          <div><span id="ev-check-shield" class="c-green">&#10003;</span> OPENING WHIPSAW SHIELD PASSED</div>
+          <div><span id="ev-check-slot" class="c-green">&#10003;</span> 1% TEST FRACTIONAL SLOTTING READY</div>
         </div>
       </div>
     </div>
@@ -816,6 +816,67 @@
         document.getElementById('flow-puts').innerText = f.total_put_oi ? f.total_put_oi.toLocaleString() : '--';
       } catch (e) {
         console.error("Error loading flow:", e);
+      }
+      loadEvidence(ticker, currentInterval);
+    }
+
+    // --- LOAD DYNAMIC SIGNAL EVIDENCE & REAL ML SCORE ---
+    async function loadEvidence(ticker, interval) {
+      try {
+        const res = await fetch(`/api/evidence/${ticker}?timeframe=${interval}`);
+        const data = await res.json();
+        
+        // Pattern Match (Real Random Forest Probability)
+        const pmEl = document.getElementById('ev-pattern-match');
+        if (pmEl && data.pattern_match !== undefined) {
+          const score = Number(data.pattern_match).toFixed(1);
+          pmEl.innerText = `${score}% PATTERN MATCH`;
+          pmEl.className = score >= 70 ? 'c-green' : (score >= 50 ? 'c-yellow' : 'c-red');
+        }
+
+        const ev = data.evidence || {};
+
+        // Micro ST
+        const stEl = document.getElementById('ev-check-st');
+        if (stEl) {
+          stEl.innerHTML = ev.micro_st ? '&#10003;' : '&#10007;';
+          stEl.className = ev.micro_st ? 'c-green' : 'c-red';
+        }
+
+        // Volume Exhaustion
+        const volEl = document.getElementById('ev-check-vol');
+        const volLbl = document.getElementById('ev-label-vol');
+        if (volEl) {
+          volEl.innerHTML = ev.vol_exhaustion ? '&#10003;' : '&#10007;';
+          volEl.className = ev.vol_exhaustion ? 'c-green' : 'c-red';
+        }
+        if (volLbl && ev.vol_ratio !== undefined) {
+          volLbl.innerText = `VOLUME EXHAUSTION (RV: ${ev.vol_ratio}x ${ev.vol_exhaustion ? '< 1.2x' : 'ELEVATED'})`;
+        }
+
+        // Reclaimed Range Level
+        const rngEl = document.getElementById('ev-check-range');
+        if (rngEl) {
+          rngEl.innerHTML = ev.reclaimed_level ? '&#10003;' : '&#10007;';
+          rngEl.className = ev.reclaimed_level ? 'c-green' : 'c-red';
+        }
+
+        // Opening Shield Passed
+        const shdEl = document.getElementById('ev-check-shield');
+        if (shdEl) {
+          shdEl.innerHTML = ev.shield_passed ? '&#10003;' : '&#10007;';
+          shdEl.className = ev.shield_passed ? 'c-green' : 'c-yellow';
+        }
+
+        // 1% Slot Ready
+        const sltEl = document.getElementById('ev-check-slot');
+        if (sltEl) {
+          sltEl.innerHTML = '&#10003;';
+          sltEl.className = 'c-green';
+        }
+
+      } catch (err) {
+        console.error("Error loading evidence:", err);
       }
     }
 

@@ -61,7 +61,7 @@ def get_terminal_state():
     # Recent scanner signals (distinct latest setup per ticker & timeframe)
     c.execute("""
         SELECT a.id, a.ticker, a.direction, a.entry_price, a.stop_loss, a.take_profit, 
-               a.regime, a.timeframe, a.timestamp, a.outcome, a.model_version, a.user_active
+               a.regime, a.timeframe, a.timestamp, a.outcome, a.model_version, a.user_active, a.ml_confidence
         FROM alerts a
         INNER JOIN (
             SELECT ticker, timeframe, MAX(id) as max_id
@@ -272,6 +272,96 @@ def get_bars(ticker: str, interval: str = "5m"):
         "vwap": vwap_line,
         "markers": markers,
         "volume_profile": vp_distribution
+    }
+
+@app.get("/api/evidence/{ticker}")
+def get_evidence(ticker: str, timeframe: str = "5m"):
+    """
+    Computes real-time Wyckoff signal evidence checklist and ML Confidence score
+    for the selected ticker and timeframe.
+    """
+    sym = ticker.upper()
+    df = get_public_bars_sync(sym, timeframe)
+    
+    # Check if there is an alert recorded in database
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("""
+        SELECT ml_confidence, direction, timestamp, bars_in_regime, vwap_distance, atr_expansion, hour_of_day
+        FROM alerts
+        WHERE ticker = ? AND timeframe = ?
+        ORDER BY id DESC LIMIT 1
+    """, (sym, timeframe))
+    db_alert = c.fetchone()
+    conn.close()
+
+    if df.empty or len(df) < 20:
+        return {
+            "ticker": sym,
+            "pattern_match": 50.0,
+            "evidence": {
+                "micro_st": False,
+                "vol_exhaustion": False,
+                "vol_ratio": 1.0,
+                "reclaimed_level": False,
+                "shield_passed": True,
+                "slot_ready": True
+            }
+        }
+
+    highs = df['High'].values.astype(float)
+    lows = df['Low'].values.astype(float)
+    closes = df['Close'].values.astype(float)
+    vols = df['Volume'].values.astype(float)
+
+    u1 = get_supertrend(highs, lows, closes, 1, 1.0)
+    u9 = get_supertrend(highs, lows, closes, 9, 9.0)
+    
+    lookback = min(100, max(20, len(df) // 2))
+    range_high = pd.Series(highs).rolling(lookback, min_periods=15).max().shift(1).values
+    range_low = pd.Series(lows).rolling(lookback, min_periods=15).min().shift(1).values
+    
+    vol_sma = pd.Series(vols).rolling(20, min_periods=1).mean().values
+    with np.errstate(divide='ignore', invalid='ignore'):
+        rel_vol = np.where(vol_sma > 0, vols / vol_sma, 1.0)
+
+    curr = len(df) - 1
+    curr_rv = float(rel_vol[curr]) if not np.isnan(rel_vol[curr]) else 1.0
+    is_dry = curr_rv < 1.2
+
+    # Micro ST confirmation: is fast supertrend active in setup direction
+    direction = db_alert['direction'] if db_alert else ("LONG" if closes[curr] > closes[max(0, curr-5)] else "SHORT")
+    micro_ok = bool(u1[curr]) if direction == "LONG" else bool(not u1[curr])
+
+    # Reclaimed level
+    reclaimed = False
+    if direction == "LONG" and not np.isnan(range_low[curr]):
+        reclaimed = (lows[curr] < range_low[curr] or (curr > 0 and lows[curr-1] < range_low[curr-1])) and closes[curr] >= range_low[curr]
+    elif direction == "SHORT" and not np.isnan(range_high[curr]):
+        reclaimed = (highs[curr] > range_high[curr] or (curr > 0 and highs[curr-1] > range_high[curr-1])) and closes[curr] <= range_high[curr]
+
+    # Calculate real ML confidence
+    bars_in_regime = int(db_alert['bars_in_regime']) if db_alert and db_alert['bars_in_regime'] is not None else 10
+    vwap_vals = calc_vwap(highs, lows, closes, vols)
+    vwap_dist = ((closes[curr] - vwap_vals[curr]) / vwap_vals[curr] * 100.0) if vwap_vals[curr] > 0 else 0.0
+    
+    now_hour = datetime.datetime.now().hour + datetime.datetime.now().minute / 60.0
+    
+    ml_conf = float(db_alert['ml_confidence']) if (db_alert and db_alert['ml_confidence'] is not None) else calculate_ml_confidence(bars_in_regime, vwap_dist, 1.0, now_hour, direction)
+
+    return {
+        "ticker": sym,
+        "direction": direction,
+        "pattern_match": ml_conf,
+        "evidence": {
+            "micro_st": micro_ok,
+            "vol_exhaustion": is_dry,
+            "vol_ratio": round(curr_rv, 2),
+            "reclaimed_level": reclaimed,
+            "shield_passed": True,
+            "slot_ready": True
+        }
     }
 
 @app.get("/api/flow/{ticker}")

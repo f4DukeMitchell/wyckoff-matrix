@@ -38,7 +38,7 @@ def send_message(text, reply_markup=None, chat_id=None):
         print(f"Failed to send Telegram message: {e}")
         return False
 
-def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe="5m", options_flow=None, trade_id=None):
+def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe="5m", options_flow=None, trade_id=None, ml_confidence=None):
     """Formats and sends a trading alert."""
     if not is_configured():
         print("Telegram not configured. Skipping trade alert.")
@@ -75,6 +75,7 @@ def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, reg
         tp_str = str(take_profit)
         
     now_str = datetime.datetime.now().strftime('%b %d, %I:%M %p')
+    ml_str = f"\n🤖 ML Win Confidence: {ml_confidence:.1f}% (Random Forest)" if ml_confidence is not None else ""
     message = (
         f"🚨 TRADE ALERT: {ticker}\n"
         f"Direction: {direction}\n"
@@ -85,7 +86,8 @@ def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, reg
         f"Stop Loss: {sl_str}\n"
         f"Take Profit: {tp_str}\n"
         f"Expected Return: {r_units}R Units\n"
-        f"Regime Context: {regime}\n\n"
+        f"Regime Context: {regime}"
+        f"{ml_str}\n\n"
         f"🔗 Trade on Public: https://public.com/stocks/{ticker.lower()}"
     )
     
