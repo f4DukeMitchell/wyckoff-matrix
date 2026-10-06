@@ -233,9 +233,9 @@
       position: relative;
     }
     #vp-pane {
-      width: 72px;
+      width: 160px;
       height: 100%;
-      background: #0a0a0a;
+      background: #080808;
       border-left: 1px solid var(--wsr-border);
       display: flex;
       flex-direction: column;
@@ -244,56 +244,76 @@
       user-select: none;
     }
     #vp-header {
-      font-size: 8px;
-      color: var(--wsr-muted);
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--wsr-orange);
       text-align: center;
-      padding: 2px 0;
-      border-bottom: 1px solid #141414;
+      padding: 4px 0;
+      border-bottom: 1px solid #1c1c1c;
       background: #000;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.8px;
+      display: flex;
+      justify-content: space-around;
+    }
+    #vp-header span {
+      color: var(--wsr-muted);
+      font-size: 8px;
+      font-weight: normal;
     }
     #vp-bars-container {
       flex: 1;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      padding: 6px 2px;
+      padding: 6px 4px;
       position: relative;
     }
     .vp-row {
       display: flex;
       align-items: center;
       height: calc(100% / 24);
-      gap: 3px;
-      padding: 0 2px;
+      gap: 6px;
+      padding: 0 4px;
+      position: relative;
+    }
+    .vp-row:hover {
+      background: rgba(255, 255, 255, 0.05);
     }
     .vp-price {
-      font-size: 8px;
-      color: #666;
-      width: 30px;
+      font-size: 9px;
+      color: #777;
+      width: 44px;
       text-align: right;
       overflow: hidden;
       white-space: nowrap;
-      font-family: monospace;
+      font-family: 'IBM Plex Mono', monospace;
+      letter-spacing: -0.2px;
     }
     .vp-bar-wrapper {
       flex: 1;
-      height: 70%;
-      background: #111;
-      border-radius: 1px;
+      height: 80%;
+      background: #0f0f0f;
+      border-radius: 2px;
       overflow: hidden;
       display: flex;
       align-items: center;
+      position: relative;
+      box-shadow: inset 0 0 2px rgba(0,0,0,0.8);
     }
     .vp-bar {
       height: 100%;
-      background: rgba(0, 200, 255, 0.45);
-      border-right: 1px solid #00c8ff;
-      transition: width 0.2s ease;
+      border-radius: 1px;
+      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
     }
-    .vp-bar.poc {
-      background: rgba(255, 140, 0, 0.75);
-      border-right: 2px solid #ff8c00;
+    .vp-bar-text {
+      position: absolute;
+      right: 4px;
+      font-size: 7.5px;
+      color: rgba(255, 255, 255, 0.7);
+      font-family: monospace;
+      pointer-events: none;
+      line-height: 1;
     }
 
     /* BOTTOM FUNCTION BAR */
@@ -385,7 +405,10 @@
       <div id="chart-body">
         <div id="chart-view"></div>
         <div id="vp-pane">
-          <div id="vp-header">VOL @ PRICE</div>
+          <div id="vp-header">
+            <b>VOL @ PRICE</b>
+            <span>LIQUIDITY HEATMAP</span>
+          </div>
           <div id="vp-bars-container">
             <!-- Populated via loadChartData -->
           </div>
@@ -596,8 +619,8 @@
         rightPriceScale: {
           borderColor: '#222222',
           scaleMargins: {
-            top: 0.1,
-            bottom: 0.25
+            top: 0.08,
+            bottom: 0.08
           }
         }
       });
@@ -610,16 +633,6 @@
         borderDownColor: '#ff3b30',
         wickUpColor: '#00d26a',
         wickDownColor: '#ff3b30'
-      });
-
-      // 2. Volume Histogram (Bottom 20%)
-      volumeSeries = chart.addHistogramSeries({
-        priceFormat: { type: 'volume' },
-        priceScaleId: '', // separate overlay scale
-        scaleMargins: {
-          top: 0.8,
-          bottom: 0
-        }
       });
 
       // 3. Trading Range High (Resistance Channel - Yellow/Cyan)
@@ -670,7 +683,6 @@
         if (data.bars && data.bars.length > 0) {
           candleSeries.setData(data.bars);
           
-          if (data.volume) volumeSeries.setData(data.volume);
           if (data.range_high) rhSeries.setData(data.range_high);
           if (data.range_low) rlSeries.setData(data.range_low);
           if (data.supertrend) stSeries.setData(data.supertrend);
@@ -714,12 +726,50 @@
         const row = document.createElement('div');
         row.className = 'vp-row';
         const isPOC = bin.volume === maxVol && maxVol > 0;
-        const widthPct = Math.min(100, Math.max(4, bin.pct));
+        const widthPct = Math.min(100, Math.max(3, bin.pct));
+        const ratio = maxVol > 0 ? (bin.volume / maxVol) : 0;
+
+        // Gradient styling to show "where the money lies":
+        // Low volume nodes: deep cyan/slate (#005577 -> #0088aa)
+        // Mid volume nodes: bright cyan to green (#00a3e0 -> #00d26a)
+        // High volume liquidity: vibrant amber / orange (#ff9900 -> #ff4500)
+        let bgStyle = '';
+        let borderStyle = '';
+        let priceColor = '#666';
+
+        if (isPOC) {
+          bgStyle = 'linear-gradient(90deg, #ff8c00 0%, #ff3b30 100%)';
+          borderStyle = '1px solid #ffcc00';
+          priceColor = 'var(--wsr-orange); font-weight: bold;';
+        } else if (ratio > 0.70) {
+          bgStyle = 'linear-gradient(90deg, #ff8c00 0%, #e67e22 100%)';
+          borderStyle = '1px solid #ffaa44';
+          priceColor = '#ffaa44';
+        } else if (ratio > 0.40) {
+          bgStyle = 'linear-gradient(90deg, #0099ff 0%, #00d26a 100%)';
+          borderStyle = '1px solid #00d26a';
+          priceColor = '#bbb';
+        } else {
+          bgStyle = 'linear-gradient(90deg, #004466 0%, #007799 100%)';
+          borderStyle = '1px solid #005577';
+          priceColor = '#666';
+        }
+
+        // Format volume string (e.g. 1.2M, 450K)
+        let volLabel = '';
+        if (bin.volume >= 1000000) {
+          volLabel = (bin.volume / 1000000).toFixed(1) + 'M';
+        } else if (bin.volume >= 1000) {
+          volLabel = (bin.volume / 1000).toFixed(0) + 'K';
+        } else {
+          volLabel = bin.volume.toFixed(0);
+        }
 
         row.innerHTML = `
-          <div class="vp-price" style="${isPOC ? 'color: var(--wsr-orange); font-weight: bold;' : ''}">$${bin.price.toFixed(1)}</div>
+          <div class="vp-price" style="color: ${priceColor};">$${bin.price.toFixed(2)}</div>
           <div class="vp-bar-wrapper">
-            <div class="vp-bar ${isPOC ? 'poc' : ''}" style="width: ${widthPct}%;" title="Price: $${bin.price} | Vol: ${bin.volume.toLocaleString()}"></div>
+            <div class="vp-bar" style="width: ${widthPct}%; background: ${bgStyle}; border-right: ${borderStyle};" title="Price: $${bin.price.toFixed(2)} | Vol: ${bin.volume.toLocaleString()} (${bin.pct}%)"></div>
+            ${widthPct > 28 ? `<span class="vp-bar-text">${volLabel}</span>` : ''}
           </div>
         `;
         vpContainer.appendChild(row);
