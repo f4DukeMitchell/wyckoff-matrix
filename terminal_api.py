@@ -114,8 +114,35 @@ def get_bars(ticker: str, interval: str = "5m"):
     vols = df['Volume'].values.astype(float)
 
     # 1. SuperTrend Lines
-    u1, line1 = get_supertrend(highs, lows, closes, 1, 1.0)
-    u9, line9 = get_supertrend(highs, lows, closes, 9, 9.0)
+    tr0 = np.abs(highs - lows)
+    tr1 = np.abs(highs - np.roll(closes, 1))
+    tr2 = np.abs(lows - np.roll(closes, 1))
+    tr = np.maximum(tr0, np.maximum(tr1, tr2))
+    tr[0] = 0
+    atr = np.zeros_like(closes, dtype=float)
+    length = 9
+    multiplier = 9.0
+    if len(closes) > length:
+        atr[length] = np.mean(tr[1:length+1])
+        for i in range(length+1, len(closes)):
+            atr[i] = (atr[i-1] * (length - 1) + tr[i]) / length
+    hl2 = (highs + lows) / 2
+    upperband = hl2 + (multiplier * atr)
+    lowerband = hl2 - (multiplier * atr)
+    in_uptrend = np.ones(len(closes), dtype=bool)
+    line9 = np.zeros(len(closes))
+    for i in range(1, len(closes)):
+        if closes[i] > upperband[i-1]: in_uptrend[i] = True
+        elif closes[i] < lowerband[i-1]: in_uptrend[i] = False
+        else:
+            in_uptrend[i] = in_uptrend[i-1]
+            if in_uptrend[i] and lowerband[i] < lowerband[i-1]: lowerband[i] = lowerband[i-1]
+            if not in_uptrend[i] and upperband[i] > upperband[i-1]: upperband[i] = upperband[i-1]
+        line9[i] = lowerband[i] if in_uptrend[i] else upperband[i]
+    line9[0] = np.nan
+    u9 = in_uptrend
+
+    u1 = get_supertrend(highs, lows, closes, 1, 1.0)
 
     # 2. Wyckoff Trading Range Channel (Lookback 50-100 bars)
     lookback = min(100, max(20, len(df) // 2))
