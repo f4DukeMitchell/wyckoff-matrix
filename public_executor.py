@@ -54,15 +54,14 @@ def get_account_capital_summary():
 
 def calculate_test_allocation(pct=0.01, min_amount=5.0, max_amount=150.0):
     """
-    Calculates 1% test sizing (e.g. 1% of ~$10,600 equity = ~$106.00).
+    Calculates 1% test sizing based on available Buying Power (e.g. 1% of $6,770.20 = $67.70).
     Bounded safely between min_amount and max_amount.
     """
     summary = get_account_capital_summary()
-    equity = summary['total_equity']
     bp = summary['buying_power']
     
-    # 1% of total equity
-    alloc = round(equity * pct, 2)
+    # 1% of available buying power
+    alloc = round(bp * pct, 2)
     
     # Bound safely for testing
     alloc = max(min_amount, min(alloc, max_amount))
