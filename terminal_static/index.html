@@ -590,7 +590,7 @@
     <!-- PANE 1: WATCHLIST & ACTIVE POSITIONS (Top Left) -->
     <div class="pane" id="pane-watchlist">
       <div class="pane-header">
-        <span>ACTIVE TRADES <span style="font-size: 8.5px; color: var(--wsr-yellow);">[EOD FLATTEN: 3:55 PM]</span></span>
+        <span>ACTIVE TRADES <b id="header-algo-pnl" class="c-green" style="font-size: 10px; margin-left: 4px;">+$0.00</b> <span style="font-size: 8px; color: var(--wsr-yellow); margin-left: 2px;">[EOD 3:55 PM]</span></span>
         <button class="term-btn" onclick="fetchState()">REFRESH</button>
       </div>
       <div class="pane-content">
@@ -1435,16 +1435,21 @@
             const isLong = p.direction === 'LONG';
             const currPrice = p.current_price ? `$${p.current_price.toFixed(2)}` : '--';
             const pnlPct = p.unrealized_pnl_pct !== undefined && p.unrealized_pnl_pct !== null ? p.unrealized_pnl_pct : 0;
-            const isProfit = pnlPct >= 0;
+            const pnlDollar = p.unrealized_pnl_dollar !== undefined && p.unrealized_pnl_dollar !== null ? p.unrealized_pnl_dollar : 0;
+            const isProfit = (pnlDollar !== 0) ? (pnlDollar > 0) : (pnlPct >= 0);
             const pnlClass = isProfit ? 'c-green' : 'c-red';
             const pnlSign = isProfit ? '+' : '';
             
+            const absDollar = Math.abs(pnlDollar);
+            const dollarFormatted = absDollar >= 1000 ? absDollar.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : absDollar.toFixed(2);
+            const dollarStr = (pnlDollar >= 0 ? '+$' : '-$') + dollarFormatted;
+
             let pnlDisplay = '--';
             if (p.current_price) {
               if (p.unrealized_r !== null && p.unrealized_r !== undefined) {
-                pnlDisplay = `${pnlSign}${p.unrealized_r.toFixed(1)}R (${pnlSign}${pnlPct.toFixed(1)}%)`;
+                pnlDisplay = `${dollarStr} (${pnlSign}${p.unrealized_r.toFixed(1)}R)`;
               } else {
-                pnlDisplay = `${pnlSign}${pnlPct.toFixed(1)}%`;
+                pnlDisplay = `${dollarStr} (${pnlSign}${pnlPct.toFixed(1)}%)`;
               }
             }
 
@@ -1476,6 +1481,14 @@
           });
         } else {
           posTbody.innerHTML = '<tr><td colspan="7" class="c-muted">No open active positions</td></tr>';
+        }
+
+        const algoPnlEl = document.getElementById('header-algo-pnl');
+        if (algoPnlEl) {
+          const tot = data.algo_pnl_dollar !== undefined ? data.algo_pnl_dollar : 0;
+          const s = tot >= 0 ? '+$' : '-$';
+          algoPnlEl.innerText = `${s}${Math.abs(tot).toFixed(2)}`;
+          algoPnlEl.className = tot >= 0 ? 'c-green' : 'c-red';
         }
 
         // Cache scanner data for filtering & sorting

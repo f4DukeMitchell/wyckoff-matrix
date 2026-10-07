@@ -111,8 +111,14 @@ def get_terminal_state():
     active_tickers = list(set([p['ticker'] for p in raw_positions if p.get('ticker')]))
     live_prices = get_live_prices(active_tickers) if active_tickers else {}
     
+    # Link with live broker positions from Public.com
+    broker_holdings = get_broker_portfolio_positions()
+    broker_map = {bh['ticker'].upper(): bh for bh in broker_holdings}
+
     active_positions = []
     tracked_tickers = set()
+    total_algo_pnl_dollar = 0.0
+
     for pos in raw_positions:
         ticker = pos.get('ticker')
         tracked_tickers.add(ticker.upper())
@@ -122,23 +128,33 @@ def get_terminal_state():
         is_long = (pos.get('direction') or 'LONG').upper() == 'LONG'
         curr_price = live_prices.get(ticker)
         
+        # Pull broker quantity and market value
+        bh = broker_map.get(ticker.upper())
+        qty = float(bh.get('quantity') or 0.0) if bh else 0.0
+        pos['quantity'] = qty
+        pos['market_value'] = float(bh.get('market_value') or 0.0) if bh else 0.0
+
         pos['current_price'] = curr_price
         if curr_price and entry > 0:
             pnl_pct = ((curr_price - entry) / entry * 100.0) if is_long else ((entry - curr_price) / entry * 100.0)
             risk = abs(entry - init_sl) if (init_sl > 0 and abs(entry - init_sl) > 0.001) else (abs(entry - sl) if (sl > 0 and abs(entry - sl) > 0.001) else entry * 0.015)
             r_mult = ((curr_price - entry) / risk) if (is_long and risk > 0) else (((entry - curr_price) / risk) if risk > 0 else 0.0)
+            dollar_pnl = ((curr_price - entry) * qty) if is_long else ((entry - curr_price) * qty)
             pos['unrealized_pnl_pct'] = round(pnl_pct, 2)
             pos['unrealized_r'] = round(r_mult, 2)
+            pos['unrealized_pnl_dollar'] = round(dollar_pnl, 2)
+            total_algo_pnl_dollar += dollar_pnl
         else:
             pos['unrealized_pnl_pct'] = 0.0
             pos['unrealized_r'] = 0.0
+            pos['unrealized_pnl_dollar'] = 0.0
         active_positions.append(pos)
 
-    # Ingest ALL live broker holdings from Public.com (even if not initiated by algo)
-    broker_holdings = get_broker_portfolio_positions()
+    # Ingest non-algo long-term broker holdings from Public.com
     for bh in broker_holdings:
         sym = bh['ticker'].upper()
         if sym not in tracked_tickers:
+            dollar_pnl = (bh['current_price'] - bh['entry_price']) * bh['quantity'] if bh['direction'] == 'LONG' else (bh['entry_price'] - bh['current_price']) * bh['quantity']
             active_positions.append({
                 'id': None,
                 'ticker': sym,
@@ -152,6 +168,7 @@ def get_terminal_state():
                 'user_active': 1,
                 'outcome': 'OPEN',
                 'unrealized_pnl_pct': bh['unrealized_pnl_pct'],
+                'unrealized_pnl_dollar': round(dollar_pnl, 2),
                 'unrealized_r': None,
                 'quantity': bh['quantity'],
                 'market_value': bh['market_value'],
@@ -188,6 +205,7 @@ def get_terminal_state():
         "timestamp": datetime.datetime.now().strftime("%H:%M:%S"),
         "capital": cap,
         "test_allocation_1pct": calculate_test_allocation(0.01),
+        "algo_pnl_dollar": round(total_algo_pnl_dollar, 2),
         "positions": active_positions,
         "scanner": scanner_results,
         "history": history
