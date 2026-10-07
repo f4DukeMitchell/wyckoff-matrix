@@ -502,6 +502,64 @@ def get_ml_overview():
     tot_wins = tot_wins or 0
     overall_win_rate = (tot_wins / tot_trades * 100.0) if tot_trades else 0.0
 
+    # Comprehensive Win/Loss record breakdown
+    c.execute("""
+        SELECT 
+            COUNT(id) as total,
+            SUM(CASE WHEN outcome = 'WIN' THEN 1 ELSE 0 END) as wins,
+            SUM(CASE WHEN outcome = 'LOSS' THEN 1 ELSE 0 END) as losses,
+            SUM(CASE WHEN outcome = 'BREAKEVEN' THEN 1 ELSE 0 END) as be,
+            COALESCE(SUM(pnl_r), 0.0) as net_r,
+            COALESCE(AVG(CASE WHEN outcome = 'WIN' THEN pnl_r END), 0.0) as avg_win_r,
+            COALESCE(AVG(CASE WHEN outcome = 'LOSS' THEN pnl_r END), 0.0) as avg_loss_r
+        FROM alerts WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN')
+    """)
+    row_overall = dict(c.fetchone() or {})
+    tot = row_overall.get('total') or 0
+    wins = row_overall.get('wins') or 0
+    row_overall['win_rate'] = round((wins / tot * 100.0), 1) if tot > 0 else 0.0
+    row_overall['net_r'] = round(float(row_overall.get('net_r') or 0.0), 2)
+    row_overall['avg_win_r'] = round(float(row_overall.get('avg_win_r') or 0.0), 2)
+    row_overall['avg_loss_r'] = round(float(row_overall.get('avg_loss_r') or 0.0), 2)
+
+    c.execute("""
+        SELECT 
+            direction,
+            COUNT(id) as total,
+            SUM(CASE WHEN outcome = 'WIN' THEN 1 ELSE 0 END) as wins,
+            SUM(CASE WHEN outcome = 'LOSS' THEN 1 ELSE 0 END) as losses,
+            COALESCE(SUM(pnl_r), 0.0) as net_r
+        FROM alerts WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN')
+        GROUP BY direction
+    """)
+    wl_by_dir = {}
+    for r in c.fetchall():
+        d = dict(r)
+        d_tot = d.get('total') or 0
+        d_win = d.get('wins') or 0
+        d['win_rate'] = round((d_win / d_tot * 100.0), 1) if d_tot > 0 else 0.0
+        d['net_r'] = round(float(d.get('net_r') or 0.0), 2)
+        wl_by_dir[d['direction']] = d
+
+    c.execute("""
+        SELECT 
+            timeframe,
+            COUNT(id) as total,
+            SUM(CASE WHEN outcome = 'WIN' THEN 1 ELSE 0 END) as wins,
+            SUM(CASE WHEN outcome = 'LOSS' THEN 1 ELSE 0 END) as losses,
+            COALESCE(SUM(pnl_r), 0.0) as net_r
+        FROM alerts WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN')
+        GROUP BY timeframe
+    """)
+    wl_by_tf = {}
+    for r in c.fetchall():
+        d = dict(r)
+        tf_tot = d.get('total') or 0
+        tf_win = d.get('wins') or 0
+        d['win_rate'] = round((tf_win / tf_tot * 100.0), 1) if tf_tot > 0 else 0.0
+        d['net_r'] = round(float(d.get('net_r') or 0.0), 2)
+        wl_by_tf[d['timeframe']] = d
+
     conn.close()
     
     latest_dict = dict(latest) if latest else {}
@@ -531,6 +589,11 @@ def get_ml_overview():
         "history": history_rows,
         "total_corpus_trades": tot_trades,
         "overall_win_rate": round(overall_win_rate, 1),
+        "wl_breakdown": {
+            "overall": row_overall,
+            "by_direction": wl_by_dir,
+            "by_timeframe": wl_by_tf
+        },
         "scheduled_daily_evolution": "16:15 EST"
     }
 

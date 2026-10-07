@@ -394,7 +394,7 @@
 
     .ml-ribbon {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
+      grid-template-columns: repeat(6, 1fr);
       gap: 1px;
       background: var(--wsr-border);
     }
@@ -420,6 +420,44 @@
     .ml-kpi-sub {
       font-size: 9.5px;
       color: var(--wsr-dim);
+    }
+
+    /* WIN/LOSS BREAKDOWN GRID */
+    .ml-wl-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--wsr-border);
+    }
+    .ml-wl-card {
+      background: var(--wsr-panel);
+      padding: 8px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .ml-wl-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 9.5px;
+      font-weight: 700;
+      color: var(--wsr-orange);
+      border-bottom: 1px solid #1c1c1c;
+      padding-bottom: 4px;
+      letter-spacing: 0.5px;
+    }
+    .ml-wl-body {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 10px;
+    }
+    .ml-wl-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1px 0;
     }
 
     .ml-dual-pane {
@@ -700,9 +738,93 @@
         <span class="ml-kpi-sub">APPROVED LIVE SETUPS</span>
       </div>
       <div class="ml-kpi-card">
+        <span class="ml-kpi-title">LIVE W/L RECORD</span>
+        <span class="ml-kpi-val c-green" id="ml-live-wl">49W - 41L</span>
+        <span class="ml-kpi-sub" id="ml-live-winrate">54.4% WIN RATE (-20.7R)</span>
+      </div>
+      <div class="ml-kpi-card">
         <span class="ml-kpi-title">AUTO-EVOLUTION CYCLE</span>
         <span class="ml-kpi-val c-cyan" id="ml-sched-time">16:15 EST DAILY</span>
         <span class="ml-kpi-sub">POST-MARKET RETRAIN</span>
+      </div>
+    </div>
+
+    <!-- PERFORMANCE RECORD & EDGE AUDIT -->
+    <div class="ml-wl-grid">
+      <div class="ml-wl-card">
+        <div class="ml-wl-header">
+          <span>OVERALL STRATEGY RECORD</span>
+          <span class="c-green" id="wl-overall-rate-badge">54.4% WIN RATE</span>
+        </div>
+        <div class="ml-wl-body">
+          <div class="ml-wl-row">
+            <span class="c-muted">TOTAL CLOSED:</span>
+            <b class="c-white" id="wl-tot-trades">90 TRADES</b>
+          </div>
+          <div class="ml-wl-row">
+            <span class="c-muted">RECORD:</span>
+            <b class="c-white"><span class="c-green" id="wl-wins-count">49 WINS</span> / <span class="c-red" id="wl-losses-count">41 LOSSES</span></b>
+          </div>
+          <div class="ml-wl-row">
+            <span class="c-muted">AVG WIN / LOSS:</span>
+            <b class="c-white"><span class="c-green" id="wl-avg-win">+0.59R</span> / <span class="c-red" id="wl-avg-loss">-1.21R</span></b>
+          </div>
+          <div class="ml-wl-row">
+            <span class="c-muted">NET REALIZED R:</span>
+            <b class="c-yellow" id="wl-net-r">-20.66R</b>
+          </div>
+        </div>
+      </div>
+
+      <div class="ml-wl-card">
+        <div class="ml-wl-header">
+          <span>DIRECTIONAL EDGE (LONGS vs SHORTS)</span>
+          <span class="c-yellow">PHASE C REVERSALS</span>
+        </div>
+        <div class="ml-wl-body">
+          <div class="ml-wl-row">
+            <span class="c-green">🟢 LONGS (SPRINGS):</span>
+            <b class="c-white" id="wl-long-record">43W - 30L</b>
+            <span class="c-green" id="wl-long-rate">58.9%</span>
+            <span class="c-muted" id="wl-long-r">(-12.34R)</span>
+          </div>
+          <div class="ml-wl-row">
+            <span class="c-red">🔴 SHORTS (UTADS):</span>
+            <b class="c-white" id="wl-short-record">6W - 11L</b>
+            <span class="c-yellow" id="wl-short-rate">35.3%</span>
+            <span class="c-muted" id="wl-short-r">(-8.32R)</span>
+          </div>
+          <div class="ml-wl-row" style="margin-top: 4px; font-size: 9px; color: #888;">
+            * Longs exhibit higher structural stability; Shorts require tight dynamic stop ratchet.
+          </div>
+        </div>
+      </div>
+
+      <div class="ml-wl-card">
+        <div class="ml-wl-header">
+          <span>TIMEFRAME PERFORMANCE</span>
+          <span class="c-cyan">TIME CLUSTERS</span>
+        </div>
+        <div class="ml-wl-body">
+          <div class="ml-wl-row">
+            <span class="c-yellow">5M SCALP:</span>
+            <b class="c-white" id="wl-5m-record">31W - 20L</b>
+            <span class="c-green" id="wl-5m-rate">60.8% WIN</span>
+            <span class="c-muted" id="wl-5m-r">(-7.33R)</span>
+          </div>
+          <div class="ml-wl-row">
+            <span class="c-cyan">15M SWING:</span>
+            <b class="c-white" id="wl-15m-record">11W - 10L</b>
+            <span class="c-green" id="wl-15m-rate">52.4% WIN</span>
+            <span class="c-muted" id="wl-15m-r">(-6.41R)</span>
+          </div>
+          <div class="ml-wl-row">
+            <span class="c-muted">1H MACRO:</span>
+            <b class="c-white" id="wl-1h-record">7W - 11L</b>
+            <span class="c-red" id="wl-1h-rate">38.9% WIN</span>
+            <span class="c-muted" id="wl-1h-r">(-6.92R)</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1369,6 +1491,79 @@
         const oosR = champ.realized_net_r !== undefined ? (champ.realized_net_r >= 0 ? '+' : '') + champ.realized_net_r.toFixed(2) + 'R' : '+2.32R';
         document.getElementById('ml-oos-winrate').innerText = `${oosWin}% (${oosR})`;
         document.getElementById('ml-sched-time').innerText = `${data.scheduled_daily_evolution || '16:15 EST'} DAILY`;
+
+        // Render Win/Loss breakdown
+        if (data.wl_breakdown) {
+          const wl = data.wl_breakdown;
+          const ov = wl.overall || {};
+          const byDir = wl.by_direction || {};
+          const byTF = wl.by_timeframe || {};
+
+          // Ribbon card
+          const liveWLEl = document.getElementById('ml-live-wl');
+          if (liveWLEl) liveWLEl.innerText = `${ov.wins || 0}W - ${ov.losses || 0}L`;
+          const liveWinRateEl = document.getElementById('ml-live-winrate');
+          if (liveWinRateEl) liveWinRateEl.innerText = `${ov.win_rate || 0}% WIN RATE (${(ov.net_r || 0) >= 0 ? '+' : ''}${(ov.net_r || 0).toFixed(2)}R)`;
+
+          // Overall card
+          const ovBadge = document.getElementById('wl-overall-rate-badge');
+          if (ovBadge) ovBadge.innerText = `${ov.win_rate || 0}% WIN RATE`;
+          const totTradesEl = document.getElementById('wl-tot-trades');
+          if (totTradesEl) totTradesEl.innerText = `${ov.total || 0} TRADES`;
+          const winsCountEl = document.getElementById('wl-wins-count');
+          if (winsCountEl) winsCountEl.innerText = `${ov.wins || 0} WINS`;
+          const lossesCountEl = document.getElementById('wl-losses-count');
+          if (lossesCountEl) lossesCountEl.innerText = `${ov.losses || 0} LOSSES`;
+          const avgWinEl = document.getElementById('wl-avg-win');
+          if (avgWinEl) avgWinEl.innerText = `+${(ov.avg_win_r || 0).toFixed(2)}R`;
+          const avgLossEl = document.getElementById('wl-avg-loss');
+          if (avgLossEl) avgLossEl.innerText = `${(ov.avg_loss_r || 0).toFixed(2)}R`;
+          const netREl = document.getElementById('wl-net-r');
+          if (netREl) netREl.innerText = `${(ov.net_r || 0) >= 0 ? '+' : ''}${(ov.net_r || 0).toFixed(2)}R`;
+
+          // Direction card
+          const lData = byDir['LONG'] || {};
+          const sData = byDir['SHORT'] || {};
+          const lRec = document.getElementById('wl-long-record');
+          if (lRec) lRec.innerText = `${lData.wins || 0}W - ${lData.losses || 0}L`;
+          const lRate = document.getElementById('wl-long-rate');
+          if (lRate) lRate.innerText = `${lData.win_rate || 0}%`;
+          const lR = document.getElementById('wl-long-r');
+          if (lR) lR.innerText = `(${(lData.net_r || 0) >= 0 ? '+' : ''}${(lData.net_r || 0).toFixed(2)}R)`;
+
+          const sRec = document.getElementById('wl-short-record');
+          if (sRec) sRec.innerText = `${sData.wins || 0}W - ${sData.losses || 0}L`;
+          const sRate = document.getElementById('wl-short-rate');
+          if (sRate) sRate.innerText = `${sData.win_rate || 0}%`;
+          const sR = document.getElementById('wl-short-r');
+          if (sR) sR.innerText = `(${(sData.net_r || 0) >= 0 ? '+' : ''}${(sData.net_r || 0).toFixed(2)}R)`;
+
+          // Timeframe card
+          const d5 = byTF['5m'] || {};
+          const d15 = byTF['15m'] || {};
+          const d1h = byTF['1h'] || {};
+
+          const tf5Rec = document.getElementById('wl-5m-record');
+          if (tf5Rec) tf5Rec.innerText = `${d5.wins || 0}W - ${d5.losses || 0}L`;
+          const tf5Rate = document.getElementById('wl-5m-rate');
+          if (tf5Rate) tf5Rate.innerText = `${d5.win_rate || 0}% WIN`;
+          const tf5R = document.getElementById('wl-5m-r');
+          if (tf5R) tf5R.innerText = `(${(d5.net_r || 0) >= 0 ? '+' : ''}${(d5.net_r || 0).toFixed(2)}R)`;
+
+          const tf15Rec = document.getElementById('wl-15m-record');
+          if (tf15Rec) tf15Rec.innerText = `${d15.wins || 0}W - ${d15.losses || 0}L`;
+          const tf15Rate = document.getElementById('wl-15m-rate');
+          if (tf15Rate) tf15Rate.innerText = `${d15.win_rate || 0}% WIN`;
+          const tf15R = document.getElementById('wl-15m-r');
+          if (tf15R) tf15R.innerText = `(${(d15.net_r || 0) >= 0 ? '+' : ''}${(d15.net_r || 0).toFixed(2)}R)`;
+
+          const tf1hRec = document.getElementById('wl-1h-record');
+          if (tf1hRec) tf1hRec.innerText = `${d1h.wins || 0}W - ${d1h.losses || 0}L`;
+          const tf1hRate = document.getElementById('wl-1h-rate');
+          if (tf1hRate) tf1hRate.innerText = `${d1h.win_rate || 0}% WIN`;
+          const tf1hR = document.getElementById('wl-1h-r');
+          if (tf1hR) tf1hR.innerText = `(${(d1h.net_r || 0) >= 0 ? '+' : ''}${(d1h.net_r || 0).toFixed(2)}R)`;
+        }
 
         // Render feature bars
         const featContainer = document.getElementById('ml-feature-bars');
