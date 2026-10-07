@@ -54,6 +54,7 @@ def init_db():
             ("breakeven_set", "INTEGER DEFAULT 0"),
             ("model_version", "TEXT DEFAULT 'v1.0'"),
             ("ml_confidence", "REAL DEFAULT NULL"),
+            ("initial_stop_loss", "REAL DEFAULT NULL"),
         ]
         for col_name, col_type in new_cols:
             try: cursor.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")
@@ -138,12 +139,12 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
             INSERT INTO alerts (ticker, direction, entry_price, stop_loss, take_profit, regime,
                                 timestamp, pcr, sentiment, timeframe, bars_in_regime,
                                 vwap_distance, hour_of_day, spy_bullish, atr_expansion,
-                                bid_ask_ratio, spread_width_pct, implied_volatility, model_version, ml_confidence)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                bid_ask_ratio, spread_width_pct, implied_volatility, model_version, ml_confidence, initial_stop_loss)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (ticker, direction, entry_price, stop_loss, take_profit, regime,
               timestamp, pcr, sentiment, timeframe, bars_in_regime,
               vwap_distance, hour_of_day, 1 if spy_bullish else 0 if spy_bullish is not None else None,
-              atr_expansion, bid_ask_ratio, spread_width_pct, implied_volatility, active_version, ml_confidence))
+              atr_expansion, bid_ask_ratio, spread_width_pct, implied_volatility, active_version, ml_confidence, stop_loss))
         conn.commit()
         last_id = cursor.lastrowid
         return last_id
@@ -220,14 +221,20 @@ def check_open_trades():
 
             # --- Feature 1: Breakeven Stop Ratchet (+0.75R) ---
             if outcome == 'OPEN':
-                b_set = trade['breakeven_set'] if 'breakeven_set' in trade.keys() else 0
+                b_set = trade.get('breakeven_set', 0) if isinstance(trade, dict) else (trade['breakeven_set'] if 'breakeven_set' in trade.keys() else 0)
                 if not b_set:
-                    init_risk = abs(entry_price - stop_loss)
+                    init_sl = trade.get('initial_stop_loss') if isinstance(trade, dict) else (trade['initial_stop_loss'] if 'initial_stop_loss' in trade.keys() else None)
+                    init_risk = abs(entry_price - (init_sl or stop_loss))
+                    if init_risk <= 0.0001:
+                        init_risk = abs(take_profit - entry_price) / 1.5 if abs(take_profit - entry_price) > 0 else 0.01
                     curr_gain = (price - entry_price) if direction == 'LONG' else (entry_price - price)
                     curr_r = (curr_gain / init_risk) if init_risk > 0 else 0
                     if curr_r >= 0.75:
                         cursor.execute("UPDATE alerts SET stop_loss = ?, breakeven_set = 1 WHERE id = ?", (entry_price, trade_id))
                         conn.commit()
+                        trade = dict(trade)
+                        trade['breakeven_set'] = 1
+                        trade['stop_loss'] = entry_price
                         closed_trades.append({
                             'id': trade_id,
                             'ticker': ticker,
@@ -236,22 +243,31 @@ def check_open_trades():
                             'current_r': curr_r,
                             'is_breakeven': True,
                             'outcome': 'BREAKEVEN_SET',
-                            'user_active': trade['user_active'] if 'user_active' in trade.keys() else 0,
-                            'telegram_alerted': trade['telegram_alerted'] if 'telegram_alerted' in trade.keys() else 0,
-                            'timeframe': trade['timeframe'] if 'timeframe' in trade.keys() else '5m'
+                            'user_active': trade.get('user_active', 0),
+                            'telegram_alerted': trade.get('telegram_alerted', 0),
+                            'timeframe': trade.get('timeframe', '5m')
                         })
                     
             if outcome != 'OPEN':
-                b_set = trade['breakeven_set'] if 'breakeven_set' in trade.keys() else 0
-                if b_set and outcome == 'LOSS':
+                b_set = trade.get('breakeven_set', 0) if isinstance(trade, dict) else (trade['breakeven_set'] if 'breakeven_set' in trade.keys() else 0)
+                is_be_level = abs(stop_loss - entry_price) < 0.001
+
+                # Derive initial risk safely so pnl_r never divides by 0 or collapses to 0 on WIN
+                init_sl = trade.get('initial_stop_loss') if isinstance(trade, dict) else (trade['initial_stop_loss'] if 'initial_stop_loss' in trade.keys() else None)
+                if not init_sl or abs(init_sl - entry_price) < 0.001:
+                    init_risk = abs(take_profit - entry_price) / 1.5 if abs(take_profit - entry_price) > 0 else 0.01
+                else:
+                    init_risk = abs(entry_price - init_sl)
+                if init_risk <= 0.0001:
+                    init_risk = max(0.01, abs(entry_price * 0.01))
+
+                if (b_set or is_be_level) and outcome == 'LOSS':
                     outcome = 'BREAKEVEN'
                     pnl_r = 0.0
-                elif direction == 'LONG':
-                    risk = entry_price - stop_loss
-                    pnl_r = (exit_price - entry_price) / risk if risk != 0 else 0
+                elif outcome == 'WIN':
+                    pnl_r = round(abs(exit_price - entry_price) / init_risk, 2)
                 else:
-                    risk = stop_loss - entry_price
-                    pnl_r = (entry_price - exit_price) / risk if risk != 0 else 0
+                    pnl_r = -round(abs(exit_price - entry_price) / init_risk, 2)
                     
                 cursor.execute('''
                     UPDATE alerts
@@ -337,8 +353,10 @@ def get_stats(model_version=None):
         'total_trades': 0,
         'wins': 0,
         'losses': 0,
+        'breakevens': 0,
         'open_count': 0,
         'win_rate': 0.0,
+        'directional_win_rate': 0.0,
         'avg_pnl_r': 0.0,
         'net_pnl_r': 0.0,
         'best_trade': None,
@@ -363,14 +381,21 @@ def get_stats(model_version=None):
         l_clause = f"WHERE outcome = 'LOSS' AND model_version = ?" if model_version else "WHERE outcome = 'LOSS'"
         cursor.execute(f"SELECT COUNT(*) as count FROM alerts {l_clause}", params)
         stats['losses'] = cursor.fetchone()['count']
+
+        be_clause = f"WHERE outcome = 'BREAKEVEN' AND model_version = ?" if model_version else "WHERE outcome = 'BREAKEVEN'"
+        cursor.execute(f"SELECT COUNT(*) as count FROM alerts {be_clause}", params)
+        stats['breakevens'] = cursor.fetchone()['count']
         
         o_clause = f"WHERE outcome = 'OPEN' AND model_version = ?" if model_version else "WHERE outcome = 'OPEN'"
         cursor.execute(f"SELECT COUNT(*) as count FROM alerts {o_clause}", params)
         stats['open_count'] = cursor.fetchone()['count']
         
-        closed_count = stats['wins'] + stats['losses']
-        if closed_count > 0:
-            stats['win_rate'] = (stats['wins'] / closed_count) * 100
+        decisive_count = stats['wins'] + stats['losses']
+        total_closed = decisive_count + stats['breakevens']
+        if total_closed > 0:
+            stats['win_rate'] = (stats['wins'] / total_closed) * 100
+        if decisive_count > 0:
+            stats['directional_win_rate'] = (stats['wins'] / decisive_count) * 100
             
             pnl_clause = f"WHERE pnl_r IS NOT NULL AND model_version = ?" if model_version else "WHERE pnl_r IS NOT NULL"
             cursor.execute(f"SELECT AVG(pnl_r) as avg_pnl, SUM(pnl_r) as net_pnl FROM alerts {pnl_clause}", params)

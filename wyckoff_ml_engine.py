@@ -45,14 +45,28 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
     
     try:
         conn = sqlite3.connect(DB_PATH)
-        df = pd.read_sql_query("SELECT * FROM alerts WHERE outcome != 'OPEN'", conn)
+        df = pd.read_sql_query("SELECT * FROM alerts WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN')", conn)
         
         if len(df) < 10:
             conn.close()
             return False, f"Not enough closed trade data to train (needs >= 10, currently {len(df)})."
             
+        # Ground-truth targets:
+        # Only true Take-Profit completions are WIN (target = 1).
+        # Stop-at-Breakeven scratch trades (0.0R) and full Losses (-1.0R) are target = 0.
         df['target'] = (df['outcome'] == 'WIN').astype(int)
         df['dir_num'] = (df['direction'] == 'LONG').astype(int)
+        
+        # Differentiated Sample Weights for ML:
+        # Full WIN: weight 1.0 (reinforce high-probability setup features)
+        # Full LOSS: weight 1.0 (penalize toxic failure features)
+        # BREAKEVEN: weight 0.5 (scratch trade reached +0.75R ratchet before stalling;
+        #            not a winner, but setup had positive excursion, so down-weight penalty)
+        sample_weights = df['outcome'].map({
+            'WIN': 1.0,
+            'LOSS': 1.0,
+            'BREAKEVEN': 0.5
+        }).fillna(1.0)
         
         feature_map = {
             'bars_in_regime': 'Trend Exhaustion (Bars)',
@@ -70,13 +84,22 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             
         X = clean_df[cols]
         y = clean_df['target']
+        weights = sample_weights.loc[clean_df.index]
         
-        # Train Random Forest Classifier
+        # Train Random Forest Classifier with sample weights
         rf = RandomForestClassifier(n_estimators=100, max_depth=4, random_state=42)
-        rf.fit(X, y)
+        rf.fit(X, y, sample_weight=weights)
         
         acc = float((rf.predict(X) == y).mean() * 100)
-        win_rate = float((df['outcome'] == 'WIN').mean() * 100)
+        
+        wins = int((df['outcome'] == 'WIN').sum())
+        losses = int((df['outcome'] == 'LOSS').sum())
+        breakevens = int((df['outcome'] == 'BREAKEVEN').sum())
+        total_closed = len(df)
+        
+        all_win_rate = (wins / total_closed * 100.0) if total_closed > 0 else 0.0
+        directional_win_rate = (wins / (wins + losses) * 100.0) if (wins + losses) > 0 else 0.0
+        be_rate = (breakevens / total_closed * 100.0) if total_closed > 0 else 0.0
         
         importances = {feature_map[k]: round(float(imp * 100), 1) for k, imp in zip(cols, rf.feature_importances_)}
         sorted_imp = sorted(importances.items(), key=lambda x: x[1], reverse=True)
@@ -96,9 +119,11 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
         rules = [
             f"Heavily weight {top_feat} ({sorted_imp[0][1]}% influence) on Phase C reversals",
             f"Secondary filter: {sorted_imp[1][0]} ({sorted_imp[1][1]}% influence)",
-            "Dynamic probability threshold calibrated to >65% confidence"
+            f"Breakeven Ratchet active: +0.75R triggers stop move to entry ({breakevens} scratches protected)"
         ]
         
+        notes_str = f"{trigger_reason} | {wins}W - {losses}L - {breakevens}BE (Ex-BE WR: {directional_win_rate:.1f}%, BE Rate: {be_rate:.1f}%)"
+
         # Insert Audit Record
         c.execute('''
             INSERT INTO ml_model_history 
@@ -108,12 +133,12 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             version_str,
             datetime.datetime.now().isoformat(),
             len(clean_df),
-            round(win_rate, 1),
+            round(all_win_rate, 1),
             round(acc, 1),
             top_feat,
             json.dumps(importances),
             json.dumps(rules),
-            trigger_reason
+            notes_str
         ))
         conn.commit()
         conn.close()
@@ -125,7 +150,10 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             f"• *Model Version:* `{version_str}`\n"
             f"• *Trigger:* {trigger_reason}\n"
             f"• *Training Dataset:* {len(clean_df)} Closed Trades\n"
-            f"• *Baseline Win Rate:* {win_rate:.1f}%\n"
+            f"  ▸ 🟢 Wins (Take Profit): *{wins}* ({all_win_rate:.1f}%)\n"
+            f"  ▸ 🔴 Losses (Stop Out): *{losses}*\n"
+            f"  ▸ 🛡️ Breakevens (Scratch): *{breakevens}* ({be_rate:.1f}%)\n"
+            f"• *Directional Win Rate (Ex-BE):* *{directional_win_rate:.1f}%*\n"
             f"• *Model Fitting Accuracy:* {acc:.1f}%\n\n"
             f"🏆 *Top Predictive Features:*\n"
         )
@@ -136,6 +164,7 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             f"\n🛡️ *Updated Execution Rules:*\n"
             f"  1. Prioritize setups with high {top_feat}\n"
             f"  2. Filter sub-threshold entries before Telegram alert\n"
+            f"  3. Treat Breakevens as non-winners with 0.5x sample weight\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"Audit log permanently saved to `ml_model_history`."
         )
@@ -149,4 +178,7 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
 
 if __name__ == "__main__":
     success, rep = train_and_upgrade_model("Manual CLI Invocation")
-    print("\n" + rep)
+    try:
+        print("\n" + rep)
+    except UnicodeEncodeError:
+        print("\n" + rep.encode('ascii', errors='replace').decode('ascii'))

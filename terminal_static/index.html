@@ -738,9 +738,9 @@
         <span class="ml-kpi-sub">APPROVED LIVE SETUPS</span>
       </div>
       <div class="ml-kpi-card">
-        <span class="ml-kpi-title">LIVE W/L RECORD</span>
-        <span class="ml-kpi-val c-green" id="ml-live-wl">49W - 41L</span>
-        <span class="ml-kpi-sub" id="ml-live-winrate">54.4% WIN RATE (-20.7R)</span>
+        <span class="ml-kpi-title">LIVE W/L/BE RECORD</span>
+        <span class="ml-kpi-val c-green" id="ml-live-wl">49W - 39L - 2BE</span>
+        <span class="ml-kpi-sub" id="ml-live-winrate">55.7% EX-BE (54.4% ALL)</span>
       </div>
       <div class="ml-kpi-card">
         <span class="ml-kpi-title">AUTO-EVOLUTION CYCLE</span>
@@ -754,7 +754,7 @@
       <div class="ml-wl-card">
         <div class="ml-wl-header">
           <span>OVERALL STRATEGY RECORD</span>
-          <span class="c-green" id="wl-overall-rate-badge">54.4% WIN RATE</span>
+          <span class="c-green" id="wl-overall-rate-badge">55.7% EX-BE (54.4% ALL)</span>
         </div>
         <div class="ml-wl-body">
           <div class="ml-wl-row">
@@ -762,16 +762,20 @@
             <b class="c-white" id="wl-tot-trades">90 TRADES</b>
           </div>
           <div class="ml-wl-row">
-            <span class="c-muted">RECORD:</span>
-            <b class="c-white"><span class="c-green" id="wl-wins-count">49 WINS</span> / <span class="c-red" id="wl-losses-count">41 LOSSES</span></b>
+            <span class="c-muted">OUTCOMES:</span>
+            <b class="c-white"><span class="c-green" id="wl-wins-count">49 W</span> / <span class="c-red" id="wl-losses-count">39 L</span> / <span class="c-cyan" id="wl-be-count">2 BE</span></b>
+          </div>
+          <div class="ml-wl-row">
+            <span class="c-muted">SCRATCH / BE RATE:</span>
+            <b class="c-cyan" id="wl-be-rate">2.2% (0.00R Saved)</b>
           </div>
           <div class="ml-wl-row">
             <span class="c-muted">AVG WIN / LOSS:</span>
-            <b class="c-white"><span class="c-green" id="wl-avg-win">+0.59R</span> / <span class="c-red" id="wl-avg-loss">-1.21R</span></b>
+            <b class="c-white"><span class="c-green" id="wl-avg-win">+1.02R</span> / <span class="c-red" id="wl-avg-loss">-1.28R</span></b>
           </div>
           <div class="ml-wl-row">
             <span class="c-muted">NET REALIZED R:</span>
-            <b class="c-yellow" id="wl-net-r">-20.66R</b>
+            <b class="c-yellow" id="wl-net-r">+0.35R</b>
           </div>
         </div>
       </div>
@@ -1501,19 +1505,25 @@
 
           // Ribbon card
           const liveWLEl = document.getElementById('ml-live-wl');
-          if (liveWLEl) liveWLEl.innerText = `${ov.wins || 0}W - ${ov.losses || 0}L`;
+          if (liveWLEl) liveWLEl.innerText = `${ov.wins || 0}W - ${ov.losses || 0}L - ${ov.be || 0}BE`;
           const liveWinRateEl = document.getElementById('ml-live-winrate');
-          if (liveWinRateEl) liveWinRateEl.innerText = `${ov.win_rate || 0}% WIN RATE (${(ov.net_r || 0) >= 0 ? '+' : ''}${(ov.net_r || 0).toFixed(2)}R)`;
+          const dirWR = ov.directional_win_rate || ov.win_rate || 0;
+          const allWR = ov.all_win_rate || ov.win_rate || 0;
+          if (liveWinRateEl) liveWinRateEl.innerText = `${dirWR}% EX-BE (${allWR}% ALL) [${(ov.net_r || 0) >= 0 ? '+' : ''}${(ov.net_r || 0).toFixed(2)}R]`;
 
           // Overall card
           const ovBadge = document.getElementById('wl-overall-rate-badge');
-          if (ovBadge) ovBadge.innerText = `${ov.win_rate || 0}% WIN RATE`;
+          if (ovBadge) ovBadge.innerText = `${dirWR}% EX-BE (${allWR}% ALL)`;
           const totTradesEl = document.getElementById('wl-tot-trades');
           if (totTradesEl) totTradesEl.innerText = `${ov.total || 0} TRADES`;
           const winsCountEl = document.getElementById('wl-wins-count');
-          if (winsCountEl) winsCountEl.innerText = `${ov.wins || 0} WINS`;
+          if (winsCountEl) winsCountEl.innerText = `${ov.wins || 0} W`;
           const lossesCountEl = document.getElementById('wl-losses-count');
-          if (lossesCountEl) lossesCountEl.innerText = `${ov.losses || 0} LOSSES`;
+          if (lossesCountEl) lossesCountEl.innerText = `${ov.losses || 0} L`;
+          const beCountEl = document.getElementById('wl-be-count');
+          if (beCountEl) beCountEl.innerText = `${ov.be || 0} BE`;
+          const beRateEl = document.getElementById('wl-be-rate');
+          if (beRateEl) beRateEl.innerText = `${ov.be_rate || 0}% (${ov.be || 0} Saved at 0.00R)`;
           const avgWinEl = document.getElementById('wl-avg-win');
           if (avgWinEl) avgWinEl.innerText = `+${(ov.avg_win_r || 0).toFixed(2)}R`;
           const avgLossEl = document.getElementById('wl-avg-loss');
@@ -1525,16 +1535,16 @@
           const lData = byDir['LONG'] || {};
           const sData = byDir['SHORT'] || {};
           const lRec = document.getElementById('wl-long-record');
-          if (lRec) lRec.innerText = `${lData.wins || 0}W - ${lData.losses || 0}L`;
+          if (lRec) lRec.innerText = `${lData.wins || 0}W - ${lData.losses || 0}L - ${lData.be || 0}BE`;
           const lRate = document.getElementById('wl-long-rate');
-          if (lRate) lRate.innerText = `${lData.win_rate || 0}%`;
+          if (lRate) lRate.innerText = `${lData.directional_win_rate || lData.win_rate || 0}%`;
           const lR = document.getElementById('wl-long-r');
           if (lR) lR.innerText = `(${(lData.net_r || 0) >= 0 ? '+' : ''}${(lData.net_r || 0).toFixed(2)}R)`;
 
           const sRec = document.getElementById('wl-short-record');
-          if (sRec) sRec.innerText = `${sData.wins || 0}W - ${sData.losses || 0}L`;
+          if (sRec) sRec.innerText = `${sData.wins || 0}W - ${sData.losses || 0}L - ${sData.be || 0}BE`;
           const sRate = document.getElementById('wl-short-rate');
-          if (sRate) sRate.innerText = `${sData.win_rate || 0}%`;
+          if (sRate) sRate.innerText = `${sData.directional_win_rate || sData.win_rate || 0}%`;
           const sR = document.getElementById('wl-short-r');
           if (sR) sR.innerText = `(${(sData.net_r || 0) >= 0 ? '+' : ''}${(sData.net_r || 0).toFixed(2)}R)`;
 
@@ -1544,23 +1554,23 @@
           const d1h = byTF['1h'] || {};
 
           const tf5Rec = document.getElementById('wl-5m-record');
-          if (tf5Rec) tf5Rec.innerText = `${d5.wins || 0}W - ${d5.losses || 0}L`;
+          if (tf5Rec) tf5Rec.innerText = `${d5.wins || 0}W - ${d5.losses || 0}L - ${d5.be || 0}BE`;
           const tf5Rate = document.getElementById('wl-5m-rate');
-          if (tf5Rate) tf5Rate.innerText = `${d5.win_rate || 0}% WIN`;
+          if (tf5Rate) tf5Rate.innerText = `${d5.directional_win_rate || d5.win_rate || 0}% EX-BE`;
           const tf5R = document.getElementById('wl-5m-r');
           if (tf5R) tf5R.innerText = `(${(d5.net_r || 0) >= 0 ? '+' : ''}${(d5.net_r || 0).toFixed(2)}R)`;
 
           const tf15Rec = document.getElementById('wl-15m-record');
-          if (tf15Rec) tf15Rec.innerText = `${d15.wins || 0}W - ${d15.losses || 0}L`;
+          if (tf15Rec) tf15Rec.innerText = `${d15.wins || 0}W - ${d15.losses || 0}L - ${d15.be || 0}BE`;
           const tf15Rate = document.getElementById('wl-15m-rate');
-          if (tf15Rate) tf15Rate.innerText = `${d15.win_rate || 0}% WIN`;
+          if (tf15Rate) tf15Rate.innerText = `${d15.directional_win_rate || d15.win_rate || 0}% EX-BE`;
           const tf15R = document.getElementById('wl-15m-r');
           if (tf15R) tf15R.innerText = `(${(d15.net_r || 0) >= 0 ? '+' : ''}${(d15.net_r || 0).toFixed(2)}R)`;
 
           const tf1hRec = document.getElementById('wl-1h-record');
-          if (tf1hRec) tf1hRec.innerText = `${d1h.wins || 0}W - ${d1h.losses || 0}L`;
+          if (tf1hRec) tf1hRec.innerText = `${d1h.wins || 0}W - ${d1h.losses || 0}L - ${d1h.be || 0}BE`;
           const tf1hRate = document.getElementById('wl-1h-rate');
-          if (tf1hRate) tf1hRate.innerText = `${d1h.win_rate || 0}% WIN`;
+          if (tf1hRate) tf1hRate.innerText = `${d1h.directional_win_rate || d1h.win_rate || 0}% EX-BE`;
           const tf1hR = document.getElementById('wl-1h-r');
           if (tf1hR) tf1hR.innerText = `(${(d1h.net_r || 0) >= 0 ? '+' : ''}${(d1h.net_r || 0).toFixed(2)}R)`;
         }

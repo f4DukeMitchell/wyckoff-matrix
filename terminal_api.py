@@ -502,7 +502,7 @@ def get_ml_overview():
     tot_wins = tot_wins or 0
     overall_win_rate = (tot_wins / tot_trades * 100.0) if tot_trades else 0.0
 
-    # Comprehensive Win/Loss record breakdown
+    # Comprehensive Win/Loss/Breakeven record breakdown
     c.execute("""
         SELECT 
             COUNT(id) as total,
@@ -517,7 +517,12 @@ def get_ml_overview():
     row_overall = dict(c.fetchone() or {})
     tot = row_overall.get('total') or 0
     wins = row_overall.get('wins') or 0
-    row_overall['win_rate'] = round((wins / tot * 100.0), 1) if tot > 0 else 0.0
+    losses = row_overall.get('losses') or 0
+    be = row_overall.get('be') or 0
+    row_overall['all_win_rate'] = round((wins / tot * 100.0), 1) if tot > 0 else 0.0
+    row_overall['directional_win_rate'] = round((wins / (wins + losses) * 100.0), 1) if (wins + losses) > 0 else 0.0
+    row_overall['be_rate'] = round((be / tot * 100.0), 1) if tot > 0 else 0.0
+    row_overall['win_rate'] = row_overall['all_win_rate']
     row_overall['net_r'] = round(float(row_overall.get('net_r') or 0.0), 2)
     row_overall['avg_win_r'] = round(float(row_overall.get('avg_win_r') or 0.0), 2)
     row_overall['avg_loss_r'] = round(float(row_overall.get('avg_loss_r') or 0.0), 2)
@@ -528,6 +533,7 @@ def get_ml_overview():
             COUNT(id) as total,
             SUM(CASE WHEN outcome = 'WIN' THEN 1 ELSE 0 END) as wins,
             SUM(CASE WHEN outcome = 'LOSS' THEN 1 ELSE 0 END) as losses,
+            SUM(CASE WHEN outcome = 'BREAKEVEN' THEN 1 ELSE 0 END) as be,
             COALESCE(SUM(pnl_r), 0.0) as net_r
         FROM alerts WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN')
         GROUP BY direction
@@ -537,7 +543,10 @@ def get_ml_overview():
         d = dict(r)
         d_tot = d.get('total') or 0
         d_win = d.get('wins') or 0
-        d['win_rate'] = round((d_win / d_tot * 100.0), 1) if d_tot > 0 else 0.0
+        d_loss = d.get('losses') or 0
+        d['all_win_rate'] = round((d_win / d_tot * 100.0), 1) if d_tot > 0 else 0.0
+        d['directional_win_rate'] = round((d_win / (d_win + d_loss) * 100.0), 1) if (d_win + d_loss) > 0 else 0.0
+        d['win_rate'] = d['all_win_rate']
         d['net_r'] = round(float(d.get('net_r') or 0.0), 2)
         wl_by_dir[d['direction']] = d
 
@@ -547,6 +556,7 @@ def get_ml_overview():
             COUNT(id) as total,
             SUM(CASE WHEN outcome = 'WIN' THEN 1 ELSE 0 END) as wins,
             SUM(CASE WHEN outcome = 'LOSS' THEN 1 ELSE 0 END) as losses,
+            SUM(CASE WHEN outcome = 'BREAKEVEN' THEN 1 ELSE 0 END) as be,
             COALESCE(SUM(pnl_r), 0.0) as net_r
         FROM alerts WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN')
         GROUP BY timeframe
@@ -556,7 +566,10 @@ def get_ml_overview():
         d = dict(r)
         tf_tot = d.get('total') or 0
         tf_win = d.get('wins') or 0
-        d['win_rate'] = round((tf_win / tf_tot * 100.0), 1) if tf_tot > 0 else 0.0
+        tf_loss = d.get('losses') or 0
+        d['all_win_rate'] = round((tf_win / tf_tot * 100.0), 1) if tf_tot > 0 else 0.0
+        d['directional_win_rate'] = round((tf_win / (tf_win + tf_loss) * 100.0), 1) if (tf_win + tf_loss) > 0 else 0.0
+        d['win_rate'] = d['all_win_rate']
         d['net_r'] = round(float(d.get('net_r') or 0.0), 2)
         wl_by_tf[d['timeframe']] = d
 

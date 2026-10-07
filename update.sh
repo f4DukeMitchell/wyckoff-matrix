@@ -21,6 +21,13 @@ if [ "$LOCAL" != "$REMOTE" ]; then
         venv/bin/pip install -r requirements.txt --quiet
     fi
     
+    # Run database schema migration & outcome calibration
+    if [ -f venv/bin/python ]; then
+        venv/bin/python migrate_db.py
+    elif command -v python3 &>/dev/null; then
+        python3 migrate_db.py
+    fi
+    
     # Restart the bot and terminal services
     sudo systemctl restart wyckoff-bot.service
     sudo systemctl restart wyckoff-terminal.service
