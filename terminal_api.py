@@ -8,7 +8,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 
-from public_executor import get_account_capital_summary, calculate_test_allocation, execute_dollar_buy, execute_short_sell, execute_exit_sell, get_live_prices
+from public_executor import (
+    get_account_capital_summary, calculate_test_allocation, execute_dollar_buy,
+    execute_short_sell, execute_exit_sell, get_live_prices, get_broker_portfolio_positions
+)
 from data_feed_public import get_public_bars_sync
 from options_flow import get_options_flow, get_public_quotes
 
@@ -49,7 +52,7 @@ def get_terminal_state():
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
     
-    # Active user trades
+    # Active user trades (tracked by Wyckoff algo)
     c.execute("""
         SELECT id, ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe, timestamp, user_active, outcome, pnl_r, breakeven_set
         FROM alerts
@@ -61,8 +64,10 @@ def get_terminal_state():
     live_prices = get_live_prices(active_tickers) if active_tickers else {}
     
     active_positions = []
+    tracked_tickers = set()
     for pos in raw_positions:
         ticker = pos.get('ticker')
+        tracked_tickers.add(ticker.upper())
         entry = float(pos.get('entry_price') or 0.0)
         sl = float(pos.get('stop_loss') or 0.0)
         is_long = (pos.get('direction') or 'LONG').upper() == 'LONG'
@@ -79,6 +84,30 @@ def get_terminal_state():
             pos['unrealized_pnl_pct'] = 0.0
             pos['unrealized_r'] = 0.0
         active_positions.append(pos)
+
+    # Ingest ALL live broker holdings from Public.com (even if not initiated by algo)
+    broker_holdings = get_broker_portfolio_positions()
+    for bh in broker_holdings:
+        sym = bh['ticker'].upper()
+        if sym not in tracked_tickers:
+            active_positions.append({
+                'id': None,
+                'ticker': sym,
+                'direction': bh['direction'],
+                'entry_price': bh['entry_price'],
+                'current_price': bh['current_price'],
+                'stop_loss': 0.0,
+                'take_profit': 0.0,
+                'timeframe': 'PORT',
+                'regime': 'PORTFOLIO',
+                'user_active': 1,
+                'outcome': 'OPEN',
+                'unrealized_pnl_pct': bh['unrealized_pnl_pct'],
+                'unrealized_r': None,
+                'quantity': bh['quantity'],
+                'market_value': bh['market_value'],
+                'is_broker_native': True
+            })
     
     # Recent scanner signals (distinct latest setup per ticker & timeframe)
     c.execute("""

@@ -1376,22 +1376,33 @@
           data.positions.forEach(p => {
             const isLong = p.direction === 'LONG';
             const currPrice = p.current_price ? `$${p.current_price.toFixed(2)}` : '--';
-            const pnlR = p.unrealized_r !== undefined && p.unrealized_r !== null ? p.unrealized_r : 0;
             const pnlPct = p.unrealized_pnl_pct !== undefined && p.unrealized_pnl_pct !== null ? p.unrealized_pnl_pct : 0;
-            const isProfit = pnlR >= 0;
+            const isProfit = pnlPct >= 0;
             const pnlClass = isProfit ? 'c-green' : 'c-red';
             const pnlSign = isProfit ? '+' : '';
-            const pnlDisplay = p.current_price ? `${pnlSign}${pnlR.toFixed(2)}R (${pnlSign}${pnlPct.toFixed(1)}%)` : '--';
+            
+            let pnlDisplay = '--';
+            if (p.current_price) {
+              if (p.unrealized_r !== null && p.unrealized_r !== undefined) {
+                pnlDisplay = `${pnlSign}${p.unrealized_r.toFixed(2)}R (${pnlSign}${pnlPct.toFixed(1)}%)`;
+              } else {
+                // Broker holding without R-metric
+                pnlDisplay = `${pnlSign}${pnlPct.toFixed(1)}%`;
+              }
+            }
+
+            const targetDisplay = p.take_profit && p.take_profit > 0 ? `$${p.take_profit.toFixed(2)}` : (p.is_broker_native ? '<span class="c-muted">HOLD</span>' : '--');
+            const exitCall = p.id ? `executeExit('${p.ticker}', ${p.id})` : `executeExit('${p.ticker}', null)`;
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
-              <td class="c-cyan" onclick="loadChartData('${p.ticker}', '5m')"><b>${p.ticker}</b></td>
+              <td class="c-cyan" onclick="loadChartData('${p.ticker}', '5m')"><b>${p.ticker}</b> ${p.is_broker_native ? '<span style="font-size:8px; color:var(--wsr-yellow);">[PUB]</span>' : ''}</td>
               <td class="${isLong ? 'c-green' : 'c-red'}">${p.direction}</td>
               <td>$${p.entry_price ? p.entry_price.toFixed(2) : '--'}</td>
               <td><b class="c-white">${currPrice}</b></td>
               <td class="${pnlClass}"><b>${pnlDisplay}</b></td>
-              <td>$${p.take_profit ? p.take_profit.toFixed(2) : '--'}</td>
-              <td><button class="term-btn term-btn-exit" onclick="executeExit('${p.ticker}', ${p.id})">EXIT</button></td>
+              <td>${targetDisplay}</td>
+              <td><button class="term-btn term-btn-exit" onclick="${exitCall}">EXIT</button></td>
             `;
             posTbody.appendChild(tr);
           });

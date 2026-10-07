@@ -53,6 +53,50 @@ def get_account_capital_summary():
         'account_id': acc_id
     }
 
+def get_broker_portfolio_positions():
+    """
+    Retrieves all open holdings directly from Public.com broker account
+    (including non-algo positions like manual holdings or long-term investments).
+    """
+    try:
+        client = get_client()
+        acc_id = get_account_id()
+        port = client.get_portfolio(account_id=acc_id)
+        positions = []
+        for p in (port.positions or []):
+            sym = p.instrument.symbol if hasattr(p, 'instrument') else None
+            if not sym: continue
+            qty = float(p.quantity or 0.0)
+            if qty == 0: continue
+
+            # Direction & entry
+            direction = "SHORT" if qty < 0 else "LONG"
+            unit_cost = float(p.cost_basis.unit_cost) if (p.cost_basis and p.cost_basis.unit_cost) else 0.0
+            last_pr = float(p.last_price.last_price) if (p.last_price and p.last_price.last_price) else 0.0
+            curr_val = float(p.current_value) if p.current_value else (abs(qty) * last_pr)
+            
+            # PnL percentage
+            pnl_pct = 0.0
+            if unit_cost > 0 and last_pr > 0:
+                pnl_pct = ((last_pr - unit_cost) / unit_cost * 100.0) if direction == "LONG" else ((unit_cost - last_pr) / unit_cost * 100.0)
+            elif p.cost_basis and p.cost_basis.gain_percentage:
+                pnl_pct = float(p.cost_basis.gain_percentage)
+
+            positions.append({
+                'ticker': sym.upper(),
+                'direction': direction,
+                'quantity': abs(qty),
+                'entry_price': unit_cost,
+                'current_price': last_pr,
+                'market_value': curr_val,
+                'unrealized_pnl_pct': round(pnl_pct, 2),
+                'is_broker_native': True
+            })
+        return positions
+    except Exception as e:
+        print(f"Error fetching broker portfolio positions: {e}")
+        return []
+
 def calculate_test_allocation(pct=0.01, min_amount=5.0, max_amount=150.0):
     """
     Calculates 1% test sizing based on available Buying Power (e.g. 1% of $6,770.20 = $67.70).
