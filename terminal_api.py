@@ -728,6 +728,11 @@ def trigger_system_update():
         pull_res = subprocess.run([git_bin, "pull", "origin", "main"], capture_output=True, text=True, timeout=30, env=env)
         py_exe = sys.executable or shutil.which("python3") or "python3"
         mig_res = subprocess.run([py_exe, "migrate_db.py"], capture_output=True, text=True, timeout=30, env=env)
+
+        # Trigger background service reload so uvicorn loads new python code into memory
+        if os.name != 'nt':
+            subprocess.Popen(["bash", "-c", "sleep 1 && sudo systemctl restart wyckoff-terminal.service wyckoff-bot.service"])
+
         return {
             "success": True,
             "git_output": (pull_res.stdout + "\n" + pull_res.stderr).strip(),
