@@ -55,6 +55,8 @@ def init_db():
             ("model_version", "TEXT DEFAULT 'v1.0'"),
             ("ml_confidence", "REAL DEFAULT NULL"),
             ("initial_stop_loss", "REAL DEFAULT NULL"),
+            ("effort_vs_result", "REAL DEFAULT 1.0"),
+            ("test_vol_ratio", "REAL DEFAULT 1.0"),
         ]
         for col_name, col_type in new_cols:
             try: cursor.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")
@@ -81,11 +83,11 @@ def get_ml_model():
         print(f"Error loading wyckoff_model.pkl: {e}")
     return None
 
-def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_of_day, direction):
+def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_of_day, direction, effort_vs_result=1.0, test_vol_ratio=1.0):
     """
     Computes real machine learning win probability (0.0 to 100.0%)
     using the trained Random Forest model.
-    Features: ['bars_in_regime', 'vwap_distance', 'atr_expansion', 'hour_of_day', 'dir_num']
+    Features: ['bars_in_regime', 'vwap_distance', 'atr_expansion', 'hour_of_day', 'dir_num', 'effort_vs_result', 'test_vol_ratio']
     """
     model = get_ml_model()
     dir_num = 1 if (direction or "").upper() == "LONG" else 0
@@ -93,17 +95,25 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
     v_dist = float(vwap_distance or 0.0)
     a_exp = float(atr_expansion or 1.0)
     h_day = float(hour_of_day or 10.0)
+    evr = float(effort_vs_result if effort_vs_result is not None else 1.0)
+    tvr = float(test_vol_ratio if test_vol_ratio is not None else 1.0)
 
     if model is not None:
         try:
             import pandas as pd
-            features = pd.DataFrame([{
+            feat_dict = {
                 'bars_in_regime': b_reg,
                 'vwap_distance': v_dist,
                 'atr_expansion': a_exp,
                 'hour_of_day': h_day,
-                'dir_num': dir_num
-            }])
+                'dir_num': dir_num,
+                'effort_vs_result': evr,
+                'test_vol_ratio': tvr
+            }
+            if hasattr(model, 'feature_names_in_'):
+                features = pd.DataFrame([{col: feat_dict.get(col, 1.0) for col in model.feature_names_in_}])
+            else:
+                features = pd.DataFrame([feat_dict])
             # Probability of target == 1 (WIN)
             prob = model.predict_proba(features)[0][1] * 100.0
             return round(float(prob), 1)
@@ -129,7 +139,7 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
               timeframe='5m', pcr=None, sentiment=None, bars_in_regime=0,
               vwap_distance=None, hour_of_day=None, spy_bullish=None, atr_expansion=None,
               bid_ask_ratio=None, spread_width_pct=None, implied_volatility=None, model_version=None,
-              ml_confidence=None):
+              ml_confidence=None, effort_vs_result=None, test_vol_ratio=None):
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -139,12 +149,14 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
             INSERT INTO alerts (ticker, direction, entry_price, stop_loss, take_profit, regime,
                                 timestamp, pcr, sentiment, timeframe, bars_in_regime,
                                 vwap_distance, hour_of_day, spy_bullish, atr_expansion,
-                                bid_ask_ratio, spread_width_pct, implied_volatility, model_version, ml_confidence, initial_stop_loss)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                bid_ask_ratio, spread_width_pct, implied_volatility, model_version, ml_confidence,
+                                initial_stop_loss, effort_vs_result, test_vol_ratio)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (ticker, direction, entry_price, stop_loss, take_profit, regime,
               timestamp, pcr, sentiment, timeframe, bars_in_regime,
               vwap_distance, hour_of_day, 1 if spy_bullish else 0 if spy_bullish is not None else None,
-              atr_expansion, bid_ask_ratio, spread_width_pct, implied_volatility, active_version, ml_confidence, stop_loss))
+              atr_expansion, bid_ask_ratio, spread_width_pct, implied_volatility, active_version, ml_confidence,
+              stop_loss, effort_vs_result if effort_vs_result is not None else 1.0, test_vol_ratio if test_vol_ratio is not None else 1.0))
         conn.commit()
         last_id = cursor.lastrowid
         return last_id

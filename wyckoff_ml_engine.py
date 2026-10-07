@@ -68,10 +68,22 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             'BREAKEVEN': 0.5
         }).fillna(1.0)
         
+        if 'effort_vs_result' not in df.columns:
+            df['effort_vs_result'] = 1.0
+        else:
+            df['effort_vs_result'] = df['effort_vs_result'].fillna(1.0)
+            
+        if 'test_vol_ratio' not in df.columns:
+            df['test_vol_ratio'] = 1.0
+        else:
+            df['test_vol_ratio'] = df['test_vol_ratio'].fillna(1.0)
+
         feature_map = {
             'bars_in_regime': 'Trend Exhaustion (Bars)',
             'vwap_distance': 'VWAP Stretch (%)',
             'atr_expansion': 'ATR Expansion (Vol)',
+            'effort_vs_result': 'Effort vs Result (Absorption)',
+            'test_vol_ratio': 'Secondary Test Vol Ratio',
             'hour_of_day': 'Hour of Day (EST)',
             'dir_num': 'Direction (Long/Short)'
         }

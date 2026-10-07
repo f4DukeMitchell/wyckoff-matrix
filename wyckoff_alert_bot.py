@@ -248,7 +248,7 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
             else:
                 break
         
-        # --- Institutional Features ---
+        # --- Institutional & Wyckoff VSA Features ---
         vwap = calc_vwap(highs, lows, closes, vols)
         vwap_distance = (closes[-1] - vwap[-1]) / vwap[-1] * 100 if vwap[-1] > 0 else 0
         
@@ -259,10 +259,21 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         with np.errstate(divide='ignore', invalid='ignore'):
             rel_vol = np.where(vol_sma > 0, vols / vol_sma, 1.0)
         
+        curr = len(df) - 1
+        
+        # Wyckoff Law 3 (Effort vs. Result): Volume relative to candle spread
+        curr_spread = abs(highs[curr] - lows[curr])
+        spread_sma = pd.Series(highs - lows).rolling(20, min_periods=1).mean().values[curr]
+        rel_spread = (curr_spread / spread_sma) if spread_sma > 0 else 1.0
+        effort_vs_result = float(rel_vol[curr] / max(0.1, rel_spread))
+        
+        # Wyckoff Phase C Secondary Test Volume Ratio: test volume vs previous bar
+        prev_vol = vols[curr - 1] if curr > 0 and vols[curr - 1] > 0 else vols[curr]
+        test_vol_ratio = float(vols[curr] / prev_vol) if prev_vol > 0 else 1.0
+        
         range_high = pd.Series(highs).rolling(lookback, min_periods=20).max().shift(1).values
         range_low = pd.Series(lows).rolling(lookback, min_periods=20).min().shift(1).values
         
-        curr = len(df) - 1
         if pd.isna(range_high[curr]): return
         
         c_below = (lows[curr] < range_low[curr]) or (lows[curr-1] < range_low[curr-1])
@@ -305,8 +316,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
             
             regime = "BEARISH (Seeking Reversal)" if not u9[curr] and not u14[curr] else "MIXED"
             
-            # Calculate Real ML Model Win Probability
-            ml_conf = calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_of_day, "LONG") if TRACKER_ENABLED else None
+            # Calculate Real ML Model Win Probability with Wyckoff VSA Features
+            ml_conf = calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_of_day, "LONG",
+                                              effort_vs_result=effort_vs_result, test_vol_ratio=test_vol_ratio) if TRACKER_ENABLED else None
 
             trade_id = None
             if TRACKER_ENABLED:
@@ -322,7 +334,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           bid_ask_ratio=q.get('bid_ask_ratio'),
                           spread_width_pct=q.get('spread_width_pct'),
                           implied_volatility=flow.get('atm_iv') if flow else None,
-                          ml_confidence=ml_conf)
+                          ml_confidence=ml_conf,
+                          effort_vs_result=effort_vs_result,
+                          test_vol_ratio=test_vol_ratio)
             
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] SILENT LOG: {ticker} LONG - R-Units too low ({r_units:.2f}R)")
@@ -365,8 +379,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
             
             regime = "BULLISH (Seeking Reversal)" if u9[curr] and u14[curr] else "MIXED"
             
-            # Calculate Real ML Model Win Probability
-            ml_conf = calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_of_day, "SHORT") if TRACKER_ENABLED else None
+            # Calculate Real ML Model Win Probability with Wyckoff VSA Features
+            ml_conf = calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_of_day, "SHORT",
+                                              effort_vs_result=effort_vs_result, test_vol_ratio=test_vol_ratio) if TRACKER_ENABLED else None
 
             trade_id = None
             if TRACKER_ENABLED:
@@ -382,7 +397,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           bid_ask_ratio=q.get('bid_ask_ratio'),
                           spread_width_pct=q.get('spread_width_pct'),
                           implied_volatility=flow.get('atm_iv') if flow else None,
-                          ml_confidence=ml_conf)
+                          ml_confidence=ml_conf,
+                          effort_vs_result=effort_vs_result,
+                          test_vol_ratio=test_vol_ratio)
             
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] SILENT LOG: {ticker} SHORT - R-Units too low ({r_units:.2f}R)")

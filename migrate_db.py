@@ -11,18 +11,33 @@ def migrate():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     
-    # 1. Add initial_stop_loss column if missing
-    try:
-        c.execute("ALTER TABLE alerts ADD COLUMN initial_stop_loss REAL")
-        print("Added initial_stop_loss column.")
-    except Exception:
-        pass
+    # 1. Add columns if missing
+    for col_name, col_type in [
+        ("initial_stop_loss", "REAL"),
+        ("effort_vs_result", "REAL DEFAULT 1.0"),
+        ("test_vol_ratio", "REAL DEFAULT 1.0"),
+    ]:
+        try:
+            c.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")
+            print(f"Added {col_name} column.")
+        except Exception:
+            pass
 
     # 2. Backfill initial_stop_loss for standard rows
     c.execute("""
         UPDATE alerts
         SET initial_stop_loss = stop_loss
         WHERE initial_stop_loss IS NULL AND (breakeven_set = 0 OR breakeven_set IS NULL)
+    """)
+    c.execute("""
+        UPDATE alerts
+        SET effort_vs_result = 1.0
+        WHERE effort_vs_result IS NULL
+    """)
+    c.execute("""
+        UPDATE alerts
+        SET test_vol_ratio = 1.0
+        WHERE test_vol_ratio IS NULL
     """)
 
     # 3. For breakeven_set = 1, restore initial_stop_loss from 1.5R target geometry
