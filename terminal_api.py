@@ -102,7 +102,7 @@ def get_terminal_state():
     
     # Active user trades (tracked by Wyckoff algo)
     c.execute("""
-        SELECT id, ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe, timestamp, user_active, outcome, pnl_r, breakeven_set, partial_exit_done, peak_high_r, trailing_stop_price
+        SELECT id, ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe, timestamp, user_active, outcome, pnl_r, breakeven_set, partial_exit_done, peak_high_r, trailing_stop_price, initial_stop_loss
         FROM alerts
         WHERE outcome = 'OPEN' AND user_active = 1
         ORDER BY id DESC
@@ -118,13 +118,14 @@ def get_terminal_state():
         tracked_tickers.add(ticker.upper())
         entry = float(pos.get('entry_price') or 0.0)
         sl = float(pos.get('stop_loss') or 0.0)
+        init_sl = float(pos.get('initial_stop_loss') or 0.0)
         is_long = (pos.get('direction') or 'LONG').upper() == 'LONG'
         curr_price = live_prices.get(ticker)
         
         pos['current_price'] = curr_price
         if curr_price and entry > 0:
             pnl_pct = ((curr_price - entry) / entry * 100.0) if is_long else ((entry - curr_price) / entry * 100.0)
-            risk = abs(entry - sl) if sl > 0 else 0.0
+            risk = abs(entry - init_sl) if (init_sl > 0 and abs(entry - init_sl) > 0.001) else (abs(entry - sl) if (sl > 0 and abs(entry - sl) > 0.001) else entry * 0.015)
             r_mult = ((curr_price - entry) / risk) if (is_long and risk > 0) else (((entry - curr_price) / risk) if risk > 0 else 0.0)
             pos['unrealized_pnl_pct'] = round(pnl_pct, 2)
             pos['unrealized_r'] = round(r_mult, 2)
