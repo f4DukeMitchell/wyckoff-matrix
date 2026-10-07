@@ -1500,12 +1500,14 @@
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({ticker: ticker, amount: dollarAmount, trade_id: tradeId})
         });
-        const d = await res.json();
-        if (d.success) {
+        const text = await res.text();
+        let d = {};
+        try { d = JSON.parse(text); } catch (e) { d = { detail: text }; }
+        if (res.ok && d.success) {
           alert(`Order Submitted: ${ticker} ($${dollarAmount.toFixed(2)}) on Public.com!`);
           fetchState();
         } else {
-          alert(`Error: ${d.detail || 'Execution failed'}`);
+          alert(`Broker Error (${res.status}): ${d.detail || text || 'Execution failed'}`);
         }
       } catch (e) {
         alert(`Execution Error: ${e}`);
@@ -1523,12 +1525,14 @@
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({ticker: ticker, amount: dollarAmount, trade_id: tradeId})
         });
-        const d = await res.json();
-        if (d.success) {
+        const text = await res.text();
+        let d = {};
+        try { d = JSON.parse(text); } catch (e) { d = { detail: text }; }
+        if (res.ok && d.success) {
           alert(`Short Order Submitted: ${ticker} (${d.order.shares} share(s) @ ~$${d.order.share_price.toFixed(2)}) on Public.com!`);
           fetchState();
         } else {
-          alert(`Short Execution Error: ${d.detail || 'Failed'}`);
+          alert(`Short Execution Error (${res.status}): ${d.detail || text || 'Failed'}`);
         }
       } catch (e) {
         alert(`Execution Error: ${e}`);
@@ -1543,12 +1547,14 @@
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({ticker: ticker, trade_id: tradeId})
         });
-        const d = await res.json();
-        if (d.success) {
+        const text = await res.text();
+        let d = {};
+        try { d = JSON.parse(text); } catch (e) { d = { detail: text }; }
+        if (res.ok && d.success) {
           alert(`Exit Order Submitted for ${ticker}!`);
           fetchState();
         } else {
-          alert(`Error: ${d.detail || 'Exit failed'}`);
+          alert(`Exit Error (${res.status}): ${d.detail || text || 'Exit failed'}`);
         }
       } catch (e) {
         alert(`Exit Error: ${e}`);

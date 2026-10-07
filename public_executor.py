@@ -138,8 +138,8 @@ def execute_dollar_buy(ticker, dollar_amount):
         'order_id': order_uuid,
         'ticker': ticker.upper(),
         'amount': dollar_amount,
-        'status': getattr(res, 'status', 'SUBMITTED'),
-        'response': res
+        'status': str(getattr(res, 'status', 'SUBMITTED')),
+        'account_id': acc_id
     }
 
 def execute_short_sell(ticker, dollar_amount=None):
@@ -180,8 +180,8 @@ def execute_short_sell(ticker, dollar_amount=None):
         'share_price': share_price,
         'notional_value': round(shares * share_price, 2),
         'side': 'SHORT',
-        'status': getattr(res, 'status', 'SUBMITTED'),
-        'response': res
+        'status': str(getattr(res, 'status', 'SUBMITTED')),
+        'account_id': acc_id
     }
 
 def execute_exit_position(ticker, quantity=None, direction=None):
@@ -242,8 +242,8 @@ def execute_exit_position(ticker, quantity=None, direction=None):
         'ticker': ticker.upper(),
         'quantity': float(quantity),
         'side': 'COVER' if is_short else 'SELL',
-        'status': getattr(res, 'status', 'SUBMITTED'),
-        'response': res
+        'status': str(getattr(res, 'status', 'SUBMITTED')),
+        'account_id': acc_id
     }
 
 def get_live_prices(tickers):
