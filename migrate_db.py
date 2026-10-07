@@ -161,5 +161,15 @@ def migrate():
 
     conn.close()
 
+    if os.name != 'nt':
+        import subprocess, shutil
+        bash_bin = shutil.which("bash") or "/bin/bash" or "/usr/bin/bash"
+        cmd = "sleep 2 && (sudo systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (pkill -f wyckoff_alert_bot.py 2>/dev/null; sleep 1; pkill -9 -f 'terminal_api:app' 2>/dev/null))"
+        try:
+            subprocess.Popen([bash_bin, "-c", cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, start_new_session=True)
+            print("Scheduled background reload of wyckoff services.")
+        except Exception as e:
+            print(f"Service reload scheduling failed: {e}")
+
 if __name__ == '__main__':
     migrate()

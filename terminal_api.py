@@ -834,7 +834,7 @@ def trigger_system_update():
 
         if os.name != 'nt':
             bash_bin = shutil.which("bash") or "/bin/bash" or "/usr/bin/bash"
-            cmd = "sleep 1 && sudo systemctl restart wyckoff-bot.service && sudo systemctl restart wyckoff-terminal.service"
+            cmd = "sleep 2 && (sudo systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (pkill -f wyckoff_alert_bot.py 2>/dev/null; sleep 1; pkill -9 -f 'terminal_api:app' 2>/dev/null))"
             try:
                 subprocess.Popen(
                     [bash_bin, "-c", cmd],
@@ -857,7 +857,7 @@ def trigger_system_update():
 
 @app.post("/api/system/restart")
 def trigger_system_restart():
-    """Triggers clean background reload of wyckoff-bot and wyckoff-terminal services via systemctl."""
+    """Triggers clean background reload of wyckoff-bot and wyckoff-terminal services via systemctl or process recycle."""
     import subprocess
     import shutil
     import os
@@ -866,7 +866,7 @@ def trigger_system_restart():
 
     try:
         bash_bin = shutil.which("bash") or "/bin/bash" or "/usr/bin/bash"
-        cmd = "sleep 1 && sudo systemctl restart wyckoff-bot.service && sudo systemctl restart wyckoff-terminal.service"
+        cmd = "sleep 1 && (sudo systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (pkill -f wyckoff_alert_bot.py 2>/dev/null; sleep 1; pkill -9 -f 'terminal_api:app' 2>/dev/null))"
         env = dict(os.environ)
         env["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" + (f":{env['PATH']}" if 'PATH' in env else "")
         subprocess.Popen(
