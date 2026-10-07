@@ -106,7 +106,7 @@
     #main-grid {
       flex: 1;
       display: grid;
-      grid-template-columns: 280px 1fr 340px;
+      grid-template-columns: 330px 1fr 340px;
       grid-template-rows: 1fr 240px;
       gap: 1px;
       background: var(--wsr-border);
@@ -592,16 +592,16 @@
         <button class="term-btn" onclick="fetchState()">REFRESH</button>
       </div>
       <div class="pane-content">
-        <table id="tbl-positions">
+        <table id="tbl-positions" style="font-size: 10px; table-layout: auto; width: 100%;">
           <thead>
             <tr>
-              <th>SYM</th>
-              <th>DIR</th>
-              <th>ENTRY</th>
-              <th>CURRENT</th>
-              <th>P&L (R)</th>
-              <th>TARGET</th>
-              <th>ACTION</th>
+              <th style="padding: 2px 2px;">SYM</th>
+              <th style="padding: 2px 2px;">DIR</th>
+              <th style="padding: 2px 2px;">ENTRY</th>
+              <th style="padding: 2px 2px;">LAST</th>
+              <th style="padding: 2px 2px;">P&L</th>
+              <th style="padding: 2px 2px;">TP</th>
+              <th style="padding: 2px 2px; text-align: center;">ACT</th>
             </tr>
           </thead>
           <tbody>
@@ -1438,25 +1438,24 @@
             let pnlDisplay = '--';
             if (p.current_price) {
               if (p.unrealized_r !== null && p.unrealized_r !== undefined) {
-                pnlDisplay = `${pnlSign}${p.unrealized_r.toFixed(2)}R (${pnlSign}${pnlPct.toFixed(1)}%)`;
+                pnlDisplay = `${pnlSign}${p.unrealized_r.toFixed(1)}R (${pnlSign}${pnlPct.toFixed(1)}%)`;
               } else {
-                // Broker holding without R-metric
                 pnlDisplay = `${pnlSign}${pnlPct.toFixed(1)}%`;
               }
             }
 
-            const targetDisplay = p.take_profit && p.take_profit > 0 ? `$${p.take_profit.toFixed(2)}` : (p.is_broker_native ? '<span class="c-muted">HOLD</span>' : '--');
+            const targetDisplay = p.take_profit && p.take_profit > 0 ? `$${p.take_profit.toFixed(1)}` : (p.is_broker_native ? '<span class="c-muted">HOLD</span>' : '--');
             const exitCall = p.id ? `executeExit('${p.ticker}', ${p.id})` : `executeExit('${p.ticker}', null)`;
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
-              <td class="c-cyan" onclick="loadChartData('${p.ticker}', '5m')"><b>${p.ticker}</b> ${p.is_broker_native ? '<span style="font-size:8px; color:var(--wsr-yellow);">[PUB]</span>' : ''}</td>
-              <td class="${isLong ? 'c-green' : 'c-red'}">${p.direction}</td>
-              <td>$${p.entry_price ? p.entry_price.toFixed(2) : '--'}</td>
-              <td><b class="c-white">${currPrice}</b></td>
-              <td class="${pnlClass}"><b>${pnlDisplay}</b></td>
-              <td>${targetDisplay}</td>
-              <td><button class="term-btn term-btn-exit" onclick="${exitCall}">EXIT</button></td>
+              <td class="c-cyan" style="padding:3px 2px;" onclick="loadChartData('${p.ticker}', '5m')"><b>${p.ticker}</b></td>
+              <td class="${isLong ? 'c-green' : 'c-red'}" style="padding:3px 2px;">${p.direction === 'LONG' ? 'L' : 'S'}</td>
+              <td style="padding:3px 2px;">$${p.entry_price ? p.entry_price.toFixed(2) : '--'}</td>
+              <td style="padding:3px 2px;"><b class="c-white">${currPrice}</b></td>
+              <td class="${pnlClass}" style="padding:3px 2px; font-weight:600;">${pnlDisplay}</td>
+              <td style="padding:3px 2px;">${targetDisplay}</td>
+              <td style="padding:3px 2px; text-align:center;"><button class="term-btn term-btn-exit" style="padding: 1px 4px; font-size: 9px;" onclick="${exitCall}">EXIT</button></td>
             `;
             posTbody.appendChild(tr);
           });
