@@ -743,6 +743,9 @@ def trigger_ml_evolution():
             "success": success,
             "report": report
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/alerts/sync")
 def sync_alerts(payload: list[dict]):
     """Receives alerts from another instance and inserts any missing records."""
