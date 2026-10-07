@@ -805,14 +805,16 @@ def trigger_system_update():
         mig_res = subprocess.run([py_exe, "migrate_db.py"], capture_output=True, text=True, timeout=30, env=env)
 
         if os.name != 'nt':
+            bash_bin = shutil.which("bash") or "/bin/bash" or "/usr/bin/bash"
             cmd = "sleep 1 && sudo systemctl restart wyckoff-bot.service && sudo systemctl restart wyckoff-terminal.service"
             try:
                 subprocess.Popen(
-                    ["bash", "-c", cmd],
+                    [bash_bin, "-c", cmd],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     stdin=subprocess.DEVNULL,
-                    start_new_session=True
+                    start_new_session=True,
+                    env=env
                 )
             except:
                 pass
@@ -829,18 +831,23 @@ def trigger_system_update():
 def trigger_system_restart():
     """Triggers clean background reload of wyckoff-bot and wyckoff-terminal services via systemctl."""
     import subprocess
+    import shutil
     import os
     if os.name == 'nt':
         return {"success": True, "message": "Windows environment - manual service restart required."}
 
     try:
+        bash_bin = shutil.which("bash") or "/bin/bash" or "/usr/bin/bash"
         cmd = "sleep 1 && sudo systemctl restart wyckoff-bot.service && sudo systemctl restart wyckoff-terminal.service"
+        env = dict(os.environ)
+        env["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" + (f":{env['PATH']}" if 'PATH' in env else "")
         subprocess.Popen(
-            ["bash", "-c", cmd],
+            [bash_bin, "-c", cmd],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
-            start_new_session=True
+            start_new_session=True,
+            env=env
         )
         return {"success": True, "message": "Services restarting: wyckoff-bot and wyckoff-terminal"}
     except Exception as e:
