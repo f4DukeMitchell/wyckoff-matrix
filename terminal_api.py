@@ -743,6 +743,29 @@ def trigger_ml_evolution():
             "success": success,
             "report": report
         }
+@app.post("/api/alerts/sync")
+def sync_alerts(payload: list[dict]):
+    """Receives alerts from another instance and inserts any missing records."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        inserted = 0
+        for item in payload:
+            ticker = item.get("ticker")
+            ts = item.get("timestamp")
+            if not ticker or not ts:
+                continue
+            c.execute("SELECT id FROM alerts WHERE ticker = ? AND timestamp = ?", (ticker, ts))
+            if c.fetchone() is None:
+                keys = [k for k in item.keys() if k != 'id']
+                placeholders = ', '.join(['?'] * len(keys))
+                cols = ', '.join(keys)
+                vals = [item[k] for k in keys]
+                c.execute(f"INSERT INTO alerts ({cols}) VALUES ({placeholders})", vals)
+                inserted += 1
+        conn.commit()
+        conn.close()
+        return {"success": True, "inserted": inserted}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
