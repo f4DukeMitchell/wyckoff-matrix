@@ -164,27 +164,5 @@ def migrate():
 
     conn.close()
 
-    if os.name != 'nt':
-        print(f"Server OS: {os.name}, PID: {os.getpid()}, PPID: {os.getppid()}")
-        # Check systemctl status or running python processes
-        try:
-            ps_out = subprocess.check_output(["ps", "-ef"], text=True)
-            print("Running processes:")
-            for line in ps_out.splitlines():
-                if any(x in line for x in ['python', 'uvicorn', 'wyckoff']):
-                    print("  " + line)
-        except Exception as e:
-            print(f"ps error: {e}")
-
-        # Recycle: try systemctl, and kill PPID (uvicorn) after a delay so systemd restarts it
-        ppid = os.getppid()
-        bash_bin = shutil.which("bash") or "/bin/bash" or "/usr/bin/bash"
-        cmd = f"sleep 1 && (sudo systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (kill -9 {ppid} 2>/dev/null))"
-        try:
-            subprocess.Popen([bash_bin, "-c", cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, start_new_session=True)
-            print(f"Scheduled reload with kill -9 PPID ({ppid}).")
-        except Exception as e:
-            print(f"Reload scheduling error: {e}")
-
 if __name__ == '__main__':
     migrate()

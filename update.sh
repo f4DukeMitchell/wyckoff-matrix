@@ -29,10 +29,13 @@ if [ "$LOCAL" != "$REMOTE" ]; then
     fi
     
     # Restart the bot and terminal services
-    sudo systemctl restart wyckoff-bot.service
-    sudo systemctl restart wyckoff-terminal.service
+    sudo systemctl restart wyckoff-bot.service || true
+    sudo systemctl restart wyckoff-terminal.service || true
     
     echo "[$(date)] Update complete! Services restarted."
 else
     echo "[$(date)] System is up to date."
+    # Auto-heal: ensure services are running
+    sudo systemctl is-active --quiet wyckoff-terminal.service || sudo systemctl restart wyckoff-terminal.service || true
+    sudo systemctl is-active --quiet wyckoff-bot.service || sudo systemctl restart wyckoff-bot.service || true
 fi
