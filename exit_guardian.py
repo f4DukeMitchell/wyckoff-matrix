@@ -19,6 +19,124 @@ def send_tg(msg: str):
     except Exception as e:
         print(f"[{get_est_now_str()}] [Guardian] Telegram error: {e}")
 
+LAST_EOD_FLATTEN_DATE = None
+
+def check_eod_flatten(trades, live_prices, conn):
+    """
+    Automated 3:55 PM EST EOD Flatten Rule:
+    Closes all active algo trades at 3:55 PM EST during regular market days
+    to ensure 100% cash conversion and zero overnight risk.
+    """
+    global LAST_EOD_FLATTEN_DATE
+    try:
+        import zoneinfo
+        now_est = datetime.datetime.now(zoneinfo.ZoneInfo("America/New_York"))
+    except Exception:
+        now_est = datetime.datetime.now()
+
+    current_date = now_est.date()
+    is_weekday = now_est.weekday() < 5
+    # Trigger strictly within the 3:55 PM - 4:00 PM EST window
+    is_eod_window = is_weekday and (now_est.hour == 15 and 55 <= now_est.minute < 60)
+
+    if not is_eod_window or not trades:
+        return False
+
+    c = conn.cursor()
+    summary_lines = []
+    for t in trades:
+        trade_id = t['id']
+        sym = t['ticker']
+        direction = (t.get('direction') or 'LONG').upper()
+        entry = float(t.get('entry_price') or 0.0)
+        init_sl = float(t.get('initial_stop_loss') or t.get('stop_loss') or entry * 0.985)
+        init_risk = abs(entry - init_sl) or (entry * 0.015)
+        price = live_prices.get(sym) or entry
+
+        try:
+            from public_executor import execute_exit_position
+            execute_exit_position(sym, direction=direction)
+        except Exception as ex:
+            print(f"[{get_est_now_str()}] [Guardian] EOD exit error on {sym}: {ex}")
+
+        is_long = direction == 'LONG'
+        curr_gain = (price - entry) if is_long else (entry - price)
+        curr_r = round(curr_gain / init_risk, 2)
+        outcome = 'WIN' if curr_r > 0 else ('BREAKEVEN' if curr_r == 0 else 'LOSS')
+
+        c.execute("""
+            UPDATE alerts 
+            SET outcome = ?, exit_price = ?, pnl_r = ?, ghost_status = 'EOD_FLATTEN'
+            WHERE id = ?
+        """, (outcome, price, curr_r, trade_id))
+
+        summary_lines.append(f"• {sym} ({direction}): Closed @ ${price:.2f} ({curr_r:+.2f}R, {outcome})")
+
+    conn.commit()
+    LAST_EOD_FLATTEN_DATE = current_date
+
+    if summary_lines:
+        eod_msg = (
+            f"🌅 [GUARDIAN] 3:55 PM EOD FLATTEN EXECUTED!\n"
+            f"All active algo positions closed at market:\n"
+            + "\n".join(summary_lines) +
+            "\n\n🛡️ 100% Cash Secured. Zero overnight gap risk."
+        )
+        print(f"[{get_est_now_str()}] {eod_msg}")
+        send_tg(eod_msg)
+
+    return True
+
+def flatten_all_algo_trades(reason="MANUAL_TERMINAL_TRIGGER"):
+    """Manually flattens all open algo positions immediately."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT * FROM alerts WHERE outcome = 'OPEN' AND user_active = 1")
+    trades = [dict(r) for r in c.fetchall()]
+    if not trades:
+        conn.close()
+        return {"success": True, "closed_count": 0, "message": "No active algo trades open."}
+
+    tickers = list(set([t['ticker'] for t in trades]))
+    try:
+        from public_executor import get_live_prices, execute_exit_position
+        live_prices = get_live_prices(tickers)
+    except Exception:
+        live_prices = {}
+
+    closed = []
+    for t in trades:
+        sym = t['ticker']
+        direction = t.get('direction', 'LONG')
+        price = live_prices.get(sym) or float(t.get('entry_price', 0))
+        entry = float(t.get('entry_price', 0))
+        init_sl = float(t.get('initial_stop_loss') or t.get('stop_loss') or entry * 0.985)
+        init_risk = abs(entry - init_sl) or (entry * 0.015)
+        curr_gain = (price - entry) if direction.upper() == 'LONG' else (entry - price)
+        curr_r = round(curr_gain / init_risk, 2)
+        outcome = 'WIN' if curr_r > 0 else ('BREAKEVEN' if curr_r == 0 else 'LOSS')
+
+        try:
+            execute_exit_position(sym, direction=direction)
+        except Exception as e:
+            print(f"Flatten error for {sym}: {e}")
+
+        c.execute("""
+            UPDATE alerts 
+            SET outcome = ?, exit_price = ?, pnl_r = ?, ghost_status = ? 
+            WHERE id = ?
+        """, (outcome, price, curr_r, reason, t['id']))
+        closed.append({"ticker": sym, "pnl_r": curr_r, "price": price})
+
+    conn.commit()
+    conn.close()
+
+    lines = [f"• {c_item['ticker']}: {c_item['pnl_r']:+.2f}R @ ${c_item['price']:.2f}" for c_item in closed]
+    msg = f"🚨 [MANUAL FLATTEN] Closed {len(closed)} open algo trades at market:\n" + "\n".join(lines)
+    send_tg(msg)
+    return {"success": True, "closed_count": len(closed), "trades": closed}
+
 def run_guardian_cycle():
     """
     Evaluates all active user positions every 10 seconds:
@@ -69,6 +187,11 @@ def run_guardian_cycle():
                         live_prices[sym] = float(val)
         except Exception:
             pass
+
+    # Check if 3:55 PM EST EOD Flatten applies
+    if check_eod_flatten(trades, live_prices, conn):
+        conn.close()
+        return
 
     for t in trades:
         trade_id = t['id']

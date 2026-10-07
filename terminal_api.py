@@ -539,6 +539,16 @@ def place_exit(exit_req: ExitPayload):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.post("/api/order/flatten_all")
+def place_flatten_all():
+    """Immediately closes all open algo positions at market on Public.com."""
+    try:
+        from exit_guardian import flatten_all_algo_trades
+        res = flatten_all_algo_trades("MANUAL_TERMINAL_TRIGGER")
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)

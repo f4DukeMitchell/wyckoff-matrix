@@ -562,6 +562,7 @@
       <button id="tab-terminal" class="view-tab active" onclick="switchView('terminal')">📊 TRADING</button>
       <button id="tab-mllab" class="view-tab" onclick="switchView('mllab')">🧠 AI / ML LAB</button>
       <button id="tab-restart" class="view-tab" onclick="triggerServiceRestart()" style="border-color: var(--wsr-orange); color: var(--wsr-orange);" title="Restart Wyckoff Bot & Terminal Services on Cloud VM">⚡ RESTART</button>
+      <button id="tab-flatten" class="view-tab" onclick="executeFlattenAll()" style="border-color: #e63946; color: #ff4d4d;" title="Emergency: Flatten all open algo positions immediately">🚨 FLATTEN</button>
     </div>
     <div id="command-container">
       <span class="prompt-label">COMMAND &gt;</span>
@@ -589,7 +590,7 @@
     <!-- PANE 1: WATCHLIST & ACTIVE POSITIONS (Top Left) -->
     <div class="pane" id="pane-watchlist">
       <div class="pane-header">
-        <span>ACTIVE TRADES (PUBLIC.COM)</span>
+        <span>ACTIVE TRADES <span style="font-size: 8.5px; color: var(--wsr-yellow);">[EOD FLATTEN: 3:55 PM]</span></span>
         <button class="term-btn" onclick="fetchState()">REFRESH</button>
       </div>
       <div class="pane-content">
@@ -1904,16 +1905,26 @@
           triggerServiceRestart();
         } else if (val === '/SYNC' || val === 'SYNC') {
           triggerCloudSync();
-        } else if (val.startsWith('/')) {
-          if (val === '/FLATTEN') {
-            alert('Emergency flatten triggered.');
-          }
+        } else if (val === '/FLATTEN' || val === 'FLATTEN') {
+          executeFlattenAll();
         } else if (val) {
           if (currentView === 'mllab') switchView('terminal');
           loadChartData(val, '5m');
         }
       }
     });
+
+    async function executeFlattenAll() {
+      if (!confirm("🚨 FLATTEN CONFIRMATION:\nAre you sure you want to close ALL active algo positions at market immediately?")) return;
+      try {
+        const res = await fetch('/api/order/flatten_all', { method: 'POST' });
+        const data = await res.json();
+        alert(`🚨 Flatten Complete: ${data.closed_count || 0} algo positions closed at market.`);
+        fetchState();
+      } catch (err) {
+        alert("Error executing flatten: " + err);
+      }
+    }
 
     // --- BOOTSTRAP ---
     window.onload = () => {
