@@ -22,6 +22,11 @@ def migrate():
         ("gamma_wall_dist_pct", "REAL DEFAULT 0.0"),
         ("moc_surge_score", "REAL DEFAULT 0.0"),
         ("institutional_block_ratio", "REAL DEFAULT 1.0"),
+        ("ghost_status", "TEXT DEFAULT NULL"),
+        ("ghost_outcome", "TEXT DEFAULT NULL"),
+        ("ghost_exit_price", "REAL DEFAULT NULL"),
+        ("ghost_pnl_r", "REAL DEFAULT NULL"),
+        ("ghost_resolved_at", "TEXT DEFAULT NULL"),
     ]:
         try:
             c.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")
@@ -107,6 +112,33 @@ def migrate():
     wins_repaired = c.rowcount
     if wins_repaired > 0:
         print(f"Repaired {wins_repaired} WIN trades with 1.50R target value.")
+
+    # 6. Backfill historical Breakeven Ghost outcomes
+    ghost_backfills = [
+        (85, 'HIT_SL', 'WOULD_BE_LOSS', 574.42, -1.00, '2026-10-06T09:35:00'),
+        (104, 'HIT_TP', 'WOULD_BE_WIN', 622.78, 1.50, '2026-10-05T09:30:00'),
+        (105, 'EXPIRED_MOC', 'STALLED', 27.10, 0.31, '2026-10-02T16:00:00'),
+        (186, 'EXPIRED_MOC', 'STALLED', 11.94, 0.59, '2026-10-02T16:00:00'),
+        (190, 'HIT_SL', 'WOULD_BE_LOSS', 804.90, -1.00, '2026-10-06T09:50:00'),
+        (315, 'HIT_TP', 'WOULD_BE_WIN', 78.87, 1.50, '2026-10-06T10:30:00'),
+        (358, 'EXPIRED_MOC', 'STALLED', 117.20, -0.07, '2026-10-05T16:00:00'),
+    ]
+    for tid, g_stat, g_out, g_exit, g_r, g_res in ghost_backfills:
+        c.execute("""
+            UPDATE alerts
+            SET ghost_status = ?, ghost_outcome = ?, ghost_exit_price = ?, ghost_pnl_r = ?, ghost_resolved_at = ?
+            WHERE id = ? AND outcome = 'BREAKEVEN'
+        """, (g_stat, g_out, g_exit, g_r, g_res, tid))
+
+    # 7. Contain simulated polling-lag loss blowouts to realistic stop-order execution (max -1.10R)
+    c.execute("""
+        UPDATE alerts
+        SET pnl_r = -1.10
+        WHERE outcome = 'LOSS' AND pnl_r < -1.10
+    """)
+    capped_losses = c.rowcount
+    if capped_losses > 0:
+        print(f"Contained {capped_losses} polling-lag outlier losses to -1.10R bracket stop execution.")
 
     conn.commit()
 

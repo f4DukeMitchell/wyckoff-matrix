@@ -425,7 +425,7 @@
     /* WIN/LOSS BREAKDOWN GRID */
     .ml-wl-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 1px;
       background: var(--wsr-border);
     }
@@ -834,6 +834,35 @@
             <b class="c-white" id="wl-1h-record">7W - 11L</b>
             <span class="c-red" id="wl-1h-rate">38.9% WIN</span>
             <span class="c-muted" id="wl-1h-r">(-6.92R)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="ml-wl-card">
+        <div class="ml-wl-header">
+          <span>GHOST TELEMETRY (BE REPLAY)</span>
+          <span class="c-cyan" id="wl-ghost-badge">0.0% MISSED WINS</span>
+        </div>
+        <div class="ml-wl-body">
+          <div class="ml-wl-row">
+            <span class="c-muted">TOTAL SCRATCHES:</span>
+            <b class="c-white" id="wl-ghost-total">2 TRADES</b>
+          </div>
+          <div class="ml-wl-row">
+            <span class="c-muted">MISSED WINS (TP TOUCH):</span>
+            <b class="c-white"><span class="c-green" id="wl-ghost-wins">0 WOULD-BE W</span> <span class="c-muted" id="wl-ghost-opp-cost">(0.0% Opp Cost)</span></b>
+          </div>
+          <div class="ml-wl-row">
+            <span class="c-muted">SAVED LOSSES (SL TOUCH):</span>
+            <b class="c-white"><span class="c-red" id="wl-ghost-losses">0 SAVED L</span> <span class="c-green" id="wl-ghost-saved-r">(+0.00R Preserved)</span></b>
+          </div>
+          <div class="ml-wl-row">
+            <span class="c-muted">STALLED / CHOPPY SAVED:</span>
+            <b class="c-cyan" id="wl-ghost-stalled">2 CHOP PRESERVED</b>
+          </div>
+          <div class="ml-wl-row">
+            <span class="c-muted">SHADOW COUNTERFACTUAL:</span>
+            <b class="c-yellow" id="wl-ghost-held-r">+0.90R (Expired MOC)</b>
           </div>
         </div>
       </div>
@@ -1580,6 +1609,32 @@
           if (tf1hRate) tf1hRate.innerText = `${d1h.directional_win_rate || d1h.win_rate || 0}% EX-BE`;
           const tf1hR = document.getElementById('wl-1h-r');
           if (tf1hR) tf1hR.innerText = `(${(d1h.net_r || 0) >= 0 ? '+' : ''}${(d1h.net_r || 0).toFixed(2)}R)`;
+
+          // Ghost Telemetry card
+          const gh = d.ghost_telemetry || {};
+          const ghTot = gh.total_scratches || 0;
+          const ghWins = gh.would_be_wins || 0;
+          const ghLosses = gh.would_be_losses || 0;
+          const ghStalled = gh.stalled_saved || 0;
+          const ghOppCost = gh.opp_cost_rate || 0;
+          const ghNetR = gh.ghost_net_r || 0;
+
+          const ghBadgeEl = document.getElementById('wl-ghost-badge');
+          if (ghBadgeEl) ghBadgeEl.innerText = `${ghOppCost}% MISSED WINS`;
+          const ghTotEl = document.getElementById('wl-ghost-total');
+          if (ghTotEl) ghTotEl.innerText = `${ghTot} TRADES`;
+          const ghWinsEl = document.getElementById('wl-ghost-wins');
+          if (ghWinsEl) ghWinsEl.innerText = `${ghWins} WOULD-BE W`;
+          const ghOppCostEl = document.getElementById('wl-ghost-opp-cost');
+          if (ghOppCostEl) ghOppCostEl.innerText = `(${ghOppCost}% Opp Cost)`;
+          const ghLossesEl = document.getElementById('wl-ghost-losses');
+          if (ghLossesEl) ghLossesEl.innerText = `${ghLosses} SAVED L`;
+          const ghSavedREl = document.getElementById('wl-ghost-saved-r');
+          if (ghSavedREl) ghSavedREl.innerText = `(+${(ghLosses * 1.0).toFixed(2)}R Preserved)`;
+          const ghStalledEl = document.getElementById('wl-ghost-stalled');
+          if (ghStalledEl) ghStalledEl.innerText = `${ghStalled} CHOP PRESERVED`;
+          const ghHeldREl = document.getElementById('wl-ghost-held-r');
+          if (ghHeldREl) ghHeldREl.innerText = `${ghNetR >= 0 ? '+' : ''}${ghNetR.toFixed(2)}R (Expired MOC)`;
         }
 
         // Render feature bars

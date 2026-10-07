@@ -63,6 +63,11 @@ def init_db():
             ("gamma_wall_dist_pct", "REAL DEFAULT 0.0"),
             ("moc_surge_score", "REAL DEFAULT 0.0"),
             ("institutional_block_ratio", "REAL DEFAULT 1.0"),
+            ("ghost_status", "TEXT DEFAULT NULL"),
+            ("ghost_outcome", "TEXT DEFAULT NULL"),
+            ("ghost_exit_price", "REAL DEFAULT NULL"),
+            ("ghost_pnl_r", "REAL DEFAULT NULL"),
+            ("ghost_resolved_at", "TEXT DEFAULT NULL"),
         ]
         for col_name, col_type in new_cols:
             try: cursor.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")
@@ -307,19 +312,30 @@ def check_open_trades():
                 if init_risk <= 0.0001:
                     init_risk = max(0.01, abs(entry_price * 0.01))
 
+                ghost_stat = None
                 if (b_set or is_be_level) and outcome == 'LOSS':
                     outcome = 'BREAKEVEN'
                     pnl_r = 0.0
+                    ghost_stat = 'MONITORING'
                 elif outcome == 'WIN':
                     pnl_r = round(abs(exit_price - entry_price) / init_risk, 2)
                 else:
-                    pnl_r = -round(abs(exit_price - entry_price) / init_risk, 2)
+                    # Realistic execution containment: cap simulated stop-loss fill slippage to max -1.10R
+                    raw_loss_r = round(abs(exit_price - entry_price) / init_risk, 2)
+                    pnl_r = max(-1.10, -raw_loss_r)
                     
-                cursor.execute('''
-                    UPDATE alerts
-                    SET outcome = ?, exit_price = ?, pnl_r = ?
-                    WHERE id = ?
-                ''', (outcome, exit_price, pnl_r, trade_id))
+                if ghost_stat:
+                    cursor.execute('''
+                        UPDATE alerts
+                        SET outcome = ?, exit_price = ?, pnl_r = ?, ghost_status = ?
+                        WHERE id = ?
+                    ''', (outcome, exit_price, pnl_r, ghost_stat, trade_id))
+                else:
+                    cursor.execute('''
+                        UPDATE alerts
+                        SET outcome = ?, exit_price = ?, pnl_r = ?
+                        WHERE id = ?
+                    ''', (outcome, exit_price, pnl_r, trade_id))
                 conn.commit()
                 
                 closed_trades.append({
@@ -346,7 +362,149 @@ def check_open_trades():
         if has_exit:
             update_realized_version_stats()
             
+    # Always check open ghost trades in shadow mode
+    try:
+        check_ghost_trades()
+    except Exception as e:
+        print(f"Error during ghost trade check: {e}")
+
     return closed_trades
+
+def check_ghost_trades():
+    """
+    Monitors Breakeven 'Ghost' trades in shadow mode to determine counterfactual outcomes:
+    - Did the trade subsequently hit original Take Profit? ('WOULD_BE_WIN')
+    - Did the trade subsequently hit original Stop Loss? ('WOULD_BE_LOSS')
+    - Did it expire at market close (4:00 PM EST) without touching either? ('STALLED')
+    """
+    resolved_ghosts = []
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM alerts WHERE outcome = 'BREAKEVEN' AND ghost_status = 'MONITORING'")
+        ghosts = cursor.fetchall()
+        if not ghosts:
+            return resolved_ghosts
+
+        now = get_est_now()
+        is_after_market = (now.hour >= 16) if hasattr(now, 'hour') else False
+
+        unique_tickers = list(set(g['ticker'] for g in ghosts))
+        prices = {}
+        try:
+            data = yf.download(unique_tickers, period="1d", interval="1m", progress=False)
+            if not data.empty and 'Close' in data:
+                latest = data['Close'].iloc[-1]
+                for sym in unique_tickers:
+                    if sym in latest and not pd.isna(latest[sym]):
+                        prices[sym] = float(latest[sym])
+        except Exception as e:
+            print(f"Batch ghost price download error: {e}")
+
+        for g in ghosts:
+            g_id = g['id']
+            ticker = g['ticker']
+            direction = g['direction'].upper()
+            entry_price = float(g['entry_price'] or 0.0)
+            tp = float(g['take_profit'] or 0.0)
+            init_sl = float(g['initial_stop_loss'] or g['stop_loss'] or 0.0)
+            init_risk = abs(entry_price - init_sl)
+            if init_risk <= 0.0001:
+                init_risk = abs(tp - entry_price) / 1.5 if abs(tp - entry_price) > 0 else 0.01
+
+            price = prices.get(ticker) or get_latest_price(ticker)
+            if price is None:
+                continue
+
+            ghost_outcome = None
+            ghost_status = None
+            ghost_exit = price
+            ghost_pnl_r = 0.0
+
+            if direction == 'LONG':
+                if price >= tp:
+                    ghost_status = 'HIT_TP'
+                    ghost_outcome = 'WOULD_BE_WIN'
+                    ghost_exit = tp
+                    ghost_pnl_r = round(abs(tp - entry_price) / init_risk, 2)
+                elif price <= init_sl:
+                    ghost_status = 'HIT_SL'
+                    ghost_outcome = 'WOULD_BE_LOSS'
+                    ghost_exit = init_sl
+                    ghost_pnl_r = -1.0
+                elif is_after_market:
+                    ghost_status = 'EXPIRED_MOC'
+                    ghost_outcome = 'STALLED'
+                    ghost_exit = price
+                    ghost_pnl_r = round((price - entry_price) / init_risk, 2)
+            else:  # SHORT
+                if price <= tp:
+                    ghost_status = 'HIT_TP'
+                    ghost_outcome = 'WOULD_BE_WIN'
+                    ghost_exit = tp
+                    ghost_pnl_r = round(abs(entry_price - tp) / init_risk, 2)
+                elif price >= init_sl:
+                    ghost_status = 'HIT_SL'
+                    ghost_outcome = 'WOULD_BE_LOSS'
+                    ghost_exit = init_sl
+                    ghost_pnl_r = -1.0
+                elif is_after_market:
+                    ghost_status = 'EXPIRED_MOC'
+                    ghost_outcome = 'STALLED'
+                    ghost_exit = price
+                    ghost_pnl_r = round((entry_price - price) / init_risk, 2)
+
+            if ghost_status:
+                res_time = now.isoformat()
+                cursor.execute("""
+                    UPDATE alerts
+                    SET ghost_status = ?, ghost_outcome = ?, ghost_exit_price = ?, ghost_pnl_r = ?, ghost_resolved_at = ?
+                    WHERE id = ?
+                """, (ghost_status, ghost_outcome, ghost_exit, ghost_pnl_r, res_time, g_id))
+                conn.commit()
+                resolved_ghosts.append({
+                    'id': g_id,
+                    'ticker': ticker,
+                    'direction': direction,
+                    'ghost_status': ghost_status,
+                    'ghost_outcome': ghost_outcome,
+                    'ghost_pnl_r': ghost_pnl_r
+                })
+
+    except Exception as e:
+        print(f"Error checking ghost trades: {e}")
+    finally:
+        if 'conn' in locals():
+            conn.close()
+    return resolved_ghosts
+
+def get_ghost_summary():
+    """Returns aggregated counterfactual telemetry for all breakeven ghost trades."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("""
+            SELECT 
+                COUNT(id) as total_scratches,
+                SUM(CASE WHEN ghost_outcome = 'WOULD_BE_WIN' THEN 1 ELSE 0 END) as would_be_wins,
+                SUM(CASE WHEN ghost_outcome = 'WOULD_BE_LOSS' THEN 1 ELSE 0 END) as would_be_losses,
+                SUM(CASE WHEN ghost_outcome = 'STALLED' THEN 1 ELSE 0 END) as stalled_saved,
+                SUM(CASE WHEN ghost_status = 'MONITORING' THEN 1 ELSE 0 END) as active_ghosts,
+                COALESCE(SUM(ghost_pnl_r), 0.0) as ghost_net_r
+            FROM alerts
+            WHERE outcome = 'BREAKEVEN'
+        """)
+        row = dict(c.fetchone() or {})
+        conn.close()
+        return row
+    except Exception as e:
+        print(f"Error fetching ghost summary: {e}")
+        return {
+            'total_scratches': 0, 'would_be_wins': 0, 'would_be_losses': 0,
+            'stalled_saved': 0, 'active_ghosts': 0, 'ghost_net_r': 0.0
+        }
 
 def update_realized_version_stats():
     """Recalculate realized out-of-sample metrics for model versions in ml_model_history."""

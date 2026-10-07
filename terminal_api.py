@@ -573,6 +573,22 @@ def get_ml_overview():
         d['net_r'] = round(float(d.get('net_r') or 0.0), 2)
         wl_by_tf[d['timeframe']] = d
 
+    c.execute("""
+        SELECT 
+            COUNT(id) as total_scratches,
+            SUM(CASE WHEN ghost_outcome = 'WOULD_BE_WIN' THEN 1 ELSE 0 END) as would_be_wins,
+            SUM(CASE WHEN ghost_outcome = 'WOULD_BE_LOSS' THEN 1 ELSE 0 END) as would_be_losses,
+            SUM(CASE WHEN ghost_outcome = 'STALLED' THEN 1 ELSE 0 END) as stalled_saved,
+            SUM(CASE WHEN ghost_status = 'MONITORING' THEN 1 ELSE 0 END) as active_ghosts,
+            COALESCE(SUM(ghost_pnl_r), 0.0) as ghost_net_r
+        FROM alerts WHERE outcome = 'BREAKEVEN'
+    """)
+    ghost_stats = dict(c.fetchone() or {})
+    ghost_scratches = ghost_stats.get('total_scratches') or 0
+    ghost_wb_wins = ghost_stats.get('would_be_wins') or 0
+    ghost_stats['opp_cost_rate'] = round((ghost_wb_wins / ghost_scratches * 100.0), 1) if ghost_scratches > 0 else 0.0
+    ghost_stats['ghost_net_r'] = round(float(ghost_stats.get('ghost_net_r') or 0.0), 2)
+
     conn.close()
     
     latest_dict = dict(latest) if latest else {}
@@ -607,7 +623,45 @@ def get_ml_overview():
             "by_direction": wl_by_dir,
             "by_timeframe": wl_by_tf
         },
+        "ghost_telemetry": ghost_stats,
         "scheduled_daily_evolution": "16:15 EST"
+    }
+
+@app.get("/api/ghost_trades")
+def get_ghost_trades():
+    """Returns detailed trade history and telemetry for Breakeven 'Ghost' trades."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("""
+        SELECT id, ticker, direction, entry_price, initial_stop_loss, stop_loss, take_profit,
+               exit_price, pnl_r, timestamp, timeframe, ghost_status, ghost_outcome, ghost_exit_price, ghost_pnl_r, ghost_resolved_at
+        FROM alerts
+        WHERE outcome = 'BREAKEVEN'
+        ORDER BY id DESC
+    """)
+    rows = [dict(r) for r in c.fetchall()]
+    
+    c.execute("""
+        SELECT 
+            COUNT(id) as total_scratches,
+            SUM(CASE WHEN ghost_outcome = 'WOULD_BE_WIN' THEN 1 ELSE 0 END) as would_be_wins,
+            SUM(CASE WHEN ghost_outcome = 'WOULD_BE_LOSS' THEN 1 ELSE 0 END) as would_be_losses,
+            SUM(CASE WHEN ghost_outcome = 'STALLED' THEN 1 ELSE 0 END) as stalled_saved,
+            SUM(CASE WHEN ghost_status = 'MONITORING' THEN 1 ELSE 0 END) as active_ghosts,
+            COALESCE(SUM(ghost_pnl_r), 0.0) as ghost_net_r
+        FROM alerts WHERE outcome = 'BREAKEVEN'
+    """)
+    summary = dict(c.fetchone() or {})
+    tot_sc = summary.get('total_scratches') or 0
+    wb_w = summary.get('would_be_wins') or 0
+    summary['opp_cost_rate'] = round((wb_w / tot_sc * 100.0), 1) if tot_sc > 0 else 0.0
+    summary['ghost_net_r'] = round(float(summary.get('ghost_net_r') or 0.0), 2)
+    conn.close()
+    return {
+        "status": "ONLINE",
+        "summary": summary,
+        "ghost_trades": rows
     }
 
 @app.post("/api/ml/evolve")

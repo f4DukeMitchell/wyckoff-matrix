@@ -337,6 +337,11 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               moc_surge_score=inst.get('moc_surge_score', 0.0),
                                               institutional_block_ratio=inst.get('institutional_block_ratio', 1.0)) if TRACKER_ENABLED else None
 
+            if r_units < MIN_R_UNITS:
+                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} LONG - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
+                last_alerted[ticker] = current_time
+                return
+
             trade_id = None
             if TRACKER_ENABLED:
                 q = get_public_quotes(ticker) if OPTIONS_ENABLED else {'bid_ask_ratio': None, 'spread_width_pct': None}
@@ -361,11 +366,6 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           moc_surge_score=inst.get('moc_surge_score', 0.0),
                           institutional_block_ratio=inst.get('institutional_block_ratio', 1.0))
             
-            if r_units < MIN_R_UNITS:
-                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] SILENT LOG: {ticker} LONG - R-Units too low ({r_units:.2f}R)")
-                last_alerted[ticker] = current_time
-                return
-
             if TELEGRAM_ENABLED:
                 tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, interval, flow, trade_id, ml_confidence=ml_conf)
                 if TRACKER_ENABLED and trade_id: mark_trade_alerted(trade_id)
@@ -417,6 +417,11 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               moc_surge_score=inst.get('moc_surge_score', 0.0),
                                               institutional_block_ratio=inst.get('institutional_block_ratio', 1.0)) if TRACKER_ENABLED else None
 
+            if r_units < MIN_R_UNITS:
+                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} SHORT - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
+                last_alerted[ticker] = current_time
+                return
+
             trade_id = None
             if TRACKER_ENABLED:
                 q = get_public_quotes(ticker) if OPTIONS_ENABLED else {'bid_ask_ratio': None, 'spread_width_pct': None}
@@ -441,11 +446,6 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           moc_surge_score=inst.get('moc_surge_score', 0.0),
                           institutional_block_ratio=inst.get('institutional_block_ratio', 1.0))
             
-            if r_units < MIN_R_UNITS:
-                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] SILENT LOG: {ticker} SHORT - R-Units too low ({r_units:.2f}R)")
-                last_alerted[ticker] = current_time
-                return
-
             if TELEGRAM_ENABLED:
                 tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow, trade_id, ml_confidence=ml_conf)
                 if TRACKER_ENABLED and trade_id: mark_trade_alerted(trade_id)
