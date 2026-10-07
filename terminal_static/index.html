@@ -568,7 +568,15 @@
     </div>
     <div class="top-meta">
       <span>BUYING POWER: <b class="meta-val c-green" id="bp-val">$--</b></span>
-      <span>1% TEST SLOT: <b class="meta-val c-yellow" id="slot-val">$--</b></span>
+      <span style="display: inline-flex; align-items: center; gap: 4px;">
+        RISK SIZING:
+        <select id="size-mode" onchange="onSizeModeChange()" style="background: #141414; color: var(--wsr-white); border: 1px solid var(--wsr-border); font-family: inherit; font-size: 10px; padding: 1px 3px;">
+          <option value="pct" selected>% OF BP</option>
+          <option value="fixed">$ FIXED</option>
+        </select>
+        <input type="number" id="custom-size-val" value="1.0" min="0.1" max="100" step="0.5" oninput="updateCalculatedSlot()" style="width: 48px; background: #000; color: var(--wsr-yellow); border: 1px solid var(--wsr-yellow); font-family: inherit; font-size: 11px; text-align: center; font-weight: bold; padding: 1px 2px;" />
+        <b class="meta-val c-yellow" id="slot-val">($--)</b>
+      </span>
       <span>ENGINE: <span class="badge-status">PUBLIC LIVE</span></span>
       <span id="clock" class="c-muted">00:00:00</span>
     </div>
@@ -976,6 +984,50 @@
     let activeTFFilter = 'ALL';
     let currentSortField = 'id';
     let sortAsc = false;
+    let cachedBuyingPower = 2000.0;
+
+    // --- RISK SIZING CONTROLLER ---
+    function getSelectedRiskSizing() {
+      const mode = document.getElementById('size-mode')?.value || 'pct';
+      const inputVal = parseFloat(document.getElementById('custom-size-val')?.value) || 1.0;
+      let dollarAmount = 20.0;
+      let label = '1% BUY';
+
+      if (mode === 'pct') {
+        dollarAmount = Math.max(5.0, (cachedBuyingPower * (inputVal / 100.0)));
+        label = `${inputVal}%`;
+      } else {
+        dollarAmount = Math.max(5.0, inputVal);
+        label = `$${dollarAmount.toFixed(0)}`;
+      }
+      return { mode, inputVal, dollarAmount, label };
+    }
+
+    function updateCalculatedSlot() {
+      const sizing = getSelectedRiskSizing();
+      const slotEl = document.getElementById('slot-val');
+      if (slotEl) {
+        slotEl.innerText = `($${sizing.dollarAmount.toFixed(2)})`;
+      }
+      renderScannerTable();
+    }
+
+    function onSizeModeChange() {
+      const mode = document.getElementById('size-mode').value;
+      const inputEl = document.getElementById('custom-size-val');
+      if (mode === 'pct') {
+        inputEl.value = "1.0";
+        inputEl.step = "0.5";
+        inputEl.min = "0.1";
+        inputEl.max = "100";
+      } else {
+        inputEl.value = "50";
+        inputEl.step = "10";
+        inputEl.min = "5";
+        inputEl.max = "10000";
+      }
+      updateCalculatedSlot();
+    }
 
     // --- CLOCK ---
     setInterval(() => {
@@ -1078,7 +1130,8 @@
 
           const isLong = s.direction === 'LONG';
           const btnClass = isLong ? 'term-btn term-btn-buy' : 'term-btn term-btn-short';
-          const btnText = isLong ? '1% BUY' : '1% SHORT';
+          const sizing = getSelectedRiskSizing();
+          const btnText = `${sizing.label} ${isLong ? 'BUY' : 'SHORT'}`;
           const btnAction = isLong ? `executeBuy('${s.ticker}', ${s.id})` : `executeShort('${s.ticker}', ${s.id})`;
 
           const tr = document.createElement('tr');
@@ -1366,8 +1419,9 @@
         
         // Capital header
         const cap = data.capital || {};
-        document.getElementById('bp-val').innerText = `$${(cap.buying_power || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}`;
-        document.getElementById('slot-val').innerText = `$${(data.test_allocation_1pct || 0).toFixed(2)}`;
+        cachedBuyingPower = cap.buying_power || 2000.0;
+        document.getElementById('bp-val').innerText = `$${cachedBuyingPower.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+        updateCalculatedSlot();
 
         // Active Positions Table
         const posTbody = document.querySelector('#tbl-positions tbody');
@@ -1437,18 +1491,19 @@
 
     // --- BROKER EXECUTION HANDLERS ---
     async function executeBuy(ticker, tradeId) {
-      const slotVal = parseFloat(document.getElementById('slot-val').innerText.replace('$', '')) || 67.70;
-      if (!confirm(`Execute 1% test BUY for ${ticker} ($${slotVal.toFixed(2)}) on Public.com?`)) return;
+      const sizing = getSelectedRiskSizing();
+      const dollarAmount = sizing.dollarAmount;
+      if (!confirm(`Execute ${sizing.label} BUY for ${ticker} ($${dollarAmount.toFixed(2)}) on Public.com?`)) return;
       
       try {
         const res = await fetch('/api/order/buy', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ticker: ticker, amount: slotVal, trade_id: tradeId})
+          body: JSON.stringify({ticker: ticker, amount: dollarAmount, trade_id: tradeId})
         });
         const d = await res.json();
         if (d.success) {
-          alert(`Order Submitted: ${ticker} ($${slotVal.toFixed(2)}) on Public.com!`);
+          alert(`Order Submitted: ${ticker} ($${dollarAmount.toFixed(2)}) on Public.com!`);
           fetchState();
         } else {
           alert(`Error: ${d.detail || 'Execution failed'}`);
@@ -1459,14 +1514,15 @@
     }
 
     async function executeShort(ticker, tradeId) {
-      const slotVal = parseFloat(document.getElementById('slot-val').innerText.replace('$', '')) || 67.70;
-      if (!confirm(`Execute 1% SHORT for ${ticker} on Public.com?\n(Note: Shorts are executed in whole integer shares)`)) return;
+      const sizing = getSelectedRiskSizing();
+      const dollarAmount = sizing.dollarAmount;
+      if (!confirm(`Execute ${sizing.label} SHORT for ${ticker} (~$${dollarAmount.toFixed(2)}) on Public.com?\n(Note: Shorts are executed in whole integer shares)`)) return;
       
       try {
         const res = await fetch('/api/order/short', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ticker: ticker, amount: slotVal, trade_id: tradeId})
+          body: JSON.stringify({ticker: ticker, amount: dollarAmount, trade_id: tradeId})
         });
         const d = await res.json();
         if (d.success) {
