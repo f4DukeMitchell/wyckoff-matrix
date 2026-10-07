@@ -682,10 +682,23 @@ def trigger_system_update():
     """Pulls latest git commits, executes database migrations, and updates the repository."""
     import subprocess
     import sys
+    import shutil
+    import os
     try:
-        pull_res = subprocess.run(["git", "pull", "origin", "main"], capture_output=True, text=True, timeout=30)
-        py_exe = sys.executable or "python3"
-        mig_res = subprocess.run([py_exe, "migrate_db.py"], capture_output=True, text=True, timeout=30)
+        # Resolve git binary across Linux system directories and virtualenv
+        git_bin = shutil.which("git") or "/usr/bin/git" or "/usr/local/bin/git"
+        env = dict(os.environ)
+        # Ensure standard Linux system PATHs are present
+        std_paths = ["/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin", "/sbin", "/bin"]
+        current_path = env.get("PATH", "")
+        for p in std_paths:
+            if p not in current_path:
+                current_path = f"{p}:{current_path}"
+        env["PATH"] = current_path
+
+        pull_res = subprocess.run([git_bin, "pull", "origin", "main"], capture_output=True, text=True, timeout=30, env=env)
+        py_exe = sys.executable or shutil.which("python3") or "python3"
+        mig_res = subprocess.run([py_exe, "migrate_db.py"], capture_output=True, text=True, timeout=30, env=env)
         return {
             "success": True,
             "git_output": (pull_res.stdout + "\n" + pull_res.stderr).strip(),
