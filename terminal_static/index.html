@@ -1447,13 +1447,24 @@
               }
             }
 
-            const targetDisplay = p.take_profit && p.take_profit > 0 ? `$${p.take_profit.toFixed(1)}` : (p.is_broker_native ? '<span class="c-muted">HOLD</span>' : '--');
+            let dirBadge = p.direction === 'LONG' ? 'L' : 'S';
+            if (p.partial_exit_done) {
+              dirBadge += ` <span style="font-size:8px; color:var(--wsr-orange); font-weight:bold;">[RUNNER 30%]</span>`;
+            } else if (p.breakeven_set) {
+              dirBadge += ` <span style="font-size:8px; color:var(--wsr-yellow);">[BE]</span>`;
+            }
+
+            let targetDisplay = p.take_profit && p.take_profit > 0 ? `$${p.take_profit.toFixed(1)}` : (p.is_broker_native ? '<span class="c-muted">HOLD</span>' : '--');
+            if (p.partial_exit_done) {
+              targetDisplay = `<span style="color:var(--wsr-orange); font-size:9.5px;">TRAIL $${p.stop_loss ? p.stop_loss.toFixed(2) : '--'}</span>`;
+            }
+
             const exitCall = p.id ? `executeExit('${p.ticker}', ${p.id})` : `executeExit('${p.ticker}', null)`;
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
               <td class="c-cyan" style="padding:3px 2px;" onclick="loadChartData('${p.ticker}', '5m')"><b>${p.ticker}</b></td>
-              <td class="${isLong ? 'c-green' : 'c-red'}" style="padding:3px 2px;">${p.direction === 'LONG' ? 'L' : 'S'}</td>
+              <td class="${isLong ? 'c-green' : 'c-red'}" style="padding:3px 2px;">${dirBadge}</td>
               <td style="padding:3px 2px;">$${p.entry_price ? p.entry_price.toFixed(2) : '--'}</td>
               <td style="padding:3px 2px;"><b class="c-white">${currPrice}</b></td>
               <td class="${pnlClass}" style="padding:3px 2px; font-weight:600;">${pnlDisplay}</td>

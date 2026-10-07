@@ -28,6 +28,11 @@ def migrate():
         ("ghost_pnl_r", "REAL DEFAULT NULL"),
         ("ghost_resolved_at", "TEXT DEFAULT NULL"),
         ("optimal_target_r", "REAL DEFAULT 1.15"),
+        ("partial_exit_done", "INTEGER DEFAULT 0"),
+        ("peak_high_r", "REAL DEFAULT 0.0"),
+        ("trailing_stop_price", "REAL DEFAULT NULL"),
+        ("partial_exit_price", "REAL DEFAULT NULL"),
+        ("partial_pnl_r", "REAL DEFAULT NULL"),
     ]:
         try:
             c.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")

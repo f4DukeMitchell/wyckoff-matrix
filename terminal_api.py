@@ -81,6 +81,14 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+@app.on_event("startup")
+def startup_event():
+    try:
+        from exit_guardian import start_guardian_daemon
+        start_guardian_daemon()
+    except Exception as e:
+        print(f"Error launching Exit Guardian daemon: {e}")
+
 # --- REST ENDPOINTS ---
 
 @app.get("/api/terminal/state")
@@ -94,7 +102,7 @@ def get_terminal_state():
     
     # Active user trades (tracked by Wyckoff algo)
     c.execute("""
-        SELECT id, ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe, timestamp, user_active, outcome, pnl_r, breakeven_set
+        SELECT id, ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe, timestamp, user_active, outcome, pnl_r, breakeven_set, partial_exit_done, peak_high_r, trailing_stop_price
         FROM alerts
         WHERE outcome = 'OPEN' AND user_active = 1
         ORDER BY id DESC
