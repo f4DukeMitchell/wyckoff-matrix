@@ -1680,7 +1680,7 @@
           if (tf1hR) tf1hR.innerText = `(${(d1h.net_r || 0) >= 0 ? '+' : ''}${(d1h.net_r || 0).toFixed(2)}R)`;
 
           // Ghost Telemetry card
-          const gh = d.ghost_telemetry || {};
+          const gh = data.ghost_telemetry || {};
           const ghTot = gh.total_scratches || 0;
           const ghWins = gh.would_be_wins || 0;
           const ghLosses = gh.would_be_losses || 0;
