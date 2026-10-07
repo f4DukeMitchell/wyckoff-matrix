@@ -1,5 +1,8 @@
 import os
 import sqlite3
+import subprocess
+import shutil
+import signal
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wyckoff_trades.db")
 
@@ -162,7 +165,6 @@ def migrate():
     conn.close()
 
     if os.name != 'nt':
-        import subprocess, shutil, os, signal
         print(f"Server OS: {os.name}, PID: {os.getpid()}, PPID: {os.getppid()}")
         # Check systemctl status or running python processes
         try:
