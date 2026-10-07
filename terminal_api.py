@@ -769,10 +769,14 @@ def trigger_system_update():
         py_exe = sys.executable or shutil.which("python3") or "python3"
         mig_res = subprocess.run([py_exe, "migrate_db.py"], capture_output=True, text=True, timeout=30, env=env)
 
-        # Trigger background service reload so uvicorn loads new python code into memory
+        # Trigger background service reload if systemctl is available
         if os.name != 'nt':
-            bash_bin = shutil.which("bash") or "/bin/bash" or "/usr/bin/bash"
-            subprocess.Popen([bash_bin, "-c", "sleep 1 && sudo systemctl restart wyckoff-terminal.service wyckoff-bot.service"], env=env)
+            sys_ctl = shutil.which("systemctl") or "/bin/systemctl" or "/usr/bin/systemctl"
+            if sys_ctl and os.path.exists(sys_ctl):
+                try:
+                    subprocess.Popen(["sudo", sys_ctl, "restart", "wyckoff-terminal.service", "wyckoff-bot.service"])
+                except:
+                    pass
 
         return {
             "success": True,
