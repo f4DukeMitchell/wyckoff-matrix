@@ -677,6 +677,23 @@ def trigger_ml_evolution():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/system/update")
+def trigger_system_update():
+    """Pulls latest git commits, executes database migrations, and updates the repository."""
+    import subprocess
+    import sys
+    try:
+        pull_res = subprocess.run(["git", "pull", "origin", "main"], capture_output=True, text=True, timeout=30)
+        py_exe = sys.executable or "python3"
+        mig_res = subprocess.run([py_exe, "migrate_db.py"], capture_output=True, text=True, timeout=30)
+        return {
+            "success": True,
+            "git_output": (pull_res.stdout + "\n" + pull_res.stderr).strip(),
+            "migration_output": (mig_res.stdout + "\n" + mig_res.stderr).strip()
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 # Mount static web assets
 app.mount("/", StaticFiles(directory="terminal_static", html=True), name="static")
 

@@ -908,7 +908,10 @@
                 <b class="c-white" style="font-size: 11px;">ON-DEMAND EVOLUTION ENGINE</b>
                 <div class="c-muted" style="font-size: 9.5px;">Force instant retraining on newest trade outcomes</div>
               </div>
-              <button class="ml-btn-train" id="btn-trigger-retrain" onclick="triggerRetrain()">⚡ EVOLVE MODEL NOW</button>
+              <div style="display: flex; gap: 8px;">
+                <button class="ml-btn-train" style="border-color: var(--wsr-cyan); color: var(--wsr-cyan);" id="btn-sync-cloud" onclick="triggerCloudSync()">🔄 SYNC FROM GITHUB</button>
+                <button class="ml-btn-train" id="btn-trigger-retrain" onclick="triggerRetrain()">⚡ EVOLVE MODEL NOW</button>
+              </div>
             </div>
             <div class="ml-train-console" id="ml-console-log">Ready. System standing by. Click 'EVOLVE MODEL NOW' or wait for 4:15 PM EST cron.</div>
           </div>
@@ -1726,6 +1729,30 @@
       } finally {
         btn.disabled = false;
         btn.innerText = '⚡ EVOLVE MODEL NOW';
+      }
+    }
+
+    async function triggerCloudSync() {
+      const btn = document.getElementById('btn-sync-cloud');
+      const consoleBox = document.getElementById('ml-console-log');
+      btn.disabled = true;
+      btn.innerText = 'SYNCING...';
+      consoleBox.innerText = `[${new Date().toLocaleTimeString()}] CONNECTING TO GITHUB... FETCHING LATEST COMMITS & RUNNING DB MIGRATIONS...`;
+
+      try {
+        const res = await fetch('/api/system/update', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          consoleBox.innerText += `\n[${new Date().toLocaleTimeString()}] REPOSITORY UPDATED SUCCESSFULLY!\n\n${data.git_output}\n${data.migration_output}`;
+          setTimeout(() => { location.reload(); }, 2500);
+        } else {
+          consoleBox.innerText += `\n[${new Date().toLocaleTimeString()}] SYNC ERROR: ${data.error || 'Failed'}`;
+        }
+      } catch (err) {
+        consoleBox.innerText += `\n[${new Date().toLocaleTimeString()}] NETWORK ERROR: ${err}`;
+      } finally {
+        btn.disabled = false;
+        btn.innerText = '🔄 SYNC FROM GITHUB';
       }
     }
 
