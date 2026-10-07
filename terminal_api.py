@@ -3,10 +3,12 @@ import json
 import sqlite3
 import datetime
 import asyncio
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, status, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, Response
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
+import secrets
 
 from public_executor import (
     get_account_capital_summary, calculate_test_allocation, execute_dollar_buy,
@@ -16,6 +18,44 @@ from data_feed_public import get_public_bars_sync
 from options_flow import get_options_flow, get_public_quotes
 
 app = FastAPI(title="WSR Terminal Engine")
+
+# --- AUTHENTICATION SAFEGUARDS ---
+security = HTTPBasic()
+
+AUTH_USER = os.getenv("TERMINAL_USER", "F4DukeMitchell")
+AUTH_PASS = os.getenv("TERMINAL_PASS", "M642423s$")
+
+@app.middleware("http")
+async def basic_auth_middleware(request: Request, call_next):
+    # Allow local loopback without prompt if desired, or require auth for all external access
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Basic "):
+        return Response(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"WWW-Authenticate": 'Basic realm="WSR Matrix Terminal Secure Access"'},
+            content="Authentication Required."
+        )
+    try:
+        import base64
+        encoded_creds = auth_header.split(" ", 1)[1]
+        decoded = base64.b64decode(encoded_creds).decode("utf-8")
+        username, _, password = decoded.partition(":")
+        
+        user_correct = secrets.compare_digest(username, AUTH_USER)
+        pass_correct = secrets.compare_digest(password, AUTH_PASS)
+        if not (user_correct and pass_correct):
+            return Response(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                headers={"WWW-Authenticate": 'Basic realm="WSR Matrix Terminal Secure Access"'},
+                content="Invalid Credentials."
+            )
+    except Exception:
+        return Response(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"WWW-Authenticate": 'Basic realm="WSR Matrix Terminal Secure Access"'},
+            content="Authentication Failed."
+        )
+    return await call_next(request)
 
 DB_PATH = "wyckoff_trades.db"
 
