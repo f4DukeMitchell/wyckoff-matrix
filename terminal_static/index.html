@@ -1494,20 +1494,28 @@
     // --- BROKER EXECUTION HANDLERS ---
     async function executeBuy(ticker, tradeId) {
       const sizing = getSelectedRiskSizing();
-      const dollarAmount = sizing.dollarAmount;
-      if (!confirm(`Execute ${sizing.label} BUY for ${ticker} ($${dollarAmount.toFixed(2)}) on Public.com?`)) return;
+      let defaultDollars = sizing.dollarAmount.toFixed(2);
+      
+      const userInput = prompt(`Execute BUY for ${ticker} on Public.com\n\nEnter dollar amount to trade (Default: ${sizing.label} = $${defaultDollars}):`, defaultDollars);
+      if (userInput === null) return; // User clicked Cancel
+      
+      const parsedAmount = parseFloat(userInput);
+      if (isNaN(parsedAmount) || parsedAmount < 1.0) {
+        alert("Please enter a valid dollar amount of at least $1.00");
+        return;
+      }
       
       try {
         const res = await fetch('/api/order/buy', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ticker: ticker, amount: dollarAmount, trade_id: tradeId})
+          body: JSON.stringify({ticker: ticker, amount: parsedAmount, trade_id: tradeId})
         });
         const text = await res.text();
         let d = {};
         try { d = JSON.parse(text); } catch (e) { d = { detail: text }; }
         if (res.ok && d.success) {
-          alert(`Order Submitted: ${ticker} ($${dollarAmount.toFixed(2)}) on Public.com!`);
+          alert(`Order Submitted: ${ticker} ($${parsedAmount.toFixed(2)}) on Public.com!`);
           fetchState();
         } else {
           alert(`Broker Error (${res.status}): ${d.detail || text || 'Execution failed'}`);
@@ -1519,14 +1527,22 @@
 
     async function executeShort(ticker, tradeId) {
       const sizing = getSelectedRiskSizing();
-      const dollarAmount = sizing.dollarAmount;
-      if (!confirm(`Execute ${sizing.label} SHORT for ${ticker} (~$${dollarAmount.toFixed(2)}) on Public.com?\n(Note: Shorts are executed in whole integer shares)`)) return;
+      let defaultDollars = sizing.dollarAmount.toFixed(2);
+      
+      const userInput = prompt(`Execute SHORT for ${ticker} on Public.com\n(Note: Shorts are executed in whole integer shares)\n\nEnter dollar target to short (Default: ${sizing.label} = $${defaultDollars}):`, defaultDollars);
+      if (userInput === null) return; // User clicked Cancel
+      
+      const parsedAmount = parseFloat(userInput);
+      if (isNaN(parsedAmount) || parsedAmount < 5.0) {
+        alert("Please enter a valid dollar amount of at least $5.00");
+        return;
+      }
       
       try {
         const res = await fetch('/api/order/short', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ticker: ticker, amount: dollarAmount, trade_id: tradeId})
+          body: JSON.stringify({ticker: ticker, amount: parsedAmount, trade_id: tradeId})
         });
         const text = await res.text();
         let d = {};
