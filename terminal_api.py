@@ -771,7 +771,8 @@ def trigger_system_update():
 
         # Trigger background service reload so uvicorn loads new python code into memory
         if os.name != 'nt':
-            subprocess.Popen(["bash", "-c", "sleep 1 && sudo systemctl restart wyckoff-terminal.service wyckoff-bot.service"])
+            bash_bin = shutil.which("bash") or "/bin/bash" or "/usr/bin/bash"
+            subprocess.Popen([bash_bin, "-c", "sleep 1 && sudo systemctl restart wyckoff-terminal.service wyckoff-bot.service"], env=env)
 
         return {
             "success": True,
