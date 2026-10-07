@@ -43,6 +43,12 @@ except:
     OPTIONS_ENABLED = False
 
 try:
+    from institutional_engine import compute_all_institutional_features
+    INST_ENGINE_ENABLED = True
+except:
+    INST_ENGINE_ENABLED = False
+
+try:
     from data_feed_public import stream_ticker_bars, get_spy_trend_public, get_public_bars_sync
     PUBLIC_DATA_ENABLED = True
 except Exception as e:
@@ -316,9 +322,20 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
             
             regime = "BEARISH (Seeking Reversal)" if not u9[curr] and not u14[curr] else "MIXED"
             
-            # Calculate Real ML Model Win Probability with Wyckoff VSA Features
+            # --- Extract All 4 Institutional Tactics ---
+            inst = compute_all_institutional_features(ticker, price, vols[curr], rel_vol=rel_vol[curr],
+                                                      effort_vs_result=effort_vs_result, options_flow=flow,
+                                                      current_time=now) if INST_ENGINE_ENABLED else {}
+
+            # Calculate Real ML Model Win Probability with All Institutional Features
             ml_conf = calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_of_day, "LONG",
-                                              effort_vs_result=effort_vs_result, test_vol_ratio=test_vol_ratio) if TRACKER_ENABLED else None
+                                              effort_vs_result=effort_vs_result, test_vol_ratio=test_vol_ratio,
+                                              days_to_rebalance=inst.get('days_to_rebalance', 45),
+                                              is_triple_witching=inst.get('is_triple_witching', 0),
+                                              dealer_gamma_regime=inst.get('dealer_gamma_regime', 0),
+                                              gamma_wall_dist_pct=inst.get('gamma_wall_dist_pct', 0.0),
+                                              moc_surge_score=inst.get('moc_surge_score', 0.0),
+                                              institutional_block_ratio=inst.get('institutional_block_ratio', 1.0)) if TRACKER_ENABLED else None
 
             trade_id = None
             if TRACKER_ENABLED:
@@ -336,7 +353,13 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           implied_volatility=flow.get('atm_iv') if flow else None,
                           ml_confidence=ml_conf,
                           effort_vs_result=effort_vs_result,
-                          test_vol_ratio=test_vol_ratio)
+                          test_vol_ratio=test_vol_ratio,
+                          days_to_rebalance=inst.get('days_to_rebalance', 45),
+                          is_triple_witching=inst.get('is_triple_witching', 0),
+                          dealer_gamma_regime=inst.get('dealer_gamma_regime', 0),
+                          gamma_wall_dist_pct=inst.get('gamma_wall_dist_pct', 0.0),
+                          moc_surge_score=inst.get('moc_surge_score', 0.0),
+                          institutional_block_ratio=inst.get('institutional_block_ratio', 1.0))
             
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] SILENT LOG: {ticker} LONG - R-Units too low ({r_units:.2f}R)")
@@ -379,9 +402,20 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
             
             regime = "BULLISH (Seeking Reversal)" if u9[curr] and u14[curr] else "MIXED"
             
-            # Calculate Real ML Model Win Probability with Wyckoff VSA Features
+            # --- Extract All 4 Institutional Tactics ---
+            inst = compute_all_institutional_features(ticker, price, vols[curr], rel_vol=rel_vol[curr],
+                                                      effort_vs_result=effort_vs_result, options_flow=flow,
+                                                      current_time=now) if INST_ENGINE_ENABLED else {}
+
+            # Calculate Real ML Model Win Probability with All Institutional Features
             ml_conf = calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_of_day, "SHORT",
-                                              effort_vs_result=effort_vs_result, test_vol_ratio=test_vol_ratio) if TRACKER_ENABLED else None
+                                              effort_vs_result=effort_vs_result, test_vol_ratio=test_vol_ratio,
+                                              days_to_rebalance=inst.get('days_to_rebalance', 45),
+                                              is_triple_witching=inst.get('is_triple_witching', 0),
+                                              dealer_gamma_regime=inst.get('dealer_gamma_regime', 0),
+                                              gamma_wall_dist_pct=inst.get('gamma_wall_dist_pct', 0.0),
+                                              moc_surge_score=inst.get('moc_surge_score', 0.0),
+                                              institutional_block_ratio=inst.get('institutional_block_ratio', 1.0)) if TRACKER_ENABLED else None
 
             trade_id = None
             if TRACKER_ENABLED:
@@ -399,7 +433,13 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           implied_volatility=flow.get('atm_iv') if flow else None,
                           ml_confidence=ml_conf,
                           effort_vs_result=effort_vs_result,
-                          test_vol_ratio=test_vol_ratio)
+                          test_vol_ratio=test_vol_ratio,
+                          days_to_rebalance=inst.get('days_to_rebalance', 45),
+                          is_triple_witching=inst.get('is_triple_witching', 0),
+                          dealer_gamma_regime=inst.get('dealer_gamma_regime', 0),
+                          gamma_wall_dist_pct=inst.get('gamma_wall_dist_pct', 0.0),
+                          moc_surge_score=inst.get('moc_surge_score', 0.0),
+                          institutional_block_ratio=inst.get('institutional_block_ratio', 1.0))
             
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] SILENT LOG: {ticker} SHORT - R-Units too low ({r_units:.2f}R)")

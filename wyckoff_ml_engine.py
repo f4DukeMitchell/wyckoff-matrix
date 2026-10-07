@@ -68,15 +68,22 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             'BREAKEVEN': 0.5
         }).fillna(1.0)
         
-        if 'effort_vs_result' not in df.columns:
-            df['effort_vs_result'] = 1.0
-        else:
-            df['effort_vs_result'] = df['effort_vs_result'].fillna(1.0)
-            
-        if 'test_vol_ratio' not in df.columns:
-            df['test_vol_ratio'] = 1.0
-        else:
-            df['test_vol_ratio'] = df['test_vol_ratio'].fillna(1.0)
+        # Backfill defaults if columns missing in historical rows
+        col_defaults = {
+            'effort_vs_result': 1.0,
+            'test_vol_ratio': 1.0,
+            'days_to_rebalance': 45,
+            'is_triple_witching': 0,
+            'dealer_gamma_regime': 0,
+            'gamma_wall_dist_pct': 0.0,
+            'moc_surge_score': 0.0,
+            'institutional_block_ratio': 1.0
+        }
+        for c_name, def_val in col_defaults.items():
+            if c_name not in df.columns:
+                df[c_name] = def_val
+            else:
+                df[c_name] = df[c_name].fillna(def_val)
 
         feature_map = {
             'bars_in_regime': 'Trend Exhaustion (Bars)',
@@ -84,6 +91,12 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             'atr_expansion': 'ATR Expansion (Vol)',
             'effort_vs_result': 'Effort vs Result (Absorption)',
             'test_vol_ratio': 'Secondary Test Vol Ratio',
+            'days_to_rebalance': 'Index Rebalance Proximity (Days)',
+            'is_triple_witching': 'Triple Witching Week Flag',
+            'dealer_gamma_regime': 'Dealer Gamma Regime (Pin vs Run)',
+            'gamma_wall_dist_pct': 'Gamma Wall Distance (%)',
+            'moc_surge_score': 'MOC Auction Closing Surge',
+            'institutional_block_ratio': 'Institutional Block vs Retail',
             'hour_of_day': 'Hour of Day (EST)',
             'dir_num': 'Direction (Long/Short)'
         }
@@ -131,7 +144,7 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
         rules = [
             f"Heavily weight {top_feat} ({sorted_imp[0][1]}% influence) on Phase C reversals",
             f"Secondary filter: {sorted_imp[1][0]} ({sorted_imp[1][1]}% influence)",
-            f"Breakeven Ratchet active: +0.75R triggers stop move to entry ({breakevens} scratches protected)"
+            f"Institutional Tactics Active: Dealer Gamma Regimes, MOC Closing Drives, & Index Rebalance Proximity"
         ]
         
         notes_str = f"{trigger_reason} | {wins}W - {losses}L - {breakevens}BE (Ex-BE WR: {directional_win_rate:.1f}%, BE Rate: {be_rate:.1f}%)"

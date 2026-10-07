@@ -468,17 +468,24 @@
       min-height: 270px;
     }
 
+    #ml-feature-bars {
+      max-height: 250px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
     .ml-bar-row {
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
     .ml-bar-label {
-      width: 175px;
-      font-size: 10.5px;
+      width: 210px;
+      font-size: 10px;
       color: var(--wsr-white);
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .ml-bar-track {
       flex: 1;

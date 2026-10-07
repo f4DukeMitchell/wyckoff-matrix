@@ -16,6 +16,12 @@ def migrate():
         ("initial_stop_loss", "REAL"),
         ("effort_vs_result", "REAL DEFAULT 1.0"),
         ("test_vol_ratio", "REAL DEFAULT 1.0"),
+        ("days_to_rebalance", "INTEGER DEFAULT 45"),
+        ("is_triple_witching", "INTEGER DEFAULT 0"),
+        ("dealer_gamma_regime", "INTEGER DEFAULT 0"),
+        ("gamma_wall_dist_pct", "REAL DEFAULT 0.0"),
+        ("moc_surge_score", "REAL DEFAULT 0.0"),
+        ("institutional_block_ratio", "REAL DEFAULT 1.0"),
     ]:
         try:
             c.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")
@@ -38,6 +44,36 @@ def migrate():
         UPDATE alerts
         SET test_vol_ratio = 1.0
         WHERE test_vol_ratio IS NULL
+    """)
+    c.execute("""
+        UPDATE alerts
+        SET days_to_rebalance = 45
+        WHERE days_to_rebalance IS NULL
+    """)
+    c.execute("""
+        UPDATE alerts
+        SET is_triple_witching = 0
+        WHERE is_triple_witching IS NULL
+    """)
+    c.execute("""
+        UPDATE alerts
+        SET dealer_gamma_regime = 0
+        WHERE dealer_gamma_regime IS NULL
+    """)
+    c.execute("""
+        UPDATE alerts
+        SET gamma_wall_dist_pct = 0.0
+        WHERE gamma_wall_dist_pct IS NULL
+    """)
+    c.execute("""
+        UPDATE alerts
+        SET moc_surge_score = 0.0
+        WHERE moc_surge_score IS NULL
+    """)
+    c.execute("""
+        UPDATE alerts
+        SET institutional_block_ratio = 1.0
+        WHERE institutional_block_ratio IS NULL
     """)
 
     # 3. For breakeven_set = 1, restore initial_stop_loss from 1.5R target geometry

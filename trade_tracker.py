@@ -57,6 +57,12 @@ def init_db():
             ("initial_stop_loss", "REAL DEFAULT NULL"),
             ("effort_vs_result", "REAL DEFAULT 1.0"),
             ("test_vol_ratio", "REAL DEFAULT 1.0"),
+            ("days_to_rebalance", "INTEGER DEFAULT 45"),
+            ("is_triple_witching", "INTEGER DEFAULT 0"),
+            ("dealer_gamma_regime", "INTEGER DEFAULT 0"),
+            ("gamma_wall_dist_pct", "REAL DEFAULT 0.0"),
+            ("moc_surge_score", "REAL DEFAULT 0.0"),
+            ("institutional_block_ratio", "REAL DEFAULT 1.0"),
         ]
         for col_name, col_type in new_cols:
             try: cursor.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")
@@ -83,11 +89,17 @@ def get_ml_model():
         print(f"Error loading wyckoff_model.pkl: {e}")
     return None
 
-def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_of_day, direction, effort_vs_result=1.0, test_vol_ratio=1.0):
+def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_of_day, direction,
+                            effort_vs_result=1.0, test_vol_ratio=1.0,
+                            days_to_rebalance=45, is_triple_witching=0,
+                            dealer_gamma_regime=0, gamma_wall_dist_pct=0.0,
+                            moc_surge_score=0.0, institutional_block_ratio=1.0):
     """
     Computes real machine learning win probability (0.0 to 100.0%)
     using the trained Random Forest model.
-    Features: ['bars_in_regime', 'vwap_distance', 'atr_expansion', 'hour_of_day', 'dir_num', 'effort_vs_result', 'test_vol_ratio']
+    Evaluates 11 institutional factors including:
+    - Wyckoff VSA (Effort vs Result, Test Vol Ratio)
+    - Institutional Microstructure (Gamma Regimes, MOC Surges, Block Size, Rebalance Proximity)
     """
     model = get_ml_model()
     dir_num = 1 if (direction or "").upper() == "LONG" else 0
@@ -97,6 +109,12 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
     h_day = float(hour_of_day or 10.0)
     evr = float(effort_vs_result if effort_vs_result is not None else 1.0)
     tvr = float(test_vol_ratio if test_vol_ratio is not None else 1.0)
+    d_reb = int(days_to_rebalance if days_to_rebalance is not None else 45)
+    i_tw = int(is_triple_witching if is_triple_witching is not None else 0)
+    d_gam = int(dealer_gamma_regime if dealer_gamma_regime is not None else 0)
+    g_dist = float(gamma_wall_dist_pct if gamma_wall_dist_pct is not None else 0.0)
+    m_moc = float(moc_surge_score if moc_surge_score is not None else 0.0)
+    i_blk = float(institutional_block_ratio if institutional_block_ratio is not None else 1.0)
 
     if model is not None:
         try:
@@ -105,13 +123,19 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
                 'bars_in_regime': b_reg,
                 'vwap_distance': v_dist,
                 'atr_expansion': a_exp,
-                'hour_of_day': h_day,
-                'dir_num': dir_num,
                 'effort_vs_result': evr,
-                'test_vol_ratio': tvr
+                'test_vol_ratio': tvr,
+                'days_to_rebalance': d_reb,
+                'is_triple_witching': i_tw,
+                'dealer_gamma_regime': d_gam,
+                'gamma_wall_dist_pct': g_dist,
+                'moc_surge_score': m_moc,
+                'institutional_block_ratio': i_blk,
+                'hour_of_day': h_day,
+                'dir_num': dir_num
             }
             if hasattr(model, 'feature_names_in_'):
-                features = pd.DataFrame([{col: feat_dict.get(col, 1.0) for col in model.feature_names_in_}])
+                features = pd.DataFrame([{col: feat_dict.get(col, 0.0) for col in model.feature_names_in_}])
             else:
                 features = pd.DataFrame([feat_dict])
             # Probability of target == 1 (WIN)
@@ -139,7 +163,9 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
               timeframe='5m', pcr=None, sentiment=None, bars_in_regime=0,
               vwap_distance=None, hour_of_day=None, spy_bullish=None, atr_expansion=None,
               bid_ask_ratio=None, spread_width_pct=None, implied_volatility=None, model_version=None,
-              ml_confidence=None, effort_vs_result=None, test_vol_ratio=None):
+              ml_confidence=None, effort_vs_result=None, test_vol_ratio=None,
+              days_to_rebalance=None, is_triple_witching=None, dealer_gamma_regime=None,
+              gamma_wall_dist_pct=None, moc_surge_score=None, institutional_block_ratio=None):
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -150,13 +176,21 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
                                 timestamp, pcr, sentiment, timeframe, bars_in_regime,
                                 vwap_distance, hour_of_day, spy_bullish, atr_expansion,
                                 bid_ask_ratio, spread_width_pct, implied_volatility, model_version, ml_confidence,
-                                initial_stop_loss, effort_vs_result, test_vol_ratio)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                initial_stop_loss, effort_vs_result, test_vol_ratio,
+                                days_to_rebalance, is_triple_witching, dealer_gamma_regime,
+                                gamma_wall_dist_pct, moc_surge_score, institutional_block_ratio)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (ticker, direction, entry_price, stop_loss, take_profit, regime,
               timestamp, pcr, sentiment, timeframe, bars_in_regime,
               vwap_distance, hour_of_day, 1 if spy_bullish else 0 if spy_bullish is not None else None,
               atr_expansion, bid_ask_ratio, spread_width_pct, implied_volatility, active_version, ml_confidence,
-              stop_loss, effort_vs_result if effort_vs_result is not None else 1.0, test_vol_ratio if test_vol_ratio is not None else 1.0))
+              stop_loss, effort_vs_result if effort_vs_result is not None else 1.0, test_vol_ratio if test_vol_ratio is not None else 1.0,
+              days_to_rebalance if days_to_rebalance is not None else 45,
+              is_triple_witching if is_triple_witching is not None else 0,
+              dealer_gamma_regime if dealer_gamma_regime is not None else 0,
+              gamma_wall_dist_pct if gamma_wall_dist_pct is not None else 0.0,
+              moc_surge_score if moc_surge_score is not None else 0.0,
+              institutional_block_ratio if institutional_block_ratio is not None else 1.0))
         conn.commit()
         last_id = cursor.lastrowid
         return last_id
