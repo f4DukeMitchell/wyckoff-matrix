@@ -106,7 +106,7 @@
     #main-grid {
       flex: 1;
       display: grid;
-      grid-template-columns: 330px 1fr 340px;
+      grid-template-columns: 450px 1fr 340px;
       grid-template-rows: 1fr 240px;
       gap: 1px;
       background: var(--wsr-border);
@@ -138,6 +138,10 @@
       flex: 1;
       overflow-y: auto;
       padding: 4px;
+    }
+
+    #pane-watchlist .pane-content {
+      overflow-x: auto;
     }
 
     /* TABLES */
@@ -594,16 +598,16 @@
         <button class="term-btn" onclick="fetchState()">REFRESH</button>
       </div>
       <div class="pane-content">
-        <table id="tbl-positions" style="font-size: 10px; table-layout: auto; width: 100%;">
+        <table id="tbl-positions" style="font-size: 10px; table-layout: auto; width: 100%; min-width: 430px;">
           <thead>
             <tr>
-              <th style="padding: 2px 2px;">SYM</th>
-              <th style="padding: 2px 2px;">DIR</th>
-              <th style="padding: 2px 2px;">ENTRY</th>
-              <th style="padding: 2px 2px;">LAST</th>
-              <th style="padding: 2px 2px;">P&L</th>
-              <th style="padding: 2px 2px;">TP</th>
-              <th style="padding: 2px 2px; text-align: center;">ACT</th>
+              <th style="padding: 3px 4px;">SYM</th>
+              <th style="padding: 3px 4px;">DIR</th>
+              <th style="padding: 3px 4px;">ENTRY</th>
+              <th style="padding: 3px 4px;">LAST</th>
+              <th style="padding: 3px 4px;">P&L</th>
+              <th style="padding: 3px 4px;">TP</th>
+              <th style="padding: 3px 4px; text-align: center;">ACT</th>
             </tr>
           </thead>
           <tbody>
@@ -1469,13 +1473,13 @@
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
-              <td class="c-cyan" style="padding:3px 2px;" onclick="loadChartData('${p.ticker}', '5m')"><b>${p.ticker}</b></td>
-              <td class="${isLong ? 'c-green' : 'c-red'}" style="padding:3px 2px;">${dirBadge}</td>
-              <td style="padding:3px 2px;">$${p.entry_price ? p.entry_price.toFixed(2) : '--'}</td>
-              <td style="padding:3px 2px;"><b class="c-white">${currPrice}</b></td>
-              <td class="${pnlClass}" style="padding:3px 2px; font-weight:600;">${pnlDisplay}</td>
-              <td style="padding:3px 2px;">${targetDisplay}</td>
-              <td style="padding:3px 2px; text-align:center;"><button class="term-btn term-btn-exit" style="padding: 1px 4px; font-size: 9px;" onclick="${exitCall}">EXIT</button></td>
+              <td class="c-cyan" style="padding:3px 4px;" onclick="loadChartData('${p.ticker}', '5m')"><b>${p.ticker}</b></td>
+              <td class="${isLong ? 'c-green' : 'c-red'}" style="padding:3px 4px;">${dirBadge}</td>
+              <td style="padding:3px 4px;">$${p.entry_price ? p.entry_price.toFixed(2) : '--'}</td>
+              <td style="padding:3px 4px;"><b class="c-white">${currPrice}</b></td>
+              <td class="${pnlClass}" style="padding:3px 4px; font-weight:600;">${pnlDisplay}</td>
+              <td style="padding:3px 4px;">${targetDisplay}</td>
+              <td style="padding:3px 4px; text-align:center;"><button class="term-btn term-btn-exit" style="padding: 2px 6px; font-size: 9px;" onclick="${exitCall}">EXIT</button></td>
             `;
             posTbody.appendChild(tr);
           });
