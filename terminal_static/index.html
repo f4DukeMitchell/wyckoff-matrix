@@ -714,6 +714,7 @@
             <tr>
               <th>SYM</th>
               <th>DIR</th>
+              <th>TF</th>
               <th>RESULT</th>
               <th>RETURN</th>
             </tr>
@@ -1474,9 +1475,11 @@
           data.history.forEach(h => {
             const tr = document.createElement('tr');
             const color = h.outcome === 'WIN' ? 'c-green' : (h.outcome === 'BREAKEVEN' ? 'c-yellow' : 'c-red');
+            const tf = (h.timeframe || '5m').toUpperCase();
             tr.innerHTML = `
-              <td class="c-cyan"><b>${h.ticker}</b></td>
+              <td class="c-cyan" onclick="loadChartData('${h.ticker}', '${h.timeframe || '5m'}')"><b>${h.ticker}</b></td>
               <td>${h.direction}</td>
+              <td><b class="c-yellow">${tf}</b></td>
               <td class="${color}">${h.outcome}</td>
               <td class="${color}">${h.pnl_r ? (h.pnl_r >= 0 ? '+' : '') + h.pnl_r.toFixed(1) + 'R' : '--'}</td>
             `;
