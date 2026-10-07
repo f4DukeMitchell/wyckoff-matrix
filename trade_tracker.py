@@ -68,6 +68,7 @@ def init_db():
             ("ghost_exit_price", "REAL DEFAULT NULL"),
             ("ghost_pnl_r", "REAL DEFAULT NULL"),
             ("ghost_resolved_at", "TEXT DEFAULT NULL"),
+            ("optimal_target_r", "REAL DEFAULT 1.15"),
         ]
         for col_name, col_type in new_cols:
             try: cursor.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")
@@ -170,7 +171,8 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
               bid_ask_ratio=None, spread_width_pct=None, implied_volatility=None, model_version=None,
               ml_confidence=None, effort_vs_result=None, test_vol_ratio=None,
               days_to_rebalance=None, is_triple_witching=None, dealer_gamma_regime=None,
-              gamma_wall_dist_pct=None, moc_surge_score=None, institutional_block_ratio=None):
+              gamma_wall_dist_pct=None, moc_surge_score=None, institutional_block_ratio=None,
+              optimal_target_r=None):
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -183,8 +185,9 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
                                 bid_ask_ratio, spread_width_pct, implied_volatility, model_version, ml_confidence,
                                 initial_stop_loss, effort_vs_result, test_vol_ratio,
                                 days_to_rebalance, is_triple_witching, dealer_gamma_regime,
-                                gamma_wall_dist_pct, moc_surge_score, institutional_block_ratio)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                gamma_wall_dist_pct, moc_surge_score, institutional_block_ratio,
+                                optimal_target_r)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (ticker, direction, entry_price, stop_loss, take_profit, regime,
               timestamp, pcr, sentiment, timeframe, bars_in_regime,
               vwap_distance, hour_of_day, 1 if spy_bullish else 0 if spy_bullish is not None else None,
@@ -195,7 +198,8 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
               dealer_gamma_regime if dealer_gamma_regime is not None else 0,
               gamma_wall_dist_pct if gamma_wall_dist_pct is not None else 0.0,
               moc_surge_score if moc_surge_score is not None else 0.0,
-              institutional_block_ratio if institutional_block_ratio is not None else 1.0))
+              institutional_block_ratio if institutional_block_ratio is not None else 1.0,
+              optimal_target_r if optimal_target_r is not None else 1.15))
         conn.commit()
         last_id = cursor.lastrowid
         return last_id

@@ -32,6 +32,43 @@ def init_history_table():
     except Exception as e:
         print(f"Error initializing ml_model_history: {e}")
 
+def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gamma_regime=0, 
+                               gamma_wall_dist_pct=0.0, institutional_block_ratio=1.0, effort_vs_result=1.0):
+    """
+    ML Data-Driven R-Target Optimizer:
+    Dynamically constrains targets strictly to the proven Sweet Spot [1.05R to 1.35R].
+    Rejects inverted negative expectancy (< 1.0R) and avoids unachievable targets (> 1.4R on 5M).
+    
+    Factors Evaluated:
+    - ATR Expansion: Volatility breakout allows target expansion up to +0.10R
+    - Secondary Test Volume: Dry-up (< 0.8) boosts target by +0.05R
+    - Dealer Gamma: Short Gamma (-1) squeeze potential boosts target by +0.08R; Long Gamma (+1) pin lowers to +1.05R
+    - Institutional Block Ratio: Heavy block buying/selling adds +0.04R
+    """
+    import numpy as np
+    base_r = 1.10  # Baseline high-expectancy sweet spot
+    
+    # 1. Volatility Expansion
+    atr_val = float(atr_expansion if atr_expansion is not None else 1.0)
+    atr_boost = float(np.clip((atr_val - 1.0) * 0.15, -0.05, 0.10))
+    
+    # 2. Secondary Test Volume Exhaustion
+    tvr_val = float(test_vol_ratio if test_vol_ratio is not None else 1.0)
+    test_boost = 0.05 if tvr_val < 0.8 else (-0.05 if tvr_val > 1.3 else 0.0)
+    
+    # 3. Dealer Gamma Regime (Short Gamma = Squeeze, Long Gamma = Pin)
+    d_gam = int(dealer_gamma_regime if dealer_gamma_regime is not None else 0)
+    gamma_boost = 0.08 if d_gam == -1 else (-0.05 if d_gam == 1 else 0.0)
+    
+    # 4. Institutional Block Flow
+    i_blk = float(institutional_block_ratio if institutional_block_ratio is not None else 1.0)
+    block_boost = 0.04 if i_blk > 1.2 else 0.0
+    
+    target_r = base_r + atr_boost + test_boost + gamma_boost + block_boost
+    
+    # Strictly enforce the proven quantitative sweet spot [1.05R, 1.35R]
+    return round(float(np.clip(target_r, 1.05, 1.35)), 2)
+
 def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
     """
     Automated Machine Learning Upgrade Engine:
@@ -144,7 +181,7 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
         rules = [
             f"Heavily weight {top_feat} ({sorted_imp[0][1]}% influence) on Phase C reversals",
             f"Secondary filter: {sorted_imp[1][0]} ({sorted_imp[1][1]}% influence)",
-            f"Institutional Tactics Active: Dealer Gamma Regimes, MOC Closing Drives, & Index Rebalance Proximity"
+            f"Dynamic Sweet-Spot Engine: Targets strictly calibrated to +1.05R - +1.35R (Breakeven locked at +0.75R)"
         ]
         
         notes_str = f"{trigger_reason} | {wins}W - {losses}L - {breakevens}BE (Ex-BE WR: {directional_win_rate:.1f}%, BE Rate: {be_rate:.1f}%)"

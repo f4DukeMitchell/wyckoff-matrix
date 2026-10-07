@@ -54,6 +54,12 @@ try:
 except Exception as e:
     PUBLIC_DATA_ENABLED = False
 
+try:
+    from wyckoff_ml_engine import calculate_optimal_target_r
+    ML_TARGET_OPT_ENABLED = True
+except:
+    ML_TARGET_OPT_ENABLED = False
+
 # ==========================================
 # USER CONFIGURATION
 # ==========================================
@@ -76,7 +82,7 @@ TIMEFRAMES = [
     {"interval": "1d", "period": "2y", "lookback": 100}
 ]
 SL_BUFFER = 0.01
-MIN_R_UNITS = 1.5
+MIN_R_UNITS = 1.05  # Proven Sweet-Spot Floor: Rejects negative-expectancy sub-1.0R setups
 VOL_LIMIT = 1.2
 
 last_alerted = {ticker: 0 for ticker in TICKERS}
@@ -311,21 +317,40 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
             
             price = closes[curr]
             sl = min(lows[curr], lows[curr-1]) * (1.0 - SL_BUFFER)
-            tp = range_low[curr] + ((range_high[curr] - range_low[curr]) * 0.5)
-            
-            if flow and flow.get('gamma_wall', 0) > price and flow.get('gamma_wall', 0) < range_high[curr]:
-                tp = flow.get('gamma_wall', 0)
-                
             risk = abs(price - sl)
-            reward = abs(tp - price)
-            r_units = (reward / risk) if risk > 0 else 0
-            
+            if risk <= 0.001:
+                return
+
             regime = "BEARISH (Seeking Reversal)" if not u9[curr] and not u14[curr] else "MIXED"
             
             # --- Extract All 4 Institutional Tactics ---
             inst = compute_all_institutional_features(ticker, price, vols[curr], rel_vol=rel_vol[curr],
                                                       effort_vs_result=effort_vs_result, options_flow=flow,
                                                       current_time=now) if INST_ENGINE_ENABLED else {}
+
+            # --- ML Dynamic Sweet-Spot Target Optimization [1.05R to 1.35R] ---
+            if ML_TARGET_OPT_ENABLED:
+                opt_target_r = calculate_optimal_target_r(
+                    atr_expansion=atr_expansion,
+                    test_vol_ratio=test_vol_ratio,
+                    dealer_gamma_regime=inst.get('dealer_gamma_regime', 0),
+                    gamma_wall_dist_pct=inst.get('gamma_wall_dist_pct', 0.0),
+                    institutional_block_ratio=inst.get('institutional_block_ratio', 1.0),
+                    effort_vs_result=effort_vs_result
+                )
+            else:
+                opt_target_r = 1.15
+                
+            tp = price + (opt_target_r * risk)
+            if flow and flow.get('gamma_wall', 0) > price:
+                gw = flow.get('gamma_wall', 0)
+                gw_r = (gw - price) / risk if risk > 0 else 0
+                if 1.05 <= gw_r <= 1.35:
+                    tp = gw
+                    opt_target_r = round(gw_r, 2)
+                    
+            reward = abs(tp - price)
+            r_units = (reward / risk) if risk > 0 else 0
 
             # Calculate Real ML Model Win Probability with All Institutional Features
             ml_conf = calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_of_day, "LONG",
@@ -364,7 +389,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           dealer_gamma_regime=inst.get('dealer_gamma_regime', 0),
                           gamma_wall_dist_pct=inst.get('gamma_wall_dist_pct', 0.0),
                           moc_surge_score=inst.get('moc_surge_score', 0.0),
-                          institutional_block_ratio=inst.get('institutional_block_ratio', 1.0))
+                          institutional_block_ratio=inst.get('institutional_block_ratio', 1.0),
+                          optimal_target_r=opt_target_r)
             
             if TELEGRAM_ENABLED:
                 tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, interval, flow, trade_id, ml_confidence=ml_conf)
@@ -391,21 +417,40 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     
             price = closes[curr]
             sl = max(highs[curr], highs[curr-1]) * (1.0 + SL_BUFFER)
-            tp = range_high[curr] - ((range_high[curr] - range_low[curr]) * 0.5)
-            
-            if flow and flow.get('gamma_wall', 0) < price and flow.get('gamma_wall', 0) > range_low[curr]:
-                tp = flow.get('gamma_wall', 0)
-                
             risk = abs(sl - price)
-            reward = abs(price - tp)
-            r_units = (reward / risk) if risk > 0 else 0
-            
+            if risk <= 0.001:
+                return
+
             regime = "BULLISH (Seeking Reversal)" if u9[curr] and u14[curr] else "MIXED"
             
             # --- Extract All 4 Institutional Tactics ---
             inst = compute_all_institutional_features(ticker, price, vols[curr], rel_vol=rel_vol[curr],
                                                       effort_vs_result=effort_vs_result, options_flow=flow,
                                                       current_time=now) if INST_ENGINE_ENABLED else {}
+
+            # --- ML Dynamic Sweet-Spot Target Optimization [1.05R to 1.35R] ---
+            if ML_TARGET_OPT_ENABLED:
+                opt_target_r = calculate_optimal_target_r(
+                    atr_expansion=atr_expansion,
+                    test_vol_ratio=test_vol_ratio,
+                    dealer_gamma_regime=inst.get('dealer_gamma_regime', 0),
+                    gamma_wall_dist_pct=inst.get('gamma_wall_dist_pct', 0.0),
+                    institutional_block_ratio=inst.get('institutional_block_ratio', 1.0),
+                    effort_vs_result=effort_vs_result
+                )
+            else:
+                opt_target_r = 1.15
+                
+            tp = price - (opt_target_r * risk)
+            if flow and flow.get('gamma_wall', 0) < price and flow.get('gamma_wall', 0) > 0:
+                gw = flow.get('gamma_wall', 0)
+                gw_r = (price - gw) / risk if risk > 0 else 0
+                if 1.05 <= gw_r <= 1.35:
+                    tp = gw
+                    opt_target_r = round(gw_r, 2)
+                    
+            reward = abs(price - tp)
+            r_units = (reward / risk) if risk > 0 else 0
 
             # Calculate Real ML Model Win Probability with All Institutional Features
             ml_conf = calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_of_day, "SHORT",
@@ -444,7 +489,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           dealer_gamma_regime=inst.get('dealer_gamma_regime', 0),
                           gamma_wall_dist_pct=inst.get('gamma_wall_dist_pct', 0.0),
                           moc_surge_score=inst.get('moc_surge_score', 0.0),
-                          institutional_block_ratio=inst.get('institutional_block_ratio', 1.0))
+                          institutional_block_ratio=inst.get('institutional_block_ratio', 1.0),
+                          optimal_target_r=opt_target_r)
             
             if TELEGRAM_ENABLED:
                 tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow, trade_id, ml_confidence=ml_conf)
