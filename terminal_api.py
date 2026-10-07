@@ -792,20 +792,45 @@ def trigger_system_update():
         py_exe = sys.executable or shutil.which("python3") or "python3"
         mig_res = subprocess.run([py_exe, "migrate_db.py"], capture_output=True, text=True, timeout=30, env=env)
 
-        # Trigger background service reload if systemctl is available
         if os.name != 'nt':
-            sys_ctl = shutil.which("systemctl") or "/bin/systemctl" or "/usr/bin/systemctl"
-            if sys_ctl and os.path.exists(sys_ctl):
-                try:
-                    subprocess.Popen(["sudo", sys_ctl, "restart", "wyckoff-terminal.service", "wyckoff-bot.service"])
-                except:
-                    pass
+            cmd = "sleep 1 && sudo systemctl restart wyckoff-bot.service && sudo systemctl restart wyckoff-terminal.service"
+            try:
+                subprocess.Popen(
+                    ["bash", "-c", cmd],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    stdin=subprocess.DEVNULL,
+                    start_new_session=True
+                )
+            except:
+                pass
 
         return {
             "success": True,
             "git_output": (pull_res.stdout + "\n" + pull_res.stderr).strip(),
             "migration_output": (mig_res.stdout + "\n" + mig_res.stderr).strip()
         }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/system/restart")
+def trigger_system_restart():
+    """Triggers clean background reload of wyckoff-bot and wyckoff-terminal services via systemctl."""
+    import subprocess
+    import os
+    if os.name == 'nt':
+        return {"success": True, "message": "Windows environment - manual service restart required."}
+
+    try:
+        cmd = "sleep 1 && sudo systemctl restart wyckoff-bot.service && sudo systemctl restart wyckoff-terminal.service"
+        subprocess.Popen(
+            ["bash", "-c", cmd],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True
+        )
+        return {"success": True, "message": "Services restarting: wyckoff-bot and wyckoff-terminal"}
     except Exception as e:
         return {"success": False, "error": str(e)}
 

@@ -561,6 +561,7 @@
     <div class="view-tabs">
       <button id="tab-terminal" class="view-tab active" onclick="switchView('terminal')">📊 TRADING</button>
       <button id="tab-mllab" class="view-tab" onclick="switchView('mllab')">🧠 AI / ML LAB</button>
+      <button id="tab-restart" class="view-tab" onclick="triggerServiceRestart()" style="border-color: var(--wsr-orange); color: var(--wsr-orange);" title="Restart Wyckoff Bot & Terminal Services on Cloud VM">⚡ RESTART</button>
     </div>
     <div id="command-container">
       <span class="prompt-label">COMMAND &gt;</span>
@@ -919,6 +920,7 @@
               </div>
               <div style="display: flex; gap: 8px;">
                 <button class="ml-btn-train" style="border-color: var(--wsr-cyan); color: var(--wsr-cyan);" id="btn-sync-cloud" onclick="triggerCloudSync()">🔄 SYNC FROM GITHUB</button>
+                <button class="ml-btn-train" style="border-color: var(--wsr-orange); color: var(--wsr-orange);" id="btn-restart-services" onclick="triggerServiceRestart()">⚡ RESTART SERVICES</button>
                 <button class="ml-btn-train" id="btn-trigger-retrain" onclick="triggerRetrain()">⚡ EVOLVE MODEL NOW</button>
               </div>
             </div>
@@ -1847,6 +1849,22 @@
       }
     }
 
+    async function triggerServiceRestart() {
+      if (!confirm("Restart Wyckoff Bot & Terminal services on Cloud VM?")) return;
+      const sysStatus = document.getElementById('sys-status');
+      if (sysStatus) sysStatus.innerText = 'RESTARTING...';
+      const consoleBox = document.getElementById('ml-console-log');
+      if (consoleBox) consoleBox.innerText += `\n[${new Date().toLocaleTimeString()}] RESTART COMMAND ISSUED: sudo systemctl restart wyckoff-bot.service wyckoff-terminal.service...`;
+
+      try {
+        await fetch('/api/system/restart', { method: 'POST' });
+        if (consoleBox) consoleBox.innerText += `\n[${new Date().toLocaleTimeString()}] SERVICES RESTARTING IN BACKGROUND. RELOADING PAGE...`;
+      } catch (err) {
+        // Disconnection is normal as the server hot-restarts
+      }
+      setTimeout(() => { location.reload(); }, 3500);
+    }
+
     // --- KEYBOARD SHORTCUTS ---
     document.addEventListener('keydown', (e) => {
       if (e.key === 'F6') {
@@ -1871,6 +1889,10 @@
           switchView('terminal');
         } else if (val === 'SCAN') {
           filterByTF('ALL');
+        } else if (val === '/RESTART' || val === 'RESTART') {
+          triggerServiceRestart();
+        } else if (val === '/SYNC' || val === 'SYNC') {
+          triggerCloudSync();
         } else if (val.startsWith('/')) {
           if (val === '/FLATTEN') {
             alert('Emergency flatten triggered.');
