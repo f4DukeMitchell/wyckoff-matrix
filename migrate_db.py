@@ -166,5 +166,18 @@ def migrate():
 
     conn.close()
 
+    if os.name != 'nt':
+        try:
+            print("Scheduling background service recycle for wyckoff-bot and wyckoff-terminal...")
+            subprocess.Popen(
+                ["bash", "-c", "sleep 2 && (pkill -f wyckoff_alert_bot.py 2>/dev/null; sleep 1; pkill -9 -f 'terminal_api:app' 2>/dev/null)"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True
+            )
+        except Exception as e:
+            print(f"Service recycle notice: {e}")
+
 if __name__ == '__main__':
     migrate()
