@@ -106,7 +106,7 @@
     #main-grid {
       flex: 1;
       display: grid;
-      grid-template-columns: 430px 1fr 310px;
+      grid-template-columns: 590px 1fr 280px;
       grid-template-rows: 1fr 180px;
       gap: 1px;
       background: var(--wsr-border);
@@ -146,16 +146,18 @@
       cursor: default !important;
     }
     .pos-detail-card {
-      padding: 8px 10px;
+      padding: 6px 8px;
       font-size: 10px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
+      box-sizing: border-box;
+      width: 100%;
     }
     .pos-detail-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 8px;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 6px;
     }
     .detail-box {
       background: #11141a;
@@ -700,14 +702,14 @@
         <span>ACTIVE TRADES <b id="header-algo-pnl" class="c-green" style="font-size: 10px; margin-left: 4px;">+$0.00</b> <span style="font-size: 8px; color: var(--wsr-yellow); margin-left: 2px;">[EOD 3:55 PM]</span></span>
         <div style="display: flex; gap: 3px; align-items: center;">
           <span style="font-size: 8px; color: #777;">WIDTH:</span>
-          <button class="term-btn" onclick="setActivePaneWidth('380px')">380</button>
-          <button class="term-btn" onclick="setActivePaneWidth('430px')">430</button>
-          <button class="term-btn" onclick="setActivePaneWidth('490px')">490</button>
+          <button class="term-btn" onclick="setActivePaneWidth('480px')">480</button>
+          <button class="term-btn" onclick="setActivePaneWidth('590px')">590</button>
+          <button class="term-btn" onclick="setActivePaneWidth('670px')">670</button>
           <button class="term-btn" onclick="fetchState()">REFRESH</button>
         </div>
       </div>
       <div class="pane-content">
-        <table id="tbl-positions" style="font-size: 10px; table-layout: auto; width: 100%; min-width: 430px;">
+        <table id="tbl-positions" style="font-size: 10px; table-layout: auto; width: 100%;">
           <thead>
             <tr>
               <th style="padding: 3px 4px;">SYM</th>
@@ -1151,7 +1153,7 @@
 
     function setActivePaneWidth(w) {
       const grid = document.getElementById('main-grid');
-      grid.style.gridTemplateColumns = `${w} 1fr 310px`;
+      grid.style.gridTemplateColumns = `${w} 1fr 280px`;
       setTimeout(resizeChart, 50);
       setTimeout(resizeChart, 250);
     }
