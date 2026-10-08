@@ -787,7 +787,7 @@ def get_ghost_trades():
         SELECT id, ticker, direction, entry_price, initial_stop_loss, stop_loss, take_profit,
                exit_price, pnl_r, timestamp, timeframe, ghost_status, ghost_outcome, ghost_exit_price, ghost_pnl_r, ghost_resolved_at
         FROM alerts
-        WHERE outcome = 'BREAKEVEN'
+        WHERE outcome = 'BREAKEVEN' OR ghost_status IS NOT NULL
         ORDER BY id DESC
     """)
     rows = [dict(r) for r in c.fetchall()]
@@ -800,7 +800,7 @@ def get_ghost_trades():
             SUM(CASE WHEN ghost_outcome = 'STALLED' THEN 1 ELSE 0 END) as stalled_saved,
             SUM(CASE WHEN ghost_status = 'MONITORING' THEN 1 ELSE 0 END) as active_ghosts,
             COALESCE(SUM(ghost_pnl_r), 0.0) as ghost_net_r
-        FROM alerts WHERE outcome = 'BREAKEVEN'
+        FROM alerts WHERE outcome = 'BREAKEVEN' OR ghost_status IS NOT NULL
     """)
     summary = dict(c.fetchone() or {})
     tot_sc = summary.get('total_scratches') or 0
