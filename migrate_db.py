@@ -168,14 +168,16 @@ def migrate():
 
     if os.name != 'nt':
         try:
-            print("Scheduling background service recycle for wyckoff-bot and wyckoff-terminal...")
-            subprocess.Popen(
-                ["bash", "-c", "sleep 2 && (pkill -f wyckoff_alert_bot.py 2>/dev/null; sleep 1; pkill -9 -f 'terminal_api:app' 2>/dev/null)"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL,
-                start_new_session=True
-            )
+            ps_info = subprocess.check_output("ps aux | grep -E 'python|uvicorn' | grep -v grep", shell=True, text=True)
+            print("Current processes:\n" + ps_info)
+            # Try systemctl first
+            res = subprocess.run(["sudo", "systemctl", "restart", "wyckoff-bot.service", "wyckoff-terminal.service"], capture_output=True, text=True)
+            print(f"Systemctl restart output: {res.stdout.strip()} {res.stderr.strip()}")
+            if res.returncode != 0:
+                # Fallback: kill bot and terminal directly
+                print("Falling back to process kill...")
+                subprocess.run("pkill -9 -f wyckoff_alert_bot.py", shell=True)
+                subprocess.Popen(["bash", "-c", "sleep 1 && pkill -9 -f 'uvicorn terminal_api:app'"], shell=True)
         except Exception as e:
             print(f"Service recycle notice: {e}")
 
