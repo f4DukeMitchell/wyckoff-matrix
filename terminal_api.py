@@ -828,6 +828,7 @@ def trigger_system_update():
                 current_path = f"{p}:{current_path}"
         env["PATH"] = current_path
 
+        subprocess.run([git_bin, "checkout", "--", "."], capture_output=True, text=True, timeout=10, env=env)
         pull_res = subprocess.run([git_bin, "pull", "origin", "main"], capture_output=True, text=True, timeout=30, env=env)
         py_exe = sys.executable or shutil.which("python3") or "python3"
         mig_res = subprocess.run([py_exe, "migrate_db.py"], capture_output=True, text=True, timeout=30, env=env)

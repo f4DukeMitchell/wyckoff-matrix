@@ -392,9 +392,19 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           institutional_block_ratio=inst.get('institutional_block_ratio', 1.0),
                           optimal_target_r=opt_target_r)
             
-            if TELEGRAM_ENABLED:
+            auto_executed = False
+            if trade_id:
+                try:
+                    from auto_buyer import execute_autonomous_spring_buy
+                    auto_executed, auto_reason = execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, timeframe=interval)
+                except Exception as e:
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Auto-buyer hook error: {e}")
+
+            if TELEGRAM_ENABLED and not auto_executed:
                 tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, interval, flow, trade_id, ml_confidence=ml_conf)
                 if TRACKER_ENABLED and trade_id: mark_trade_alerted(trade_id)
+            elif TRACKER_ENABLED and trade_id:
+                mark_trade_alerted(trade_id)
             last_alerted[ticker] = current_time
             
         elif is_utad and (current_time - last_alerted.get(ticker, 0) > 900):
