@@ -1579,12 +1579,16 @@
 
     // --- LOAD BARS & INDICATORS ---
     async function loadChartData(ticker, interval) {
+      if (!ticker) return;
       currentTicker = ticker.toUpperCase();
-      currentInterval = interval;
-      document.getElementById('chart-header-symbol').innerText = `${currentTicker} // ${interval.toUpperCase()} WYCKOFF STRUCTURE (PUBLIC.COM)`;
+      currentInterval = interval || currentInterval || '5m';
+      const headerEl = document.getElementById('chart-header-symbol');
+      if (headerEl) {
+        headerEl.innerText = `${currentTicker} // ${currentInterval.toUpperCase()} WYCKOFF STRUCTURE (PUBLIC.COM)`;
+      }
       
       try {
-        const res = await fetch(`/api/bars/${currentTicker}?interval=${interval}`);
+        const res = await fetch(`/api/bars/${currentTicker}?interval=${currentInterval}`);
         const data = await res.json();
         
         if (data.bars && data.bars.length > 0) {
@@ -1612,6 +1616,12 @@
           // Update active trade dollar price lines on the chart
           updateActiveTradePriceLines(currentTicker);
         }
+
+        // Also refresh options flow and dynamic signal evidence
+        try {
+          loadFlow(currentTicker);
+        } catch (_) {}
+
       } catch (e) {
         console.error("Failed to load bars and indicators:", e);
       }
@@ -1826,12 +1836,12 @@
             const isAlgoTrade = !p.is_broker_native;
             const isOpen = expandedTradeSet.has(p.ticker);
             const expandBtn = isAlgoTrade 
-              ? `<button class="term-btn" style="padding: 1px 4px; font-weight:bold; font-size:9px; margin-right:4px;" onclick="toggleTradeDetails('${p.ticker}')" id="btn-exp-${p.ticker}">${isOpen ? '[-]' : '[+]'}</button>` 
+              ? `<button class="term-btn" style="padding: 1px 4px; font-weight:bold; font-size:9px; margin-right:4px;" onclick="event.stopPropagation(); toggleTradeDetails('${p.ticker}')" id="btn-exp-${p.ticker}">${isOpen ? '[-]' : '[+]'}</button>` 
               : '';
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
-              <td class="c-cyan" style="padding:3px 4px;">${expandBtn}<b onclick="loadChartData('${p.ticker}', '5m')">${p.ticker}</b></td>
+              <td class="c-cyan" style="padding:3px 4px; cursor:pointer;" onclick="loadChartData('${p.ticker}', currentInterval)">${expandBtn}<b style="cursor:pointer; text-decoration: underline dotted;" title="Click to view ${p.ticker} chart">${p.ticker}</b></td>
               <td class="${isLong ? 'c-green' : 'c-red'}" style="padding:3px 4px;">${dirBadge}</td>
               <td style="padding:3px 4px;">$${p.entry_price ? p.entry_price.toFixed(2) : '--'}</td>
               <td style="padding:3px 4px;"><b class="c-white">${currPrice}</b></td>

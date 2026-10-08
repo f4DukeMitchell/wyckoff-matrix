@@ -91,11 +91,33 @@ async def batch_fetch_bars(tickers, interval='5m', delay_ms=0.08):
 
 def get_public_bars_sync(ticker, interval='5m'):
     """Synchronous convenience wrapper for single ticker (used in UI / charts / tests)."""
-    async def _runner():
-        client = get_async_client()
-        _, df = await fetch_ticker_bars(client, ticker, interval=interval, delay_ms=0)
-        return df
-    return asyncio.run(_runner())
+    if interval not in AGG_MAP:
+        return pd.DataFrame()
+    agg, period = AGG_MAP[interval]
+    try:
+        from public_executor import get_client
+        client = get_client()
+        res = client.get_bars(ticker.upper(), period=period, aggregation=agg)
+        df = parse_bars_to_df(res)
+        if not df.empty:
+            return df
+    except Exception as e:
+        print(f"Public API sync bars notice for {ticker}: {e}")
+
+    # Fallback to yfinance if broker has zero bars or temporary connection hiccup
+    try:
+        import yfinance as yf
+        yf_map = {'5m': ('5d', '5m'), '15m': ('5d', '15m'), '1h': ('1mo', '1h'), '1d': ('1y', '1d')}
+        p, i = yf_map.get(interval, ('5d', '5m'))
+        t = yf.Ticker(ticker.upper())
+        df_yf = t.history(period=p, interval=i)
+        if not df_yf.empty:
+            df_yf = df_yf[['Open', 'High', 'Low', 'Close', 'Volume']].dropna()
+            return df_yf
+    except Exception as yfe:
+        print(f"Fallback yfinance error for {ticker}: {yfe}")
+
+    return pd.DataFrame()
 
 async def stream_ticker_bars(tickers, interval='5m', delay_ms=0.08):
     """
