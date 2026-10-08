@@ -21,6 +21,7 @@ SECTOR_MAP = {
     'SPY': 'Index ETF', 'QQQ': 'Index ETF', 'IWM': 'Index ETF', 'DIA': 'Index ETF',
     'SMH': 'Information Technology', 'XLF': 'Financials', 'XLE': 'Energy', 'TLT': 'Bonds', 'GLD': 'Materials',
     'IBIT': 'Financials', 'AFRM': 'Financials', 'SPOT': 'Communication Services', 'BABA': 'Consumer Discretionary', 'NVO': 'Health Care',
+    'GME': 'Consumer Discretionary', 'UPST': 'Financials', 'DJT': 'Communication Services',
 
     # Health Care
     'LLY': 'Health Care', 'UNH': 'Health Care', 'MRK': 'Health Care', 'ABBV': 'Health Care', 
