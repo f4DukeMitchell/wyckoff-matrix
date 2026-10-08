@@ -19,6 +19,9 @@ AUTO_BUY_FIXED_AMOUNT = float(os.getenv("AUTO_BUY_FIXED_AMOUNT", "20.00"))
 AUTO_BUY_MAX_CONCURRENT = int(os.getenv("AUTO_BUY_MAX_CONCURRENT", "5"))
 AUTO_BUY_MIN_ML_CONF = float(os.getenv("AUTO_BUY_MIN_ML_CONF", "60.0"))
 
+# Allowed Auto-Buy Timeframes: Strictly 5m Day Trades Only (No swings or higher TF holds)
+AUTO_BUY_ALLOWED_TIMEFRAMES = ["5m"]
+
 # Optimal Statistical Window: 10:00 AM to 3:30 PM EST (Skip 9:30-10:00 AM opening whipsaw & 12:30-1:30 PM lunch chop)
 AUTO_BUY_START_TIME = datetime.time(10, 0)
 AUTO_BUY_END_TIME = datetime.time(15, 30)
@@ -30,13 +33,17 @@ def get_market_time():
         return datetime.datetime.now(ET_TZ)
     return datetime.datetime.now()
 
-def check_auto_buy_eligibility(ticker, ml_conf):
+def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     """
     Evaluates whether an incoming Wyckoff Spring signal satisfies all institutional guardrails.
     Returns (eligible: bool, reason: str)
     """
     if not AUTO_BUY_ENABLED:
         return False, "AUTO_BUY_DISABLED"
+
+    # 0. Timeframe Guardrail (Strictly 5m day trades only; exclude 15m, 1h, 1d swings)
+    if (timeframe or "").lower() not in AUTO_BUY_ALLOWED_TIMEFRAMES:
+        return False, f"TIMEFRAME_RESTRICTED ({timeframe} != 5m day trade)"
 
     now = get_market_time()
     current_t = now.time()
@@ -86,9 +93,9 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
     Submits a market fractional BUY to Public.com, marks the trade active in DB,
     and dispatches instant notifications.
     """
-    eligible, reason = check_auto_buy_eligibility(ticker, ml_conf)
+    eligible, reason = check_auto_buy_eligibility(ticker, ml_conf, timeframe=timeframe)
     if not eligible:
-        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Auto-Buy Bypassed for {ticker}: {reason}")
+        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Auto-Buy Bypassed for {ticker} ({timeframe}): {reason}")
         return False, reason
 
     # Determine allocation
