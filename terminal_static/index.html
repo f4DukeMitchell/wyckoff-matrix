@@ -705,7 +705,7 @@
           <button class="term-btn" onclick="setActivePaneWidth('480px')">480</button>
           <button class="term-btn" onclick="setActivePaneWidth('590px')">590</button>
           <button class="term-btn" onclick="setActivePaneWidth('670px')">670</button>
-          <button class="term-btn" onclick="fetchState()">REFRESH</button>
+          <button class="term-btn" id="btn-active-refresh" onclick="handleManualRefresh(this)">REFRESH</button>
         </div>
       </div>
       <div class="pane-content">
@@ -1087,7 +1087,7 @@
       <span class="fn-key"><b>F2</b> SCAN</span>
       <span class="fn-key"><b>F3</b> CHART</span>
       <span class="fn-key"><b>F4</b> POSITIONS</span>
-      <span class="fn-key"><b>F5</b> REFRESH</span>
+      <span class="fn-key" style="cursor:pointer;" onclick="handleManualRefresh()"><b>F5</b> REFRESH</span>
       <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'terminal' ? 'mllab' : 'terminal')"><b>F6</b> ML LAB</span>
       <span class="fn-key"><b>ESC</b> CLEAR</span>
     </div>
@@ -1946,6 +1946,38 @@
       }
     }
 
+    async function handleManualRefresh(btn) {
+      if (!btn) btn = document.getElementById('btn-active-refresh');
+      const prevHtml = btn ? btn.innerHTML : 'REFRESH';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="c-cyan" style="font-weight:bold;">⟳ SYNCING...</span>`;
+      }
+      try {
+        await Promise.all([
+          fetchState(),
+          currentTicker ? loadChartData(currentTicker, currentInterval) : Promise.resolve(),
+          (typeof currentView !== 'undefined' && currentView === 'mllab') ? fetchMLOverview() : Promise.resolve()
+        ]);
+        if (btn) {
+          btn.innerHTML = `<span class="c-green" style="font-weight:bold;">✓ SYNCED</span>`;
+          setTimeout(() => {
+            btn.innerHTML = prevHtml;
+            btn.disabled = false;
+          }, 800);
+        }
+      } catch (err) {
+        console.error("Manual refresh error:", err);
+        if (btn) {
+          btn.innerHTML = `<span class="c-red" style="font-weight:bold;">FAILED</span>`;
+          setTimeout(() => {
+            btn.innerHTML = prevHtml;
+            btn.disabled = false;
+          }, 1200);
+        }
+      }
+    }
+
     // --- BROKER EXECUTION HANDLERS ---
     async function executeBuy(ticker, tradeId) {
       const sizing = getSelectedRiskSizing();
@@ -2325,8 +2357,7 @@
         switchView(currentView === 'terminal' ? 'mllab' : 'terminal');
       } else if (e.key === 'F5') {
         e.preventDefault();
-        fetchState();
-        if (currentView === 'mllab') fetchMLOverview();
+        handleManualRefresh();
       }
     });
 
