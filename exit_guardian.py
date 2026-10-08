@@ -220,135 +220,219 @@ def run_guardian_cycle():
         c.execute("UPDATE alerts SET peak_high_r = ? WHERE id = ?", (peak_r, trade_id))
 
         be_set = bool(t.get('breakeven_set'))
-        partial_done = bool(t.get('partial_exit_done'))
+        tier = int(t.get('partial_tier_done') or 0)
+        init_shares = float(t.get('initial_shares') or 0.0)
 
-        # -------------------------------------------------------------
-        # STEP 1: BREAKEVEN RATCHET (+0.75R)
-        # -------------------------------------------------------------
-        if curr_r >= 0.75 and not be_set:
-            c.execute("""
-                UPDATE alerts 
-                SET stop_loss = ?, breakeven_set = 1 
-                WHERE id = ?
-            """, (entry, trade_id))
-            conn.commit()
-            t['breakeven_set'] = 1
-            t['stop_loss'] = entry
-            be_msg = (
-                f"🛡️ [GUARDIAN] BREAKEVEN DEFENSE TRIGGERED: {sym} reaches +{curr_r:.2f}R!\n"
-                f"Stop Loss moved to Entry (${entry:.2f}). Dollar risk is now $0.00!"
-            )
-            print(f"[{get_est_now_str()}] {be_msg}")
-            send_tg(be_msg)
-
-        # -------------------------------------------------------------
-        # STEP 2: TP1 PARTIAL SCALE (+1.05R) - SELL 70% ON PUBLIC.COM
-        # -------------------------------------------------------------
-        if curr_r >= 1.05 and not partial_done:
-            sold_qty = 0.0
+        # Record initial shares from Public.com holding if not yet saved
+        if init_shares <= 0:
             try:
-                from public_executor import get_client, get_account_id, execute_exit_position
-                client = get_client()
-                acc_id = get_account_id()
-                port = client.get_portfolio(acc_id)
-                curr_shares = 0.0
+                from public_executor import get_client, get_account_id
+                port = get_client().get_portfolio(get_account_id())
                 for p in (port.positions or []):
                     if hasattr(p, 'instrument') and p.instrument.symbol.upper() == sym.upper():
-                        curr_shares = float(p.quantity or 0.0)
+                        init_shares = float(p.quantity or 0.0)
+                        if init_shares > 0:
+                            c.execute("UPDATE alerts SET initial_shares = ? WHERE id = ?", (init_shares, trade_id))
+                            conn.commit()
+                            t['initial_shares'] = init_shares
                         break
-                
-                if curr_shares > 0:
-                    # Sell 70% of current holding
-                    qty_to_sell = round(curr_shares * 0.70, 5)
-                    if qty_to_sell > 0:
-                        res = execute_exit_position(sym, quantity=qty_to_sell, direction=direction)
-                        sold_qty = qty_to_sell
-            except Exception as ex:
-                print(f"[{get_est_now_str()}] [Guardian] Partial sell error for {sym}: {ex}")
-
-            # Calculate initial 0.30R trailing stop for the remaining 30% runner (+0.75R floor)
-            trail_stop_r = max(0.75, peak_r - 0.30)
-            runner_sl = (entry + (trail_stop_r * init_risk)) if is_long else (entry - (trail_stop_r * init_risk))
-
-            c.execute("""
-                UPDATE alerts 
-                SET partial_exit_done = 1,
-                    partial_exit_price = ?,
-                    partial_pnl_r = ?,
-                    stop_loss = ?
-                WHERE id = ?
-            """, (price, round(curr_r, 2), runner_sl, trade_id))
-            conn.commit()
-            t['partial_exit_done'] = 1
-            t['stop_loss'] = runner_sl
-
-            tp1_msg = (
-                f"💰 [GUARDIAN] TARGET 1 REACHED: {sym} reached +{curr_r:.2f}R!\n"
-                f"• Action: Sold 70% ({sold_qty} shares) @ ${price:.2f} to lock in core profit.\n"
-                f"• Runner: Remaining 30% is UNCAPPED with a 0.30R trailing stop at ${runner_sl:.2f} (+{trail_stop_r:.2f}R)."
-            )
-            print(f"[{get_est_now_str()}] {tp1_msg}")
-            send_tg(tp1_msg)
+            except Exception:
+                pass
 
         # -------------------------------------------------------------
-        # STEP 3: UNCAPPED 0.30R TRAILING STOP ON 30% RUNNER
+        # TIER 1: +0.20R (Sell 10%, Keep Stop at -1.0R Initial Stop)
         # -------------------------------------------------------------
-        if partial_done:
-            # Trailing stop stays exactly 0.30R behind peak high-water mark
-            trail_stop_r = peak_r - 0.30
-            new_runner_sl = (entry + (trail_stop_r * init_risk)) if is_long else (entry - (trail_stop_r * init_risk))
-
-            # Only ratchet stop upwards for longs, downwards for shorts
-            if is_long and new_runner_sl > curr_sl:
-                c.execute("UPDATE alerts SET stop_loss = ? WHERE id = ?", (new_runner_sl, trade_id))
-                conn.commit()
-                curr_sl = new_runner_sl
-            elif not is_long and new_runner_sl < curr_sl:
-                c.execute("UPDATE alerts SET stop_loss = ? WHERE id = ?", (new_runner_sl, trade_id))
-                conn.commit()
-                curr_sl = new_runner_sl
-
-            # Check if 30% runner has hit trailing stop
-            is_trail_stopped = (price <= curr_sl) if is_long else (price >= curr_sl)
-            if is_trail_stopped:
-                exit_res = {}
+        if curr_r >= 0.20 and tier < 1:
+            sell_qty = round(init_shares * 0.10, 5) if init_shares > 0 else 0.0
+            if sell_qty > 0:
                 try:
                     from public_executor import execute_exit_position
-                    exit_res = execute_exit_position(sym, direction=direction)
+                    execute_exit_position(sym, quantity=sell_qty, direction=direction)
+                except Exception as ex:
+                    print(f"[{get_est_now_str()}] [Guardian] Tier 1 partial sell error for {sym}: {ex}")
+
+            c.execute("UPDATE alerts SET partial_tier_done = 1 WHERE id = ?", (trade_id,))
+            conn.commit()
+            tier = 1
+            t['partial_tier_done'] = 1
+            t1_msg = (
+                f"🎯 [GUARDIAN] TIER 1 HIT: {sym} reaches +{curr_r:.2f}R!\n"
+                f"• Action: Banked 10% ({sell_qty} shares) @ ${price:.2f}.\n"
+                f"• Defense: Initial Stop remains at ${init_sl:.2f} (-1.0R) to let trade breathe."
+            )
+            print(f"[{get_est_now_str()}] {t1_msg}")
+            send_tg(t1_msg)
+
+        # -------------------------------------------------------------
+        # TIER 2: +0.40R (Sell 10%, Trail Stop to -0.50R)
+        # -------------------------------------------------------------
+        if curr_r >= 0.40 and tier < 2:
+            sell_qty = round(init_shares * 0.10, 5) if init_shares > 0 else 0.0
+            if sell_qty > 0:
+                try:
+                    from public_executor import execute_exit_position
+                    execute_exit_position(sym, quantity=sell_qty, direction=direction)
+                except Exception as ex:
+                    print(f"[{get_est_now_str()}] [Guardian] Tier 2 partial sell error for {sym}: {ex}")
+
+            t2_sl = (entry - (0.50 * init_risk)) if is_long else (entry + (0.50 * init_risk))
+            c.execute("UPDATE alerts SET partial_tier_done = 2, stop_loss = ? WHERE id = ?", (t2_sl, trade_id))
+            conn.commit()
+            tier = 2
+            t['partial_tier_done'] = 2
+            t['stop_loss'] = t2_sl
+            curr_sl = t2_sl
+            t2_msg = (
+                f"🎯 [GUARDIAN] TIER 2 HIT: {sym} reaches +{curr_r:.2f}R!\n"
+                f"• Action: Banked 10% ({sell_qty} shares, 20% total).\n"
+                f"• Defense: Stop Loss trailed to ${t2_sl:.2f} (-0.50R, risk cut in half)."
+            )
+            print(f"[{get_est_now_str()}] {t2_msg}")
+            send_tg(t2_msg)
+
+        # -------------------------------------------------------------
+        # TIER 3: +0.65R (Sell 10%, Move Stop to Entry $0.00 Breakeven)
+        # -------------------------------------------------------------
+        if curr_r >= 0.65 and tier < 3:
+            sell_qty = round(init_shares * 0.10, 5) if init_shares > 0 else 0.0
+            if sell_qty > 0:
+                try:
+                    from public_executor import execute_exit_position
+                    execute_exit_position(sym, quantity=sell_qty, direction=direction)
+                except Exception as ex:
+                    print(f"[{get_est_now_str()}] [Guardian] Tier 3 partial sell error for {sym}: {ex}")
+
+            c.execute("UPDATE alerts SET partial_tier_done = 3, stop_loss = ?, breakeven_set = 1 WHERE id = ?", (entry, trade_id))
+            conn.commit()
+            tier = 3
+            t['partial_tier_done'] = 3
+            t['stop_loss'] = entry
+            t['breakeven_set'] = 1
+            curr_sl = entry
+            be_set = True
+            t3_msg = (
+                f"🛡️ [GUARDIAN] TIER 3 BREAKEVEN LOCK: {sym} reaches +{curr_r:.2f}R!\n"
+                f"• Action: Banked 10% ({sell_qty} shares, 30% total).\n"
+                f"• Defense: Stop moved to Entry (${entry:.2f}). Dollar risk is now $0.00 (Free Trade)!"
+            )
+            print(f"[{get_est_now_str()}] {t3_msg}")
+            send_tg(t3_msg)
+
+        # -------------------------------------------------------------
+        # TIER 4: +1.00R (Sell 25%, Trail Stop to +0.50R Guaranteed Profit)
+        # -------------------------------------------------------------
+        if curr_r >= 1.00 and tier < 4:
+            sell_qty = round(init_shares * 0.25, 5) if init_shares > 0 else 0.0
+            if sell_qty > 0:
+                try:
+                    from public_executor import execute_exit_position
+                    execute_exit_position(sym, quantity=sell_qty, direction=direction)
+                except Exception as ex:
+                    print(f"[{get_est_now_str()}] [Guardian] Tier 4 partial sell error for {sym}: {ex}")
+
+            t4_sl = (entry + (0.50 * init_risk)) if is_long else (entry - (0.50 * init_risk))
+            c.execute("UPDATE alerts SET partial_tier_done = 4, stop_loss = ? WHERE id = ?", (t4_sl, trade_id))
+            conn.commit()
+            tier = 4
+            t['partial_tier_done'] = 4
+            t['stop_loss'] = t4_sl
+            curr_sl = t4_sl
+            t4_msg = (
+                f"💰 [GUARDIAN] TIER 4 CORE PAYDAY: {sym} reaches +{curr_r:.2f}R!\n"
+                f"• Action: Banked 25% ({sell_qty} shares, 55% total).\n"
+                f"• Defense: Stop Loss locked in at ${t4_sl:.2f} (+0.50R guaranteed win on remainder)."
+            )
+            print(f"[{get_est_now_str()}] {t4_msg}")
+            send_tg(t4_msg)
+
+        # -------------------------------------------------------------
+        # TIER 5: +1.30R (Sell 25%, Trail Stop to +0.85R Range Ceiling)
+        # -------------------------------------------------------------
+        if curr_r >= 1.30 and tier < 5:
+            sell_qty = round(init_shares * 0.25, 5) if init_shares > 0 else 0.0
+            if sell_qty > 0:
+                try:
+                    from public_executor import execute_exit_position
+                    execute_exit_position(sym, quantity=sell_qty, direction=direction)
+                except Exception as ex:
+                    print(f"[{get_est_now_str()}] [Guardian] Tier 5 partial sell error for {sym}: {ex}")
+
+            t5_sl = (entry + (0.85 * init_risk)) if is_long else (entry - (0.85 * init_risk))
+            c.execute("""
+                UPDATE alerts 
+                SET partial_tier_done = 5, partial_exit_done = 1,
+                    partial_exit_price = ?, partial_pnl_r = ?, stop_loss = ? 
+                WHERE id = ?
+            """, (price, round(curr_r, 2), t5_sl, trade_id))
+            conn.commit()
+            tier = 5
+            t['partial_tier_done'] = 5
+            t['partial_exit_done'] = 1
+            t['stop_loss'] = t5_sl
+            curr_sl = t5_sl
+            t5_msg = (
+                f"🚀 [GUARDIAN] TIER 5 CEILING HIT: {sym} reaches +{curr_r:.2f}R!\n"
+                f"• Action: Banked 25% ({sell_qty} shares, 80% total banked!).\n"
+                f"• Runner: Final 20% moonbag trailing 0.25R below peak into 3:55 PM EOD flatten."
+            )
+            print(f"[{get_est_now_str()}] {t5_msg}")
+            send_tg(t5_msg)
+
+        # -------------------------------------------------------------
+        # TIER 6: UNCAPPED 20% RUNNER (Trailing 0.25R below Peak High)
+        # -------------------------------------------------------------
+        if tier >= 5:
+            trail_stop_r = max(0.85, peak_r - 0.25)
+            runner_sl = (entry + (trail_stop_r * init_risk)) if is_long else (entry - (trail_stop_r * init_risk))
+
+            if is_long and runner_sl > curr_sl:
+                c.execute("UPDATE alerts SET stop_loss = ?, trailing_stop_price = ? WHERE id = ?", (runner_sl, runner_sl, trade_id))
+                conn.commit()
+                curr_sl = runner_sl
+            elif not is_long and runner_sl < curr_sl:
+                c.execute("UPDATE alerts SET stop_loss = ?, trailing_stop_price = ? WHERE id = ?", (runner_sl, runner_sl, trade_id))
+                conn.commit()
+                curr_sl = runner_sl
+
+            # Check if runner touched trailing stop
+            is_trail_stopped = (price <= curr_sl) if is_long else (price >= curr_sl)
+            if is_trail_stopped:
+                try:
+                    from public_executor import execute_exit_position
+                    execute_exit_position(sym, direction=direction)
                 except Exception as ex:
                     print(f"[{get_est_now_str()}] [Guardian] Runner exit error for {sym}: {ex}")
 
                 final_r = round(curr_r, 2)
-                c.execute("""
-                    UPDATE alerts 
-                    SET outcome = 'WIN', exit_price = ?, pnl_r = ? 
-                    WHERE id = ?
-                """, (price, final_r, trade_id))
+                c.execute("UPDATE alerts SET outcome = 'WIN', exit_price = ?, pnl_r = ? WHERE id = ?", (price, final_r, trade_id))
                 conn.commit()
-
                 runner_exit_msg = (
                     f"🎯 [GUARDIAN] RUNNER TRAIL STOP HIT: {sym} closed at ${price:.2f} (+{final_r:+.2f}R)!\n"
-                    f"Position is 100% closed. Core was banked at +1.05R, runner exited at +{final_r:+.2f}R."
+                    f"Position 100% closed. 80% banked in tiers, runner exited at +{final_r:+.2f}R."
                 )
                 print(f"[{get_est_now_str()}] {runner_exit_msg}")
                 send_tg(runner_exit_msg)
                 continue
 
         # -------------------------------------------------------------
-        # STEP 4: PRE-TP1 STOP LOSS / BREAKEVEN EXIT
+        # STEP 4: STOP LOSS / TRAILING STOP EXIT (TIERS 0-4)
         # -------------------------------------------------------------
-        if not partial_done:
+        if tier < 5:
             is_stopped = (price <= curr_sl) if is_long else (price >= curr_sl)
             if is_stopped:
-                exit_res = {}
                 try:
                     from public_executor import execute_exit_position
-                    exit_res = execute_exit_position(sym, direction=direction)
+                    execute_exit_position(sym, direction=direction)
                 except Exception as ex:
-                    print(f"[{get_est_now_str()}] [Guardian] Full stop exit error for {sym}: {ex}")
+                    print(f"[{get_est_now_str()}] [Guardian] Stop exit error for {sym}: {ex}")
 
-                outcome = 'BREAKEVEN' if be_set else 'LOSS'
-                final_r = 0.0 if be_set else max(-1.10, -round(abs(entry - price) / init_risk, 2))
+                final_r = round(curr_r, 2)
+                if final_r > 0.05 or tier >= 3:
+                    outcome = 'WIN'
+                elif abs(final_r) <= 0.05 or be_set:
+                    outcome = 'BREAKEVEN'
+                else:
+                    outcome = 'LOSS'
 
                 c.execute("""
                     UPDATE alerts 
@@ -358,8 +442,8 @@ def run_guardian_cycle():
                 conn.commit()
 
                 stop_msg = (
-                    f"🛑 [GUARDIAN] POSITION EXITED: {sym} touched stop at ${price:.2f} ({outcome}, {final_r:+.2f}R).\n"
-                    f"Position fully closed on Public.com."
+                    f"🛑 [GUARDIAN] POSITION EXITED: {sym} hit stop at ${price:.2f} ({outcome}, {final_r:+.2f}R).\n"
+                    f"• Tier reached: {tier}/5. Remainder liquidated on Public.com."
                 )
                 print(f"[{get_est_now_str()}] {stop_msg}")
                 send_tg(stop_msg)

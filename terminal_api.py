@@ -88,6 +88,11 @@ def startup_event():
         start_guardian_daemon()
     except Exception as e:
         print(f"Error launching Exit Guardian daemon: {e}")
+    try:
+        from stalker_radar import start_stalker_daemon
+        start_stalker_daemon()
+    except Exception as e:
+        print(f"Error launching Stalker Radar daemon: {e}")
 
 # --- REST ENDPOINTS ---
 
@@ -199,6 +204,13 @@ def get_terminal_state():
     """)
     history = [dict(r) for r in c.fetchall()]
     conn.close()
+
+    stalker_list = []
+    try:
+        from stalker_radar import get_active_stalker_radar
+        stalker_list = get_active_stalker_radar()
+    except Exception:
+        pass
     
     return {
         "status": "ONLINE",
@@ -208,6 +220,7 @@ def get_terminal_state():
         "algo_pnl_dollar": round(total_algo_pnl_dollar, 2),
         "positions": active_positions,
         "scanner": scanner_results,
+        "stalker_radar": stalker_list,
         "history": history
     }
 

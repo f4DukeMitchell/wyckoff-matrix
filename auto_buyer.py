@@ -123,10 +123,13 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
             f"Initial Stop: ${sl:.2f}\n"
             f"Target: ${tp:.2f}\n"
             f"Order UUID: {order_uuid}{conf_str}\n\n"
-            f"🛡️ Exit Guardian is LIVE:\n"
-            f"• Ratchet to Breakeven at +0.75R\n"
-            f"• 70% Bank & 30% Trailing Runner at +1.05R\n"
-            f"• 100% Cash Flatten at 3:55 PM EST"
+            f"🛡️ Exit Guardian 6-Tier Matrix LIVE:\n"
+            f"• +0.20R: Bank 10% (Stop stays -1.0R to breathe)\n"
+            f"• +0.40R: Bank 10% (Stop trails -0.50R)\n"
+            f"• +0.65R: Bank 10% (Stop to Entry $0.00 Breakeven)\n"
+            f"• +1.00R: Bank 25% (Stop to +0.50R guaranteed win)\n"
+            f"• +1.30R: Bank 25% (Stop to +0.85R sweet spot)\n"
+            f"• 20% Runner trails 0.25R into 3:55 PM EST Flatten"
         )
         send_message(msg)
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ✅ Auto-Buy Success: {ticker} (${dollar_alloc:.2f})")

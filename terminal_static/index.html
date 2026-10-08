@@ -648,6 +648,7 @@
         <span>WYCKOFF SCANNER RADAR</span>
         <div style="display: flex; gap: 4px;">
           <button class="term-btn tf-filter-btn active-tf" onclick="filterByTF('ALL')">ALL</button>
+          <button class="term-btn tf-filter-btn" onclick="filterByTF('1m')">⚡ 1M STALKER</button>
           <button class="term-btn tf-filter-btn" onclick="filterByTF('5m')">5M</button>
           <button class="term-btn tf-filter-btn" onclick="filterByTF('15m')">15M</button>
           <button class="term-btn tf-filter-btn" onclick="filterByTF('1h')">1H</button>
@@ -989,6 +990,7 @@
     let currentInterval = "5m";
     let chart, candleSeries, volumeSeries, stSeries, rhSeries, rlSeries, vwapSeries;
     let rawScannerData = [];
+    let rawStalkerData = [];
     let activeTFFilter = 'ALL';
     let currentSortField = 'id';
     let sortAsc = false;
@@ -1116,6 +1118,53 @@
       if (!scanTbody) return;
       scanTbody.innerHTML = '';
 
+      if (activeTFFilter === '1m') {
+        if (rawStalkerData.length > 0) {
+          rawStalkerData.forEach(st => {
+            const isLong = st.direction === 'LONG';
+            const btnClass = isLong ? 'term-btn term-btn-buy' : 'term-btn term-btn-short';
+            const sizing = getSelectedRiskSizing();
+            const btnText = `${sizing.label} ${isLong ? 'BUY' : 'SHORT'}`;
+            const btnAction = isLong ? `executeBuy('${st.ticker}', null)` : `executeShort('${st.ticker}', null)`;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td class="c-cyan" onclick="loadChartData('${st.ticker}', '5m')"><b>${st.ticker}</b></td>
+              <td class="${isLong ? 'c-green' : 'c-red'}">⚡ ${st.setup}</td>
+              <td>$${st.current_price ? st.current_price.toFixed(2) : '--'} <span class="c-muted" style="font-size:10px;">(Test: $${st.target_test_level})</span></td>
+              <td><b style="color:#00ffcc;">1M STALKER</b></td>
+              <td class="c-muted" style="font-size: 10px;">${st.status} (${st.dist_to_test_pct > 0 ? '+' : ''}${st.dist_to_test_pct}%)</td>
+              <td><button class="${btnClass}" onclick="${btnAction}">${btnText}</button></td>
+            `;
+            scanTbody.appendChild(tr);
+          });
+        } else {
+          scanTbody.innerHTML = `<tr><td colspan="6" class="c-muted">Scanning 5m TR boundaries for 1m test candidates...</td></tr>`;
+        }
+        return;
+      }
+
+      // Prepend stalker candidates in ALL view
+      if (activeTFFilter === 'ALL' && rawStalkerData.length > 0) {
+        rawStalkerData.forEach(st => {
+          const isLong = st.direction === 'LONG';
+          const btnClass = isLong ? 'term-btn term-btn-buy' : 'term-btn term-btn-short';
+          const sizing = getSelectedRiskSizing();
+          const btnText = `${sizing.label} ${isLong ? 'BUY' : 'SHORT'}`;
+          const btnAction = isLong ? `executeBuy('${st.ticker}', null)` : `executeShort('${st.ticker}', null)`;
+          const tr = document.createElement('tr');
+          tr.style.background = 'rgba(0, 255, 204, 0.08)';
+          tr.innerHTML = `
+            <td class="c-cyan" onclick="loadChartData('${st.ticker}', '5m')"><b>${st.ticker}</b> <span style="font-size:9px; color:#00ffcc;">[STALK]</span></td>
+            <td class="${isLong ? 'c-green' : 'c-red'}">⚡ ${st.setup}</td>
+            <td>$${st.current_price ? st.current_price.toFixed(2) : '--'}</td>
+            <td><b style="color:#00ffcc;">1M</b></td>
+            <td class="c-muted" style="font-size: 10px;">${st.status}</td>
+            <td><button class="${btnClass}" onclick="${btnAction}">${btnText}</button></td>
+          `;
+          scanTbody.appendChild(tr);
+        });
+      }
+
       let filtered = rawScannerData.filter(s => {
         if (activeTFFilter === 'ALL') return true;
         return (s.timeframe || '').toLowerCase() === activeTFFilter.toLowerCase();
@@ -1153,7 +1202,7 @@
           `;
           scanTbody.appendChild(tr);
         });
-      } else {
+      } else if (rawStalkerData.length === 0 || activeTFFilter !== 'ALL') {
         scanTbody.innerHTML = `<tr><td colspan="6" class="c-muted">No ${activeTFFilter} setups detected</td></tr>`;
       }
     }
@@ -1497,6 +1546,7 @@
 
         // Cache scanner data for filtering & sorting
         rawScannerData = data.scanner || [];
+        rawStalkerData = data.stalker_radar || [];
         renderScannerTable();
 
         // Audit History Table

@@ -32,6 +32,8 @@ def migrate():
         ("ghost_resolved_at", "TEXT DEFAULT NULL"),
         ("optimal_target_r", "REAL DEFAULT 1.15"),
         ("partial_exit_done", "INTEGER DEFAULT 0"),
+        ("partial_tier_done", "INTEGER DEFAULT 0"),
+        ("initial_shares", "REAL DEFAULT NULL"),
         ("peak_high_r", "REAL DEFAULT 0.0"),
         ("trailing_stop_price", "REAL DEFAULT NULL"),
         ("partial_exit_price", "REAL DEFAULT NULL"),
