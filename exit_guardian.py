@@ -436,7 +436,7 @@ def run_guardian_cycle():
 
                 c.execute("""
                     UPDATE alerts 
-                    SET outcome = ?, exit_price = ?, pnl_r = ? 
+                    SET outcome = ?, exit_price = ?, pnl_r = ?, ghost_status = 'MONITORING'
                     WHERE id = ?
                 """, (outcome, price, final_r, trade_id))
                 conn.commit()

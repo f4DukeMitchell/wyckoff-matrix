@@ -386,7 +386,7 @@ def check_ghost_trades():
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM alerts WHERE outcome = 'BREAKEVEN' AND ghost_status = 'MONITORING'")
+        cursor.execute("SELECT * FROM alerts WHERE ghost_status = 'MONITORING'")
         ghosts = cursor.fetchall()
         if not ghosts:
             return resolved_ghosts
