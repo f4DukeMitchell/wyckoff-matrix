@@ -322,6 +322,19 @@
       color: var(--wsr-black);
     }
 
+    /* ACTIVE POSITIONS ROW STYLES */
+    .pos-row {
+      transition: background 0.15s ease;
+      cursor: pointer;
+    }
+    .pos-row:hover {
+      background: rgba(0, 229, 255, 0.08) !important;
+    }
+    .pos-row-active {
+      background: rgba(0, 229, 255, 0.18) !important;
+      border-left: 3px solid var(--wsr-cyan) !important;
+    }
+
     /* CHART CONTAINER */
     #chart-pane {
       grid-column: 2 / 3;
@@ -1364,7 +1377,7 @@
             const btnAction = isLong ? `executeBuy('${st.ticker}', null)` : `executeShort('${st.ticker}', null)`;
             const tr = document.createElement('tr');
             tr.innerHTML = `
-              <td class="c-cyan" onclick="loadChartData('${st.ticker}', '5m')"><b>${st.ticker}</b></td>
+              <td class="c-cyan" style="cursor:pointer;" onclick="selectTicker('${st.ticker}', '5m')"><b>${st.ticker}</b></td>
               <td class="${isLong ? 'c-green' : 'c-red'}">⚡ ${st.setup}</td>
               <td>$${st.current_price ? st.current_price.toFixed(2) : '--'} <span class="c-muted" style="font-size:10px;">(Test: $${st.target_test_level})</span></td>
               <td><b style="color:#00ffcc;">1M STALKER</b></td>
@@ -1390,7 +1403,7 @@
           const tr = document.createElement('tr');
           tr.style.background = 'rgba(0, 255, 204, 0.08)';
           tr.innerHTML = `
-            <td class="c-cyan" onclick="loadChartData('${st.ticker}', '5m')"><b>${st.ticker}</b> <span style="font-size:9px; color:#00ffcc;">[STALK]</span></td>
+            <td class="c-cyan" style="cursor:pointer;" onclick="selectTicker('${st.ticker}', '5m')"><b>${st.ticker}</b> <span style="font-size:9px; color:#00ffcc;">[STALK]</span></td>
             <td class="${isLong ? 'c-green' : 'c-red'}">⚡ ${st.setup}</td>
             <td>$${st.current_price ? st.current_price.toFixed(2) : '--'}</td>
             <td><b style="color:#00ffcc;">1M</b></td>
@@ -1429,7 +1442,7 @@
 
           const tr = document.createElement('tr');
           tr.innerHTML = `
-            <td class="c-cyan" onclick="loadChartData('${s.ticker}', '${s.timeframe || '5m'}')"><b>${s.ticker}</b></td>
+            <td class="c-cyan" style="cursor:pointer;" onclick="selectTicker('${s.ticker}', '${s.timeframe || '5m'}')"><b>${s.ticker}</b></td>
             <td class="${isLong ? 'c-green' : 'c-red'}">${s.direction}</td>
             <td>$${s.entry_price ? s.entry_price.toFixed(2) : '--'}</td>
             <td><b class="c-yellow">${s.timeframe || '5m'}</b></td>
@@ -1577,6 +1590,21 @@
       }
     }
 
+    // --- SELECT TICKER (INTERACTIVE ROW SELECTION) ---
+    function selectTicker(ticker, interval) {
+      if (!ticker) return;
+      const sym = ticker.toUpperCase();
+      // Instantly highlight matching position row in the active trades table
+      document.querySelectorAll('#tbl-positions tr.pos-row').forEach(row => {
+        if (row.getAttribute('data-ticker') === sym) {
+          row.classList.add('pos-row-active');
+        } else {
+          row.classList.remove('pos-row-active');
+        }
+      });
+      loadChartData(sym, interval || currentInterval);
+    }
+
     // --- LOAD BARS & INDICATORS ---
     async function loadChartData(ticker, interval) {
       if (!ticker) return;
@@ -1584,11 +1612,14 @@
       currentInterval = interval || currentInterval || '5m';
       const headerEl = document.getElementById('chart-header-symbol');
       if (headerEl) {
-        headerEl.innerText = `${currentTicker} // ${currentInterval.toUpperCase()} WYCKOFF STRUCTURE (PUBLIC.COM)`;
+        headerEl.innerHTML = `${currentTicker} // ${currentInterval.toUpperCase()} WYCKOFF STRUCTURE <span style="color:var(--wsr-yellow); font-size:10px; margin-left:8px;">[SYNCING...]</span>`;
       }
       
       try {
         const res = await fetch(`/api/bars/${currentTicker}?interval=${currentInterval}`);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
         const data = await res.json();
         
         if (data.bars && data.bars.length > 0) {
@@ -1615,15 +1646,26 @@
 
           // Update active trade dollar price lines on the chart
           updateActiveTradePriceLines(currentTicker);
+
+          if (headerEl) {
+            headerEl.innerText = `${currentTicker} // ${currentInterval.toUpperCase()} WYCKOFF STRUCTURE (PUBLIC.COM)`;
+          }
+        } else {
+          if (headerEl) {
+            headerEl.innerHTML = `${currentTicker} // ${currentInterval.toUpperCase()} <span style="color:var(--wsr-orange); font-size:10px; margin-left:8px;">[NO BARS RETURNED]</span>`;
+          }
         }
 
-        // Also refresh options flow and dynamic signal evidence
+        // Synchronously refresh options flow & real ML signal evidence
         try {
-          loadFlow(currentTicker);
+          loadOptionsFlow(currentTicker);
         } catch (_) {}
 
       } catch (e) {
         console.error("Failed to load bars and indicators:", e);
+        if (headerEl) {
+          headerEl.innerHTML = `${currentTicker} // ${currentInterval.toUpperCase()} <span style="color:var(--wsr-red); font-size:10px; margin-left:8px;">[LOAD ERROR: ${e.message}]</span>`;
+        }
       }
     }
 
@@ -1839,15 +1881,22 @@
               ? `<button class="term-btn" style="padding: 1px 4px; font-weight:bold; font-size:9px; margin-right:4px;" onclick="event.stopPropagation(); toggleTradeDetails('${p.ticker}')" id="btn-exp-${p.ticker}">${isOpen ? '[-]' : '[+]'}</button>` 
               : '';
 
+            const isSelected = (currentTicker || '').toUpperCase() === p.ticker.toUpperCase();
             const tr = document.createElement('tr');
+            tr.className = `pos-row ${isSelected ? 'pos-row-active' : ''}`;
+            tr.setAttribute('data-ticker', p.ticker);
+            tr.onclick = (e) => {
+              if (e.target.closest('.term-btn') || e.target.closest('.pos-details-row')) return;
+              selectTicker(p.ticker);
+            };
             tr.innerHTML = `
-              <td class="c-cyan" style="padding:3px 4px; cursor:pointer;" onclick="loadChartData('${p.ticker}', currentInterval)">${expandBtn}<b style="cursor:pointer; text-decoration: underline dotted;" title="Click to view ${p.ticker} chart">${p.ticker}</b></td>
+              <td class="c-cyan" style="padding:3px 4px;">${expandBtn}<b style="text-decoration: underline dotted;" title="Click to view ${p.ticker} chart">${p.ticker}</b></td>
               <td class="${isLong ? 'c-green' : 'c-red'}" style="padding:3px 4px;">${dirBadge}</td>
               <td style="padding:3px 4px;">$${p.entry_price ? p.entry_price.toFixed(2) : '--'}</td>
               <td style="padding:3px 4px;"><b class="c-white">${currPrice}</b></td>
               <td class="${pnlClass}" style="padding:3px 4px; font-weight:600;">${pnlDisplay}</td>
               <td style="padding:3px 4px;">${targetDisplay}</td>
-              <td style="padding:3px 4px; text-align:center;"><button class="term-btn term-btn-exit" style="padding: 2px 6px; font-size: 9px;" onclick="${exitCall}">EXIT</button></td>
+              <td style="padding:3px 4px; text-align:center;"><button class="term-btn term-btn-exit" style="padding: 2px 6px; font-size: 9px;" onclick="event.stopPropagation(); ${exitCall}">EXIT</button></td>
             `;
             posTbody.appendChild(tr);
 
@@ -1942,7 +1991,7 @@
             const color = h.outcome === 'WIN' ? 'c-green' : (h.outcome === 'BREAKEVEN' ? 'c-yellow' : 'c-red');
             const tf = (h.timeframe || '5m').toUpperCase();
             tr.innerHTML = `
-              <td class="c-cyan" onclick="loadChartData('${h.ticker}', '${h.timeframe || '5m'}')"><b>${h.ticker}</b></td>
+              <td class="c-cyan" style="cursor:pointer;" onclick="selectTicker('${h.ticker}', '${h.timeframe || '5m'}')"><b>${h.ticker}</b></td>
               <td>${h.direction}</td>
               <td><b class="c-yellow">${tf}</b></td>
               <td class="${color}">${h.outcome}</td>

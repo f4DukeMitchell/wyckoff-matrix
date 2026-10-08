@@ -926,6 +926,18 @@ def trigger_system_restart():
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+@app.get("/api/health")
+def health_check():
+    return {"status": "ONLINE", "version": "2.2.0"}
+
+@app.get("/")
+def serve_index():
+    response = FileResponse("terminal_static/index.html")
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
 # Mount static web assets
 app.mount("/", StaticFiles(directory="terminal_static", html=True), name="static")
 
