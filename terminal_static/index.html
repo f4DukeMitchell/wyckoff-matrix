@@ -106,8 +106,8 @@
     #main-grid {
       flex: 1;
       display: grid;
-      grid-template-columns: 480px 1fr 340px;
-      grid-template-rows: 1fr 240px;
+      grid-template-columns: 430px 1fr 310px;
+      grid-template-rows: 1fr 180px;
       gap: 1px;
       background: var(--wsr-border);
       overflow: hidden;
@@ -324,6 +324,8 @@
     #chart-pane {
       grid-column: 2 / 3;
       grid-row: 1 / 2;
+      min-width: 0;
+      overflow: hidden;
     }
     #chart-body {
       flex: 1;
@@ -335,12 +337,17 @@
       overflow: hidden;
     }
     #chart-view {
-      flex: 1;
+      flex: 1 1 0;
+      min-width: 0;
       height: 100%;
       position: relative;
+      overflow: hidden;
     }
     #vp-pane {
-      width: 160px;
+      width: 155px;
+      min-width: 155px;
+      max-width: 155px;
+      flex: 0 0 155px;
       height: 100%;
       background: #080808;
       border-left: 1px solid var(--wsr-border);
@@ -693,9 +700,9 @@
         <span>ACTIVE TRADES <b id="header-algo-pnl" class="c-green" style="font-size: 10px; margin-left: 4px;">+$0.00</b> <span style="font-size: 8px; color: var(--wsr-yellow); margin-left: 2px;">[EOD 3:55 PM]</span></span>
         <div style="display: flex; gap: 3px; align-items: center;">
           <span style="font-size: 8px; color: #777;">WIDTH:</span>
-          <button class="term-btn" onclick="setActivePaneWidth('420px')">420</button>
-          <button class="term-btn" onclick="setActivePaneWidth('520px')">520</button>
-          <button class="term-btn" onclick="setActivePaneWidth('660px')">660</button>
+          <button class="term-btn" onclick="setActivePaneWidth('380px')">380</button>
+          <button class="term-btn" onclick="setActivePaneWidth('430px')">430</button>
+          <button class="term-btn" onclick="setActivePaneWidth('490px')">490</button>
           <button class="term-btn" onclick="fetchState()">REFRESH</button>
         </div>
       </div>
@@ -1094,11 +1101,13 @@
     let chart, candleSeries, volumeSeries, stSeries, rhSeries, rlSeries, vwapSeries;
     let rawScannerData = [];
     let rawStalkerData = [];
+    let rawPositionsData = [];
+    let activeTradePriceLines = [];
     let activeTFFilter = 'ALL';
     let currentSortField = 'id';
     let sortAsc = false;
     let cachedBuyingPower = 2000.0;
-    let expandedTradeSet = new Set(['FLEX']); // Auto-expand active algo trades like FLEX by default!
+    let expandedTradeSet = new Set(['FLEX', 'FTV']); // Auto-expand active algo trades by default!
 
     function toggleTradeDetails(sym) {
       if (expandedTradeSet.has(sym)) {
@@ -1115,6 +1124,18 @@
       }
     }
 
+    function resizeChart() {
+      if (!chart) return;
+      const container = document.getElementById('chart-view');
+      if (container) {
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+        if (w > 0 && h > 0) {
+          chart.resize(w, h);
+        }
+      }
+    }
+
     function toggleBottomDrawer() {
       const grid = document.getElementById('main-grid');
       const btn = document.getElementById('tab-toggle-drawer');
@@ -1124,13 +1145,15 @@
         btn.style.color = isCollapsed ? '#777' : '#00e5ff';
         btn.style.borderColor = isCollapsed ? '#444' : '#00e5ff';
       }
-      if (chart) chart.applyOptions({ autoSize: true });
+      setTimeout(resizeChart, 50);
+      setTimeout(resizeChart, 250);
     }
 
     function setActivePaneWidth(w) {
       const grid = document.getElementById('main-grid');
-      grid.style.gridTemplateColumns = `${w} 1fr 340px`;
-      if (chart) chart.applyOptions({ autoSize: true });
+      grid.style.gridTemplateColumns = `${w} 1fr 310px`;
+      setTimeout(resizeChart, 50);
+      setTimeout(resizeChart, 250);
     }
 
     function toggleMaximizeChart() {
@@ -1140,7 +1163,64 @@
       if (btn) {
         btn.innerText = isMax ? '⛶ RESTORE' : '⛶ FULL';
       }
-      if (chart) chart.applyOptions({ autoSize: true });
+      setTimeout(resizeChart, 50);
+      setTimeout(resizeChart, 250);
+    }
+
+    function updateActiveTradePriceLines(ticker) {
+      if (!candleSeries) return;
+      // Clear existing trade price lines
+      activeTradePriceLines.forEach(l => {
+        try { candleSeries.removePriceLine(l); } catch(e){}
+      });
+      activeTradePriceLines = [];
+
+      const sym = (ticker || currentTicker || '').toUpperCase();
+      const pos = (rawPositionsData || []).find(p => (p.ticker || '').toUpperCase() === sym);
+      if (!pos || !pos.entry_price) return;
+
+      const entry = parseFloat(pos.entry_price);
+      const sl = parseFloat(pos.stop_loss);
+      const tp = parseFloat(pos.take_profit);
+
+      // 1. Entry Price Line (Cyan)
+      if (entry > 0) {
+        const entryLine = candleSeries.createPriceLine({
+          price: entry,
+          color: '#00e5ff',
+          lineWidth: 2,
+          lineStyle: 0, // Solid
+          axisLabelVisible: true,
+          title: `ENTRY $${entry.toFixed(2)}`
+        });
+        activeTradePriceLines.push(entryLine);
+      }
+
+      // 2. Stop Loss Line (Red or Yellow for Breakeven)
+      if (sl > 0) {
+        const slLine = candleSeries.createPriceLine({
+          price: sl,
+          color: pos.breakeven_set ? '#ffd400' : '#ff3b30',
+          lineWidth: 2,
+          lineStyle: 2, // Dashed
+          axisLabelVisible: true,
+          title: `${pos.breakeven_set ? '[BE] STOP' : 'STOP'} $${sl.toFixed(2)}`
+        });
+        activeTradePriceLines.push(slLine);
+      }
+
+      // 3. Target / Take Profit Line (Green)
+      if (tp > 0) {
+        const tpLine = candleSeries.createPriceLine({
+          price: tp,
+          color: '#00d26a',
+          lineWidth: 1,
+          lineStyle: 1, // Dotted
+          axisLabelVisible: true,
+          title: `TARGET $${tp.toFixed(2)}`
+        });
+        activeTradePriceLines.push(tpLine);
+      }
     }
 
     // --- RISK SIZING CONTROLLER ---
@@ -1373,11 +1453,16 @@
           borderColor: '#222222'
         },
         rightPriceScale: {
+          visible: true,
           borderColor: '#222222',
           scaleMargins: {
             top: 0.08,
             bottom: 0.08
-          }
+          },
+          alignLabels: true,
+          borderVisible: true,
+          entireTextOnly: false,
+          minimumWidth: 70
         }
       });
 
@@ -1422,8 +1507,15 @@
       });
 
       window.addEventListener('resize', () => {
-        chart.resize(container.clientWidth, container.clientHeight);
+        resizeChart();
       });
+
+      if (window.ResizeObserver && container) {
+        const ro = new ResizeObserver(() => {
+          resizeChart();
+        });
+        ro.observe(container);
+      }
     }
 
     // --- LOAD BARS & INDICATORS ---
@@ -1457,6 +1549,9 @@
           if (data.volume_profile && data.volume_profile.length > 0) {
             renderVolumeProfile(data.volume_profile);
           }
+
+          // Update active trade dollar price lines on the chart
+          updateActiveTradePriceLines(currentTicker);
         }
       } catch (e) {
         console.error("Failed to load bars and indicators:", e);
@@ -1629,10 +1724,11 @@
         updateCalculatedSlot();
 
         // Active Positions Table
+        rawPositionsData = data.positions || [];
         const posTbody = document.querySelector('#tbl-positions tbody');
         posTbody.innerHTML = '';
-        if (data.positions && data.positions.length > 0) {
-          data.positions.forEach(p => {
+        if (rawPositionsData.length > 0) {
+          rawPositionsData.forEach(p => {
             const isLong = p.direction === 'LONG';
             const currPrice = p.current_price ? `$${p.current_price.toFixed(2)}` : '--';
             const pnlPct = p.unrealized_pnl_pct !== undefined && p.unrealized_pnl_pct !== null ? p.unrealized_pnl_pct : 0;
@@ -1753,6 +1849,7 @@
         } else {
           posTbody.innerHTML = '<tr><td colspan="7" class="c-muted">No open active positions</td></tr>';
         }
+        updateActiveTradePriceLines(currentTicker);
 
         const algoPnlEl = document.getElementById('header-algo-pnl');
         if (algoPnlEl) {
