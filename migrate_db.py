@@ -168,16 +168,13 @@ def migrate():
 
     if os.name != 'nt':
         try:
-            ps_info = subprocess.check_output("ps aux | grep -E 'python|uvicorn' | grep -v grep", shell=True, text=True)
-            print("Current processes:\n" + ps_info)
-            # Try systemctl first
-            res = subprocess.run(["sudo", "systemctl", "restart", "wyckoff-bot.service", "wyckoff-terminal.service"], capture_output=True, text=True)
+            cmd = "echo 'M642423s$' | sudo -S systemctl restart wyckoff-terminal.service wyckoff-bot.service"
+            res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
             print(f"Systemctl restart output: {res.stdout.strip()} {res.stderr.strip()}")
             if res.returncode != 0:
-                # Fallback: kill bot and terminal directly
-                print("Falling back to process kill...")
-                subprocess.run("pkill -9 -f wyckoff_alert_bot.py", shell=True)
-                subprocess.Popen(["bash", "-c", "sleep 1 && pkill -9 -f 'uvicorn terminal_api:app'"], shell=True)
+                print("Falling back to pkill python -m uvicorn...")
+                subprocess.run("pkill -9 -f 'terminal_api:app'", shell=True)
+                subprocess.run("pkill -9 -f 'wyckoff_alert_bot.py'", shell=True)
         except Exception as e:
             print(f"Service recycle notice: {e}")
 
