@@ -1,4 +1,5 @@
 import os
+import time
 import sqlite3
 import datetime
 try:
@@ -32,6 +33,43 @@ def get_market_time():
     if ET_TZ:
         return datetime.datetime.now(ET_TZ)
     return datetime.datetime.now()
+
+def get_open_trade_for_second_spring(ticker, current_price):
+    """
+    Checks if an existing open trade on ticker is eligible for a 2X Second Spring add.
+    Conditions:
+    1. Active open trade in DB (outcome = 'OPEN', user_active = 1)
+    2. second_spring_added == 0 (strictly max 1 addition, capping at 2x sizing)
+    3. partial_tier_done == 0 (still in base accumulation, hasn't started scaling out)
+    4. current_price > initial_stop_loss (structural invalidation line respected)
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("""
+            SELECT id, ticker, entry_price, initial_stop_loss, stop_loss, initial_shares, 
+                   partial_tier_done, second_spring_added, take_profit
+            FROM alerts
+            WHERE ticker = ? AND outcome = 'OPEN' AND user_active = 1
+            ORDER BY id DESC LIMIT 1
+        """, (ticker.upper(),))
+        row = c.fetchone()
+        conn.close()
+        if not row:
+            return None
+        
+        trade = dict(row)
+        init_sl = float(trade.get('initial_stop_loss') or trade.get('stop_loss') or 0.0)
+        tier = int(trade.get('partial_tier_done') or 0)
+        already_added = int(trade.get('second_spring_added') or 0)
+
+        if already_added == 0 and tier == 0 and current_price > init_sl:
+            return trade
+        return None
+    except Exception as e:
+        print(f"Error checking second spring candidate: {e}")
+        return None
 
 def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     """
@@ -74,19 +112,160 @@ def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
         conn.close()
         return False, f"MAX_POSITIONS_REACHED ({active_count}/{AUTO_BUY_MAX_CONCURRENT})"
 
-    # 6. No Duplicate Tickers in same trading session
+    # 6. Check for active open trade vs clean re-entry
+    c.execute("""
+        SELECT id FROM alerts 
+        WHERE ticker = ? AND outcome = 'OPEN' AND user_active = 1
+    """, (ticker.upper(),))
+    open_trade = c.fetchone()
+    if open_trade:
+        conn.close()
+        return False, f"OPEN_TRADE_EXISTS (#{open_trade[0]})"
+
+    # Clean Re-entry Guardrail: Check daily loss limit on this ticker
+    # If ticker took 2 full stop-outs today, suppress to avoid whipsaw chop
     today_str = now.strftime("%Y-%m-%d")
     c.execute("""
-        SELECT COUNT(id) FROM alerts 
+        SELECT COUNT(id) FROM alerts
         WHERE ticker = ? AND user_active = 1 AND timestamp LIKE ?
+          AND outcome IN ('STOPPED', 'LOSS') AND (pnl_r <= -0.5 OR exit_price < entry_price)
     """, (ticker.upper(), f"{today_str}%"))
-    same_ticker_count = (c.fetchone() or (0,))[0]
+    losses_today = (c.fetchone() or (0,))[0]
     conn.close()
 
-    if same_ticker_count > 0:
-        return False, f"ALREADY_ACTIVE_TODAY ({ticker.upper()})"
+    if losses_today >= 2:
+        return False, f"DAILY_LOSS_LIMIT_REACHED ({ticker.upper()} has {losses_today} losses today)"
 
     return True, "ELIGIBLE"
+
+def execute_autonomous_second_spring_buy(parent_trade_id, ticker, price, ml_conf, timeframe="5m"):
+    """
+    Executes a high-conviction 2X Second Spring (Secondary Test) addition:
+    1. Verifies timing & ML confidence guardrails.
+    2. Places fractional 1% BUY on Public.com to double the position to 2%.
+    3. Blends entry price and synchronizes initial_shares.
+    4. UNIFIED STRUCTURAL STOP: Strictly preserves original initial_stop_loss.
+    5. Dispatches Telegram notification.
+    """
+    if not AUTO_BUY_ENABLED:
+        return False, "AUTO_BUY_DISABLED"
+
+    if (timeframe or "").lower() not in AUTO_BUY_ALLOWED_TIMEFRAMES:
+        return False, f"TIMEFRAME_RESTRICTED ({timeframe})"
+
+    now = get_market_time()
+    current_t = now.time()
+
+    if current_t < AUTO_BUY_START_TIME:
+        return False, "WAITING_FOR_10AM_CONFIRMATION"
+
+    if current_t > AUTO_BUY_END_TIME:
+        return False, "AFTER_3:30PM_CUTOFF"
+
+    if LUNCH_START_TIME <= current_t <= LUNCH_END_TIME:
+        return False, "LUNCH_LULL_SUPPRESSION"
+
+    if ml_conf is not None and ml_conf < AUTO_BUY_MIN_ML_CONF:
+        return False, f"ML_CONF_TOO_LOW ({ml_conf:.1f}% < {AUTO_BUY_MIN_ML_CONF}%)"
+
+    # Fetch parent trade
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("""
+        SELECT id, ticker, entry_price, initial_stop_loss, stop_loss, initial_shares, 
+               partial_tier_done, second_spring_added
+        FROM alerts WHERE id = ?
+    """, (parent_trade_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return False, "PARENT_TRADE_NOT_FOUND"
+
+    trade = dict(row)
+    if int(trade.get('second_spring_added') or 0) > 0:
+        conn.close()
+        return False, "SECOND_SPRING_ALREADY_ADDED"
+
+    structural_stop = float(trade.get('initial_stop_loss') or trade.get('stop_loss') or 0.0)
+    old_entry = float(trade.get('entry_price') or price)
+    old_shares = float(trade.get('initial_shares') or 0.0)
+
+    # Determine allocation (standard 1% tranche to 2X position)
+    if AUTO_BUY_ALLOC_MODE == "PERCENT_1PCT":
+        dollar_alloc = calculate_test_allocation(0.01)
+    else:
+        dollar_alloc = AUTO_BUY_FIXED_AMOUNT
+
+    try:
+        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ⚡ EXECUTING 2X SECOND SPRING BUY: {ticker} (${dollar_alloc:.2f}) on Public.com...")
+        order_res = execute_dollar_buy(ticker.upper(), dollar_alloc)
+        status = order_res.get('status', 'SUBMITTED')
+        order_uuid = order_res.get('order_id', 'N/A')
+
+        # Allow broker 1.5s to settle fill
+        time.sleep(1.5)
+
+        # Sync live position from broker
+        new_total_shares = old_shares + (dollar_alloc / price)
+        blended_entry = old_entry
+        try:
+            from public_executor import get_live_positions
+            broker_pos = get_live_positions()
+            for p in broker_pos:
+                if p['ticker'].upper() == ticker.upper():
+                    new_total_shares = float(p['quantity'])
+                    blended_entry = float(p['entry_price'])
+                    break
+        except Exception as pe:
+            print(f"Error fetching live position post-buy: {pe}")
+            # Fallback calculation
+            add_shares = dollar_alloc / price
+            new_total_shares = old_shares + add_shares
+            blended_entry = ((old_entry * old_shares) + dollar_alloc) / new_total_shares if new_total_shares > 0 else price
+
+        # Update parent record in DB:
+        # Note: initial_stop_loss and stop_loss are strictly KEPT at structural_stop!
+        c.execute("""
+            UPDATE alerts SET 
+                second_spring_added = 1,
+                initial_shares = ?,
+                entry_price = ?,
+                stop_loss = ?,
+                initial_stop_loss = ?
+            WHERE id = ?
+        """, (round(new_total_shares, 5), round(blended_entry, 4), structural_stop, structural_stop, parent_trade_id))
+        conn.commit()
+        conn.close()
+
+        # Telegram Alert
+        conf_str = f" | ML Edge: {ml_conf:.1f}%" if ml_conf is not None else ""
+        msg = (
+            f"⚡ 2X SECOND SPRING PYRAMID EXECUTED!\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"Symbol: {ticker.upper()} (Tranche #2 Added)\n"
+            f"Timeframe: {timeframe}\n"
+            f"Added Capital: ${dollar_alloc:.2f} ({status})\n"
+            f"New Blended Entry: ${blended_entry:.2f}\n"
+            f"Total Shares: {new_total_shares:.4f} (2X Position)\n"
+            f"🔒 Unified Structural Stop: ${structural_stop:.2f} (LOCKED - Untouched!)\n"
+            f"Order UUID: {order_uuid}{conf_str}\n\n"
+            f"🛡️ Exit Guardian Synchronized:\n"
+            f"• Both tranches share the exact same invalidation line.\n"
+            f"• Sizing doubled to 2% max allocation.\n"
+            f"• 10% partial ladder scaled to bank double cash at targets!"
+        )
+        send_message(msg)
+        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ✅ 2X Second Spring Success: {ticker} (${dollar_alloc:.2f})")
+        return True, "EXECUTED_SECOND_SPRING"
+
+    except Exception as e:
+        err_msg = f"❌ 2X Second Spring Buy FAILED for {ticker}: {str(e)}"
+        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {err_msg}")
+        send_message(err_msg)
+        if 'conn' in locals():
+            conn.close()
+        return False, str(e)
 
 def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, timeframe="5m"):
     """
@@ -117,6 +296,23 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
 
         status = order_res.get('status', 'SUBMITTED')
         order_uuid = order_res.get('order_id', 'N/A')
+
+        # Allow broker 1.5s to settle fill and sync initial_shares
+        time.sleep(1.5)
+        try:
+            from public_executor import get_live_positions
+            broker_pos = get_live_positions()
+            for p in broker_pos:
+                if p['ticker'].upper() == ticker.upper():
+                    qty = float(p['quantity'])
+                    conn = sqlite3.connect(DB_PATH)
+                    c = conn.cursor()
+                    c.execute("UPDATE alerts SET initial_shares = ? WHERE id = ?", (qty, trade_id))
+                    conn.commit()
+                    conn.close()
+                    break
+        except Exception as pe:
+            print(f"Initial shares sync notice: {pe}")
 
         # Telegram Alert
         conf_str = f" | ML Edge: {ml_conf:.1f}%" if ml_conf is not None else ""

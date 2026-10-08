@@ -298,10 +298,20 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         current_time = time.time()
         
         if is_spring and (current_time - last_alerted.get(ticker, 0) > 900):
+            open_second_spring = None
             if TRACKER_ENABLED and (has_open_alerted_trade(ticker, interval) or has_open_trade(ticker, interval)):
-                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED DUPLICATE: {ticker} already has active open trade on {interval}")
-                last_alerted[ticker] = current_time
-                return
+                try:
+                    from auto_buyer import get_open_trade_for_second_spring
+                    open_second_spring = get_open_trade_for_second_spring(ticker, closes[curr])
+                except Exception as e:
+                    open_second_spring = None
+
+                if not open_second_spring:
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED DUPLICATE: {ticker} already has active open trade on {interval}")
+                    last_alerted[ticker] = current_time
+                    return
+                else:
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] 🎯 SECOND SPRING DETECTED: {ticker} testing support above ${open_second_spring.get('initial_stop_loss', 0.0):.2f}")
 
             if now.hour == 9 and 30 <= now.minute < 45 and interval == "5m":
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] OPENING SHIELD: {ticker} 5m Spring suppressed during 9:30-9:45 AM")
@@ -364,6 +374,22 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} LONG - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
+                last_alerted[ticker] = current_time
+                return
+
+            # If this is a validated Second Spring / Secondary Test on an open position:
+            if open_second_spring:
+                auto_executed = False
+                try:
+                    from auto_buyer import execute_autonomous_second_spring_buy
+                    auto_executed, auto_reason = execute_autonomous_second_spring_buy(
+                        open_second_spring['id'], ticker, price, ml_conf, timeframe=interval
+                    )
+                except Exception as e:
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] 2nd Spring Auto-Buy error: {e}")
+
+                if TELEGRAM_ENABLED and not auto_executed:
+                    tg_trade_alert(ticker, "LONG (2nd SPRING / TEST)", price, open_second_spring['initial_stop_loss'], open_second_spring['take_profit'], regime, interval, flow, open_second_spring['id'], ml_confidence=ml_conf)
                 last_alerted[ticker] = current_time
                 return
 
