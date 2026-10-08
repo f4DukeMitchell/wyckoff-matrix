@@ -1,4 +1,5 @@
 import os
+import json
 import time
 import datetime
 import pandas as pd
@@ -172,23 +173,39 @@ def check_1m_micro_spark(ticker, setup_type):
     except Exception as e:
         return False, f"1M_ERROR: {str(e)}"
 
+STALKER_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stalker_radar.json")
+
 def get_active_stalker_radar():
-    """Returns the current list of stalked candidates for API and UI display."""
+    """Returns the current list of stalked candidates for API and UI display from shared cache."""
+    try:
+        if os.path.exists(STALKER_CACHE_FILE):
+            with open(STALKER_CACHE_FILE, "r") as f:
+                return json.load(f)
+    except Exception:
+        pass
     global _STALKER_CANDIDATES
     return _STALKER_CANDIDATES
 
 def update_stalker_candidates(candidates_list):
-    """Updates the in-memory stalker list."""
+    """Updates the shared stalker list on disk and in memory."""
     global _STALKER_CANDIDATES, _LAST_STALKER_SCAN
     _STALKER_CANDIDATES = candidates_list
     _LAST_STALKER_SCAN = time.time()
+    try:
+        tmp_file = STALKER_CACHE_FILE + ".tmp"
+        with open(tmp_file, "w") as f:
+            json.dump(candidates_list, f, indent=2)
+        os.replace(tmp_file, STALKER_CACHE_FILE)
+    except Exception:
+        pass
 
 def stalker_daemon_loop():
-    """Periodically checks 1-minute micro-spark for all actively stalked candidates."""
+    """Periodically checks 1-minute micro-spark for all actively stalked candidates without spamming Telegram."""
     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [Stalker Radar] Fast 1m Micro-Scanner Daemon active.")
     while True:
         try:
             candidates = get_active_stalker_radar()
+            changed = False
             for cand in candidates:
                 ticker = cand.get('ticker')
                 setup = cand.get('setup')
@@ -196,23 +213,13 @@ def stalker_daemon_loop():
                     continue
                 triggered, note = check_1m_micro_spark(ticker, setup)
                 cand['micro_status'] = note
-                if triggered and not cand.get('alerted_1m'):
-                    cand['alerted_1m'] = True
+                if triggered and cand.get('status') != 'MICRO_SPARK_TRIGGERED':
                     cand['status'] = 'MICRO_SPARK_TRIGGERED'
-                    msg = (
-                        f"⚡ [STALKER RADAR TRIGGER] 1-MINUTE TEST CONFIRMED!\n"
-                        f"• Symbol: {ticker} ({cand.get('direction')})\n"
-                        f"• Setup: {setup} approaching test level ${cand.get('target_test_level', 0.0):.2f}\n"
-                        f"• Micro Note: {note}\n"
-                        f"• Action: Fast secondary test detected with volume dry-up!"
-                    )
-                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {msg}")
-                    try:
-                        from telegram_notifier import send_message
-                        send_message(msg)
-                    except Exception:
-                        pass
-        except Exception as e:
+                    changed = True
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [Stalker Radar] 1m spark triggered on {ticker} ({setup}): {note}")
+            if changed:
+                update_stalker_candidates(candidates)
+        except Exception:
             pass
         time.sleep(20)
 

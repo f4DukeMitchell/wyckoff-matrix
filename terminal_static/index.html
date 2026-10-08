@@ -647,12 +647,12 @@
       <div class="pane-header">
         <span>WYCKOFF SCANNER RADAR</span>
         <div style="display: flex; gap: 4px;">
-          <button class="term-btn tf-filter-btn active-tf" onclick="filterByTF('ALL')">ALL</button>
-          <button class="term-btn tf-filter-btn" onclick="filterByTF('1m')">⚡ 1M STALKER</button>
-          <button class="term-btn tf-filter-btn" onclick="filterByTF('5m')">5M</button>
-          <button class="term-btn tf-filter-btn" onclick="filterByTF('15m')">15M</button>
-          <button class="term-btn tf-filter-btn" onclick="filterByTF('1h')">1H</button>
-          <button class="term-btn tf-filter-btn" onclick="filterByTF('1d')">1D</button>
+          <button class="term-btn tf-filter-btn active-tf" data-tf="ALL" onclick="filterByTF('ALL')">ALL</button>
+          <button class="term-btn tf-filter-btn" data-tf="1m" onclick="filterByTF('1m')">⚡ 1M STALKER</button>
+          <button class="term-btn tf-filter-btn" data-tf="5m" onclick="filterByTF('5m')">5M</button>
+          <button class="term-btn tf-filter-btn" data-tf="15m" onclick="filterByTF('15m')">15M</button>
+          <button class="term-btn tf-filter-btn" data-tf="1h" onclick="filterByTF('1h')">1H</button>
+          <button class="term-btn tf-filter-btn" data-tf="1d" onclick="filterByTF('1d')">1D</button>
         </div>
       </div>
       <div class="pane-content">
@@ -1048,7 +1048,8 @@
     function filterByTF(tf) {
       activeTFFilter = tf;
       document.querySelectorAll('.tf-filter-btn').forEach(btn => {
-        if (btn.innerText.toUpperCase() === tf.toUpperCase()) {
+        const btnTf = btn.getAttribute('data-tf') || btn.innerText.trim();
+        if (btnTf.toUpperCase() === tf.toUpperCase()) {
           btn.style.background = 'var(--wsr-orange)';
           btn.style.color = 'var(--wsr-black)';
         } else {
