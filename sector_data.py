@@ -1,4 +1,4 @@
-﻿import collections
+import collections
 
 SECTOR_MAP = {
     # Information Technology
@@ -17,6 +17,10 @@ SECTOR_MAP = {
     'ANSS': 'Information Technology', 'ROP': 'Information Technology', 'PTC': 'Information Technology', 
     'TYL': 'Information Technology', 'CDW': 'Information Technology', 'HPQ': 'Information Technology', 
     'STX': 'Information Technology', 'WDC': 'Information Technology', 'NTAP': 'Information Technology',
+    'TSM': 'Information Technology', 'MSTR': 'Information Technology', 'SNOW': 'Information Technology', 'NET': 'Information Technology',
+    'SPY': 'Index ETF', 'QQQ': 'Index ETF', 'IWM': 'Index ETF', 'DIA': 'Index ETF',
+    'SMH': 'Information Technology', 'XLF': 'Financials', 'XLE': 'Energy', 'TLT': 'Bonds', 'GLD': 'Materials',
+    'IBIT': 'Financials', 'AFRM': 'Financials', 'SPOT': 'Communication Services', 'BABA': 'Consumer Discretionary', 'NVO': 'Health Care',
 
     # Health Care
     'LLY': 'Health Care', 'UNH': 'Health Care', 'MRK': 'Health Care', 'ABBV': 'Health Care', 
