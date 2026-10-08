@@ -142,8 +142,15 @@ def get_terminal_state():
         pos['current_price'] = curr_price
         tier = int(pos.get('partial_tier_done') or 0)
         init_shares = float(pos.get('initial_shares') or qty or 0.0)
-        if init_shares <= 0 and qty > 0:
+        # If no tiers taken yet and live broker quantity is higher, user added to position!
+        if (init_shares <= 0 and qty > 0) or (tier == 0 and qty > init_shares):
             init_shares = qty
+            if pos.get('id'):
+                try:
+                    c.execute("UPDATE alerts SET initial_shares = ? WHERE id = ?", (init_shares, pos['id']))
+                    conn.commit()
+                except Exception:
+                    pass
         pos['initial_shares'] = init_shares
         pos['initial_cost'] = round(init_shares * entry, 2)
         pos['shares_sold'] = round(max(0.0, init_shares - qty), 5)

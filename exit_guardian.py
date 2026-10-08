@@ -223,21 +223,21 @@ def run_guardian_cycle():
         tier = int(t.get('partial_tier_done') or 0)
         init_shares = float(t.get('initial_shares') or 0.0)
 
-        # Record initial shares from Public.com holding if not yet saved
-        if init_shares <= 0:
-            try:
-                from public_executor import get_client, get_account_id
-                port = get_client().get_portfolio(get_account_id())
-                for p in (port.positions or []):
-                    if hasattr(p, 'instrument') and p.instrument.symbol.upper() == sym.upper():
-                        init_shares = float(p.quantity or 0.0)
-                        if init_shares > 0:
-                            c.execute("UPDATE alerts SET initial_shares = ? WHERE id = ?", (init_shares, trade_id))
-                            conn.commit()
-                            t['initial_shares'] = init_shares
-                        break
-            except Exception:
-                pass
+        # Record initial shares from Public.com holding if not yet saved or if user added to position before Tier 1
+        try:
+            from public_executor import get_client, get_account_id
+            port = get_client().get_portfolio(get_account_id())
+            for p in (port.positions or []):
+                if hasattr(p, 'instrument') and p.instrument.symbol.upper() == sym.upper():
+                    live_qty = float(p.quantity or 0.0)
+                    if live_qty > 0 and (init_shares <= 0 or (tier == 0 and live_qty > init_shares)):
+                        init_shares = live_qty
+                        c.execute("UPDATE alerts SET initial_shares = ? WHERE id = ?", (init_shares, trade_id))
+                        conn.commit()
+                        t['initial_shares'] = init_shares
+                    break
+        except Exception:
+            pass
 
         # -------------------------------------------------------------
         # TIER 1: +0.20R (Sell 10%, Keep Stop at -1.0R Initial Stop)
