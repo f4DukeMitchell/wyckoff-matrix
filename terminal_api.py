@@ -107,7 +107,7 @@ def get_terminal_state():
     
     # Active user trades (tracked by Wyckoff algo)
     c.execute("""
-        SELECT id, ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe, timestamp, user_active, outcome, pnl_r, breakeven_set, partial_exit_done, peak_high_r, trailing_stop_price, initial_stop_loss
+        SELECT id, ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe, timestamp, user_active, outcome, pnl_r, breakeven_set, partial_exit_done, partial_tier_done, initial_shares, peak_high_r, trailing_stop_price, initial_stop_loss
         FROM alerts
         WHERE outcome = 'OPEN' AND user_active = 1
         ORDER BY id DESC
@@ -129,7 +129,7 @@ def get_terminal_state():
         tracked_tickers.add(ticker.upper())
         entry = float(pos.get('entry_price') or 0.0)
         sl = float(pos.get('stop_loss') or 0.0)
-        init_sl = float(pos.get('initial_stop_loss') or 0.0)
+        init_sl = float(pos.get('initial_stop_loss') or sl or 0.0)
         is_long = (pos.get('direction') or 'LONG').upper() == 'LONG'
         curr_price = live_prices.get(ticker)
         
@@ -140,19 +140,43 @@ def get_terminal_state():
         pos['market_value'] = float(bh.get('market_value') or 0.0) if bh else 0.0
 
         pos['current_price'] = curr_price
+        tier = int(pos.get('partial_tier_done') or 0)
+        init_shares = float(pos.get('initial_shares') or qty or 0.0)
+        if init_shares <= 0 and qty > 0:
+            init_shares = qty
+        pos['initial_shares'] = init_shares
+        pos['initial_cost'] = round(init_shares * entry, 2)
+        pos['shares_sold'] = round(max(0.0, init_shares - qty), 5)
+        pos['tier'] = tier
+
+        risk = abs(entry - init_sl) if (init_sl > 0 and abs(entry - init_sl) > 0.001) else (abs(entry - sl) if (sl > 0 and abs(entry - sl) > 0.001) else entry * 0.015)
+        pos['initial_risk_dollar'] = round(risk * init_shares, 2)
+        pos['risk_per_share'] = round(risk, 4)
+
+        # Realized cash profit from banked scaling tiers
+        realized_profit = 0.0
+        if is_long and init_shares > 0:
+            if tier >= 1: realized_profit += (0.10 * init_shares) * (0.20 * risk)
+            if tier >= 2: realized_profit += (0.10 * init_shares) * (0.40 * risk)
+            if tier >= 3: realized_profit += (0.10 * init_shares) * (0.65 * risk)
+            if tier >= 4: realized_profit += (0.25 * init_shares) * (1.00 * risk)
+            if tier >= 5: realized_profit += (0.25 * init_shares) * (1.30 * risk)
+        pos['realized_profit_dollar'] = round(realized_profit, 2)
+
         if curr_price and entry > 0:
             pnl_pct = ((curr_price - entry) / entry * 100.0) if is_long else ((entry - curr_price) / entry * 100.0)
-            risk = abs(entry - init_sl) if (init_sl > 0 and abs(entry - init_sl) > 0.001) else (abs(entry - sl) if (sl > 0 and abs(entry - sl) > 0.001) else entry * 0.015)
             r_mult = ((curr_price - entry) / risk) if (is_long and risk > 0) else (((entry - curr_price) / risk) if risk > 0 else 0.0)
             dollar_pnl = ((curr_price - entry) * qty) if is_long else ((entry - curr_price) * qty)
             pos['unrealized_pnl_pct'] = round(pnl_pct, 2)
             pos['unrealized_r'] = round(r_mult, 2)
             pos['unrealized_pnl_dollar'] = round(dollar_pnl, 2)
-            total_algo_pnl_dollar += dollar_pnl
+            pos['total_trade_pnl_dollar'] = round(dollar_pnl + realized_profit, 2)
+            total_algo_pnl_dollar += (dollar_pnl + realized_profit)
         else:
             pos['unrealized_pnl_pct'] = 0.0
             pos['unrealized_r'] = 0.0
             pos['unrealized_pnl_dollar'] = 0.0
+            pos['total_trade_pnl_dollar'] = round(realized_profit, 2)
         active_positions.append(pos)
 
     # Ingest non-algo long-term broker holdings from Public.com

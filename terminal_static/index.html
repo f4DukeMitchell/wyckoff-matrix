@@ -106,11 +106,106 @@
     #main-grid {
       flex: 1;
       display: grid;
-      grid-template-columns: 450px 1fr 340px;
+      grid-template-columns: 480px 1fr 340px;
       grid-template-rows: 1fr 240px;
       gap: 1px;
       background: var(--wsr-border);
       overflow: hidden;
+      transition: grid-template-rows 0.2s ease, grid-template-columns 0.2s ease;
+    }
+
+    #main-grid.drawer-collapsed {
+      grid-template-rows: 1fr 0px !important;
+    }
+    #main-grid.drawer-collapsed #pane-flow,
+    #main-grid.drawer-collapsed #pane-ml,
+    #main-grid.drawer-collapsed #pane-audit {
+      display: none !important;
+    }
+
+    #main-grid.chart-maximized {
+      grid-template-columns: 0px 1fr 0px !important;
+      grid-template-rows: 1fr 0px !important;
+    }
+    #main-grid.chart-maximized #pane-watchlist,
+    #main-grid.chart-maximized #pane-scanner,
+    #main-grid.chart-maximized #pane-flow,
+    #main-grid.chart-maximized #pane-ml,
+    #main-grid.chart-maximized #pane-audit {
+      display: none !important;
+    }
+
+    /* EXPANDABLE ACTIVE TRADE DRAWER */
+    .pos-details-row {
+      background: #090b0e !important;
+      border-left: 2px solid var(--wsr-orange);
+      border-bottom: 2px solid #222 !important;
+    }
+    .pos-details-row:hover {
+      background: #090b0e !important;
+      cursor: default !important;
+    }
+    .pos-detail-card {
+      padding: 8px 10px;
+      font-size: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .pos-detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+    .detail-box {
+      background: #11141a;
+      border: 1px solid #1f242e;
+      border-radius: 2px;
+      padding: 6px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      line-height: 1.4;
+    }
+    .detail-title {
+      font-weight: 700;
+      color: var(--wsr-orange);
+      font-size: 9px;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid #222;
+      padding-bottom: 2px;
+      margin-bottom: 3px;
+    }
+    .detail-ladder {
+      background: #11141a;
+      border: 1px solid #1f242e;
+      border-radius: 2px;
+      padding: 6px 8px;
+    }
+    .tier-steps {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+    .tier-step {
+      padding: 2px 6px;
+      font-size: 9px;
+      border-radius: 2px;
+      background: #1a1e26;
+      color: #777;
+      border: 1px solid #2a313d;
+      font-weight: 600;
+    }
+    .tier-step.tier-done {
+      background: rgba(0, 255, 136, 0.12);
+      color: var(--wsr-green);
+      border-color: var(--wsr-green);
+    }
+    .tier-step.tier-active {
+      background: rgba(255, 153, 0, 0.15);
+      color: var(--wsr-orange);
+      border-color: var(--wsr-orange);
     }
 
     .pane {
@@ -565,6 +660,7 @@
     <div class="view-tabs">
       <button id="tab-terminal" class="view-tab active" onclick="switchView('terminal')">📊 TRADING</button>
       <button id="tab-mllab" class="view-tab" onclick="switchView('mllab')">🧠 AI / ML LAB</button>
+      <button id="tab-toggle-drawer" class="view-tab" onclick="toggleBottomDrawer()" style="border-color: #00e5ff; color: #00e5ff;" title="Toggle bottom intel drawer to maximize vertical chart height">🔽 BOTTOM: ON</button>
       <button id="tab-restart" class="view-tab" onclick="triggerServiceRestart()" style="border-color: var(--wsr-orange); color: var(--wsr-orange);" title="Restart Wyckoff Bot & Terminal Services on Cloud VM">⚡ RESTART</button>
       <button id="tab-flatten" class="view-tab" onclick="executeFlattenAll()" style="border-color: #e63946; color: #ff4d4d;" title="Emergency: Flatten all open algo positions immediately">🚨 FLATTEN</button>
     </div>
@@ -595,7 +691,13 @@
     <div class="pane" id="pane-watchlist">
       <div class="pane-header">
         <span>ACTIVE TRADES <b id="header-algo-pnl" class="c-green" style="font-size: 10px; margin-left: 4px;">+$0.00</b> <span style="font-size: 8px; color: var(--wsr-yellow); margin-left: 2px;">[EOD 3:55 PM]</span></span>
-        <button class="term-btn" onclick="fetchState()">REFRESH</button>
+        <div style="display: flex; gap: 3px; align-items: center;">
+          <span style="font-size: 8px; color: #777;">WIDTH:</span>
+          <button class="term-btn" onclick="setActivePaneWidth('420px')">420</button>
+          <button class="term-btn" onclick="setActivePaneWidth('520px')">520</button>
+          <button class="term-btn" onclick="setActivePaneWidth('660px')">660</button>
+          <button class="term-btn" onclick="fetchState()">REFRESH</button>
+        </div>
       </div>
       <div class="pane-content">
         <table id="tbl-positions" style="font-size: 10px; table-layout: auto; width: 100%; min-width: 430px;">
@@ -626,6 +728,7 @@
           <button class="term-btn" onclick="switchInterval('15m')">15M</button>
           <button class="term-btn" onclick="switchInterval('1h')">1H</button>
           <button class="term-btn" onclick="switchInterval('1d')">1D</button>
+          <button class="term-btn" id="btn-max-chart" onclick="toggleMaximizeChart()" style="margin-left: 6px; border-color: var(--wsr-orange); color: var(--wsr-orange);" title="Maximize chart or restore normal grid layout">⛶ FULL</button>
         </div>
       </div>
       <div id="chart-body">
@@ -995,6 +1098,50 @@
     let currentSortField = 'id';
     let sortAsc = false;
     let cachedBuyingPower = 2000.0;
+    let expandedTradeSet = new Set(['FLEX']); // Auto-expand active algo trades like FLEX by default!
+
+    function toggleTradeDetails(sym) {
+      if (expandedTradeSet.has(sym)) {
+        expandedTradeSet.delete(sym);
+      } else {
+        expandedTradeSet.add(sym);
+      }
+      const drawer = document.getElementById(`trade-drawer-${sym}`);
+      const btn = document.getElementById(`btn-exp-${sym}`);
+      if (drawer) {
+        const isOpen = expandedTradeSet.has(sym);
+        drawer.style.display = isOpen ? 'table-row' : 'none';
+        if (btn) btn.innerText = isOpen ? '[-]' : '[+]';
+      }
+    }
+
+    function toggleBottomDrawer() {
+      const grid = document.getElementById('main-grid');
+      const btn = document.getElementById('tab-toggle-drawer');
+      const isCollapsed = grid.classList.toggle('drawer-collapsed');
+      if (btn) {
+        btn.innerText = isCollapsed ? '🔼 BOTTOM: OFF' : '🔽 BOTTOM: ON';
+        btn.style.color = isCollapsed ? '#777' : '#00e5ff';
+        btn.style.borderColor = isCollapsed ? '#444' : '#00e5ff';
+      }
+      if (chart) chart.applyOptions({ autoSize: true });
+    }
+
+    function setActivePaneWidth(w) {
+      const grid = document.getElementById('main-grid');
+      grid.style.gridTemplateColumns = `${w} 1fr 340px`;
+      if (chart) chart.applyOptions({ autoSize: true });
+    }
+
+    function toggleMaximizeChart() {
+      const grid = document.getElementById('main-grid');
+      const btn = document.getElementById('btn-max-chart');
+      const isMax = grid.classList.toggle('chart-maximized');
+      if (btn) {
+        btn.innerText = isMax ? '⛶ RESTORE' : '⛶ FULL';
+      }
+      if (chart) chart.applyOptions({ autoSize: true });
+    }
 
     // --- RISK SIZING CONTROLLER ---
     function getSelectedRiskSizing() {
@@ -1508,22 +1655,28 @@
             }
 
             let dirBadge = p.direction === 'LONG' ? 'L' : 'S';
-            if (p.partial_exit_done) {
-              dirBadge += ` <span style="font-size:8px; color:var(--wsr-orange); font-weight:bold;">[RUNNER 30%]</span>`;
+            if (p.partial_tier_done >= 1) {
+              dirBadge += ` <span style="font-size:8px; color:var(--wsr-orange); font-weight:bold;">[T${p.tier || p.partial_tier_done}]</span>`;
             } else if (p.breakeven_set) {
               dirBadge += ` <span style="font-size:8px; color:var(--wsr-yellow);">[BE]</span>`;
             }
 
             let targetDisplay = p.take_profit && p.take_profit > 0 ? `$${p.take_profit.toFixed(1)}` : (p.is_broker_native ? '<span class="c-muted">HOLD</span>' : '--');
-            if (p.partial_exit_done) {
+            if (p.partial_tier_done >= 1 || p.partial_exit_done) {
               targetDisplay = `<span style="color:var(--wsr-orange); font-size:9.5px;">TRAIL $${p.stop_loss ? p.stop_loss.toFixed(2) : '--'}</span>`;
             }
 
             const exitCall = p.id ? `executeExit('${p.ticker}', ${p.id})` : `executeExit('${p.ticker}', null)`;
 
+            const isAlgoTrade = !p.is_broker_native;
+            const isOpen = expandedTradeSet.has(p.ticker);
+            const expandBtn = isAlgoTrade 
+              ? `<button class="term-btn" style="padding: 1px 4px; font-weight:bold; font-size:9px; margin-right:4px;" onclick="toggleTradeDetails('${p.ticker}')" id="btn-exp-${p.ticker}">${isOpen ? '[-]' : '[+]'}</button>` 
+              : '';
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
-              <td class="c-cyan" style="padding:3px 4px;" onclick="loadChartData('${p.ticker}', '5m')"><b>${p.ticker}</b></td>
+              <td class="c-cyan" style="padding:3px 4px;">${expandBtn}<b onclick="loadChartData('${p.ticker}', '5m')">${p.ticker}</b></td>
               <td class="${isLong ? 'c-green' : 'c-red'}" style="padding:3px 4px;">${dirBadge}</td>
               <td style="padding:3px 4px;">$${p.entry_price ? p.entry_price.toFixed(2) : '--'}</td>
               <td style="padding:3px 4px;"><b class="c-white">${currPrice}</b></td>
@@ -1532,6 +1685,70 @@
               <td style="padding:3px 4px; text-align:center;"><button class="term-btn term-btn-exit" style="padding: 2px 6px; font-size: 9px;" onclick="${exitCall}">EXIT</button></td>
             `;
             posTbody.appendChild(tr);
+
+            if (isAlgoTrade) {
+              const tier = p.tier || p.partial_tier_done || 0;
+              const initShares = p.initial_shares || p.quantity || 0;
+              const initCost = p.initial_cost || (initShares * (p.entry_price || 0));
+              const sharesSold = p.shares_sold || 0;
+              const realizedProfit = p.realized_profit_dollar || 0;
+              const totalPnl = p.total_trade_pnl_dollar !== undefined ? p.total_trade_pnl_dollar : pnlDollar;
+              const peakR = p.peak_high_r || p.unrealized_r || 0;
+
+              const drawerTr = document.createElement('tr');
+              drawerTr.id = `trade-drawer-${p.ticker}`;
+              drawerTr.className = 'pos-details-row';
+              drawerTr.style.display = isOpen ? 'table-row' : 'none';
+
+              drawerTr.innerHTML = `
+                <td colspan="7" style="padding: 6px 8px;">
+                  <div class="pos-detail-card">
+                    <div class="pos-detail-grid">
+                      <!-- Box 1: Beginning Balance & Entry -->
+                      <div class="detail-box">
+                        <div class="detail-title">INITIAL ALLOCATION & ENTRY</div>
+                        <div>Beginning Size: <b class="c-yellow">$${initCost.toFixed(2)}</b></div>
+                        <div>Initial Shares: <b class="c-white">${initShares.toFixed(4)}</b> @ $${p.entry_price ? p.entry_price.toFixed(2) : '--'}</div>
+                        <div>Initial Stop: <b class="c-red">$${p.initial_stop_loss ? p.initial_stop_loss.toFixed(2) : '--'}</b> (-1.0R)</div>
+                        <div>Initial Risk (1R): <b class="c-red">$${p.initial_risk_dollar ? p.initial_risk_dollar.toFixed(2) : '--'}</b></div>
+                      </div>
+
+                      <!-- Box 2: Current Position & Holdings -->
+                      <div class="detail-box">
+                        <div class="detail-title">CURRENT HOLDING & DEFENSE</div>
+                        <div>Remaining Shares: <b class="c-cyan">${p.quantity ? p.quantity.toFixed(4) : '--'}</b></div>
+                        <div>Market Value: <b class="c-white">$${p.market_value ? p.market_value.toFixed(2) : '--'}</b></div>
+                        <div>Shares Banked: <b class="c-green">${sharesSold > 0 ? sharesSold.toFixed(4) : '0.00'}</b></div>
+                        <div>Active Stop: <b class="${p.breakeven_set ? 'c-yellow' : 'c-white'}">$${p.stop_loss ? p.stop_loss.toFixed(2) : '--'} ${p.breakeven_set ? '(BREAKEVEN)' : ''}</b></div>
+                      </div>
+
+                      <!-- Box 3: P&L Breakdown -->
+                      <div class="detail-box">
+                        <div class="detail-title">P&L & CASH BANKED</div>
+                        <div>Banked Cash: <b class="c-green">+$${realizedProfit.toFixed(2)}</b></div>
+                        <div>Open Gain: <b class="${pnlClass}">${pnlDisplay}</b></div>
+                        <div>Total Trade P&L: <b class="${totalPnl >= 0 ? 'c-green' : 'c-red'}">${totalPnl >= 0 ? '+$' : '-$'}${Math.abs(totalPnl).toFixed(2)}</b></div>
+                        <div>Peak R Reached: <b class="c-yellow">+${peakR.toFixed(2)}R</b></div>
+                      </div>
+                    </div>
+
+                    <!-- 6-Tier Progress Ladder -->
+                    <div class="detail-ladder">
+                      <div class="detail-title">6-TIER PROFIT LADDER STATUS</div>
+                      <div class="tier-steps">
+                        <span class="tier-step ${tier >= 1 ? 'tier-done' : ''}">${tier >= 1 ? '✓' : '○'} T1 (+0.20R) [10% Bank]</span>
+                        <span class="tier-step ${tier >= 2 ? 'tier-done' : ''}">${tier >= 2 ? '✓' : '○'} T2 (+0.40R) [10% Bank]</span>
+                        <span class="tier-step ${tier >= 3 ? 'tier-done' : ''}">${tier >= 3 ? '✓' : '○'} T3 (+0.65R) [10% + BE $0]</span>
+                        <span class="tier-step ${tier >= 4 ? 'tier-done' : ''}">${tier >= 4 ? '✓' : '○'} T4 (+1.00R) [25% Bank]</span>
+                        <span class="tier-step ${tier >= 5 ? 'tier-done' : ''}">${tier >= 5 ? '✓' : '○'} T5 (+1.30R) [25% Bank]</span>
+                        <span class="tier-step ${tier >= 5 ? 'tier-active' : ''}">${tier >= 5 ? '🚀' : '○'} T6 (20% Runner Trailing)</span>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              `;
+              posTbody.appendChild(drawerTr);
+            }
           });
         } else {
           posTbody.innerHTML = '<tr><td colspan="7" class="c-muted">No open active positions</td></tr>';
