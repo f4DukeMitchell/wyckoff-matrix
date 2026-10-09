@@ -1167,36 +1167,29 @@ def bot_health():
     try:
         repo_dir = os.path.dirname(os.path.abspath(__file__))
         py_exe = sys.executable or shutil.which("python3") or "python3"
-        ps_res = subprocess.run("ps aux | grep -v grep | grep wyckoff_alert_bot", shell=True, capture_output=True, text=True)
+        ps_res = subprocess.run("ps aux | grep -v grep | grep wyckoff_alert_bot", shell=True, capture_output=True, text=True, timeout=5)
         is_bot_running = bool(ps_res.stdout.strip())
 
-        sys_res = subprocess.run("systemctl is-active wyckoff-bot.service 2>/dev/null", shell=True, capture_output=True, text=True)
+        sys_res = subprocess.run("systemctl is-active wyckoff-bot.service 2>/dev/null", shell=True, capture_output=True, text=True, timeout=5)
         sys_status = sys_res.stdout.strip()
 
         started = False
         if not is_bot_running:
-            # First attempt to trigger via systemctl if service registered
-            subprocess.run("echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service 2>/dev/null", shell=True)
-            time.sleep(1)
-            ps_check = subprocess.run("ps aux | grep -v grep | grep wyckoff_alert_bot", shell=True, capture_output=True, text=True)
-            is_bot_running = bool(ps_check.stdout.strip())
-
-            if not is_bot_running:
-                # Direct detached unbuffered python process launch
-                log_file = open(os.path.join(repo_dir, "bot.log"), "a")
-                env = dict(os.environ)
-                env["PYTHONUNBUFFERED"] = "1"
-                subprocess.Popen(
-                    [py_exe, "-u", os.path.join(repo_dir, "wyckoff_alert_bot.py")],
-                    cwd=repo_dir,
-                    stdout=log_file,
-                    stderr=subprocess.STDOUT,
-                    stdin=subprocess.DEVNULL,
-                    start_new_session=True,
-                    env=env
-                )
+            # Direct detached unbuffered python process launch
+            log_file = open(os.path.join(repo_dir, "bot.log"), "a")
+            env = dict(os.environ)
+            env["PYTHONUNBUFFERED"] = "1"
+            subprocess.Popen(
+                [py_exe, "-u", os.path.join(repo_dir, "wyckoff_alert_bot.py")],
+                cwd=repo_dir,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True,
+                env=env
+            )
             started = True
-            time.sleep(2)
+            time.sleep(1)
 
         bot_log_tail = ""
         log_path = os.path.join(repo_dir, "bot.log")
@@ -1211,7 +1204,7 @@ def bot_health():
         conn.close()
 
         # Check ps aux again after potential startup
-        ps_after = subprocess.run("ps aux | grep -v grep | grep wyckoff_alert_bot", shell=True, capture_output=True, text=True).stdout.strip()
+        ps_after = subprocess.run("ps aux | grep -v grep | grep wyckoff_alert_bot", shell=True, capture_output=True, text=True, timeout=5).stdout.strip()
 
         return {
             "is_bot_running": bool(ps_after),
