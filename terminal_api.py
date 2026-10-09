@@ -1164,9 +1164,24 @@ def bot_health():
         started = False
         if not is_bot_running:
             # Auto-restart the alert bot immediately!
-            cmd = f"cd {repo_dir} && (echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service || nohup {py_exe} wyckoff_alert_bot.py > bot.log 2>&1 &)"
-            subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            cmd = f"cd {repo_dir} && (echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service)"
+            res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            if res.returncode != 0:
+                subprocess.Popen(
+                    [py_exe, "wyckoff_alert_bot.py"],
+                    cwd=repo_dir,
+                    stdout=open(os.path.join(repo_dir, "bot.log"), "a"),
+                    stderr=subprocess.STDOUT,
+                    stdin=subprocess.DEVNULL,
+                    start_new_session=True
+                )
             started = True
+
+        bot_log_tail = ""
+        log_path = os.path.join(repo_dir, "bot.log")
+        if os.path.exists(log_path):
+            with open(log_path, "r", encoding="utf-8", errors="ignore") as lf:
+                bot_log_tail = "".join(lf.readlines()[-30:])
 
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
@@ -1174,11 +1189,15 @@ def bot_health():
         recent_alerts = [dict(zip(['ticker', 'direction', 'timeframe', 'timestamp'], row)) for row in c.fetchall()]
         conn.close()
 
+        # Check ps aux again after potential startup
+        ps_after = subprocess.run("ps aux | grep -v grep | grep wyckoff_alert_bot", shell=True, capture_output=True, text=True).stdout.strip()
+
         return {
-            "is_bot_running": is_bot_running or started,
+            "is_bot_running": bool(ps_after),
             "systemctl_status": sys_status,
             "auto_recovered": started,
-            "process_info": ps_res.stdout.strip() or ("RECOVERED_AND_STARTED" if started else "OFFLINE"),
+            "process_info": ps_after or "OFFLINE",
+            "bot_log_tail": bot_log_tail,
             "recent_alerts": recent_alerts
         }
     except Exception as e:
