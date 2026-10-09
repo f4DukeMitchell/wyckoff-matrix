@@ -240,9 +240,24 @@ def run_guardian_cycle():
             pass
 
         # -------------------------------------------------------------
-        # TIER 1: +0.20R (Sell 10%, Keep Stop at -1.0R Initial Stop)
+        # TARGET-NORMALIZED DYNAMIC RELATIVE-R MATRIX
         # -------------------------------------------------------------
-        if curr_r >= 0.20 and tier < 1:
+        tp = float(t.get('take_profit') or 0.0)
+        target_gain = abs(tp - entry) if (tp > 0 and entry > 0) else 0.0
+        setup_target_r = float(t.get('optimal_target_r') or (target_gain / init_risk if init_risk > 0.001 and target_gain > 0 else 1.15))
+        setup_target_r = max(0.65, setup_target_r)
+
+        # Dynamic Thresholds based on Expected Target R:
+        t1_thresh_r = round(setup_target_r * 0.20, 2)  # 20% of Target
+        t2_thresh_r = round(setup_target_r * 0.40, 2)  # 40% of Target
+        t3_thresh_r = round(setup_target_r * 0.60, 2)  # 60% of Target (Breakeven trigger)
+        t4_thresh_r = round(setup_target_r * 0.85, 2)  # 85% of Target (Front-run resistance)
+        t5_thresh_r = round(setup_target_r * 1.00, 2)  # 100% of Target (Full tag)
+
+        # -------------------------------------------------------------
+        # TIER 1: 20% OF TARGET (Sell 10%, Keep Stop at -1.0R Initial Stop)
+        # -------------------------------------------------------------
+        if curr_r >= t1_thresh_r and tier < 1:
             sell_qty = round(init_shares * 0.10, 5) if init_shares > 0 else 0.0
             if sell_qty > 0:
                 try:
@@ -256,7 +271,8 @@ def run_guardian_cycle():
             tier = 1
             t['partial_tier_done'] = 1
             t1_msg = (
-                f"🎯 [GUARDIAN] TIER 1 HIT: {sym} reaches +{curr_r:.2f}R!\n"
+                f"🎯 [GUARDIAN] TIER 1 HIT (20% Target): {sym} reaches +{curr_r:.2f}R (+{t1_thresh_r:.2f}R milestone)!\n"
+                f"• Target Setup: +{setup_target_r:.2f}R\n"
                 f"• Action: Banked 10% ({sell_qty} shares) @ ${price:.2f}.\n"
                 f"• Defense: Initial Stop remains at ${init_sl:.2f} (-1.0R) to let trade breathe."
             )
@@ -264,9 +280,9 @@ def run_guardian_cycle():
             send_tg(t1_msg)
 
         # -------------------------------------------------------------
-        # TIER 2: +0.40R (Sell 10%, Trail Stop to -0.50R)
+        # TIER 2: 40% OF TARGET (Sell 10%, Trail Stop to -0.50R)
         # -------------------------------------------------------------
-        if curr_r >= 0.40 and tier < 2:
+        if curr_r >= t2_thresh_r and tier < 2:
             sell_qty = round(init_shares * 0.10, 5) if init_shares > 0 else 0.0
             if sell_qty > 0:
                 try:
@@ -283,7 +299,8 @@ def run_guardian_cycle():
             t['stop_loss'] = t2_sl
             curr_sl = t2_sl
             t2_msg = (
-                f"🎯 [GUARDIAN] TIER 2 HIT: {sym} reaches +{curr_r:.2f}R!\n"
+                f"🎯 [GUARDIAN] TIER 2 HIT (40% Target): {sym} reaches +{curr_r:.2f}R (+{t2_thresh_r:.2f}R milestone)!\n"
+                f"• Target Setup: +{setup_target_r:.2f}R\n"
                 f"• Action: Banked 10% ({sell_qty} shares, 20% total).\n"
                 f"• Defense: Stop Loss trailed to ${t2_sl:.2f} (-0.50R, risk cut in half)."
             )
@@ -291,10 +308,10 @@ def run_guardian_cycle():
             send_tg(t2_msg)
 
         # -------------------------------------------------------------
-        # TIER 3: +0.65R (Sell 10%, Move Stop to Entry $0.00 Breakeven)
+        # TIER 3: 60% OF TARGET (Sell 15%, Move Stop to Entry $0.00 Breakeven)
         # -------------------------------------------------------------
-        if curr_r >= 0.65 and tier < 3:
-            sell_qty = round(init_shares * 0.10, 5) if init_shares > 0 else 0.0
+        if curr_r >= t3_thresh_r and tier < 3:
+            sell_qty = round(init_shares * 0.15, 5) if init_shares > 0 else 0.0
             if sell_qty > 0:
                 try:
                     from public_executor import execute_exit_position
@@ -311,17 +328,18 @@ def run_guardian_cycle():
             curr_sl = entry
             be_set = True
             t3_msg = (
-                f"🛡️ [GUARDIAN] TIER 3 BREAKEVEN LOCK: {sym} reaches +{curr_r:.2f}R!\n"
-                f"• Action: Banked 10% ({sell_qty} shares, 30% total).\n"
+                f"🛡️ [GUARDIAN] TIER 3 BREAKEVEN LOCK (60% Target): {sym} reaches +{curr_r:.2f}R (+{t3_thresh_r:.2f}R milestone)!\n"
+                f"• Target Setup: +{setup_target_r:.2f}R\n"
+                f"• Action: Banked 15% ({sell_qty} shares, 35% total banked).\n"
                 f"• Defense: Stop moved to Entry (${entry:.2f}). Dollar risk is now $0.00 (Free Trade)!"
             )
             print(f"[{get_est_now_str()}] {t3_msg}")
             send_tg(t3_msg)
 
         # -------------------------------------------------------------
-        # TIER 4: +1.00R (Sell 25%, Trail Stop to +0.50R Guaranteed Profit)
+        # TIER 4: 85% OF TARGET (Sell 25%, Front-Run Resistance, Trail Stop)
         # -------------------------------------------------------------
-        if curr_r >= 1.00 and tier < 4:
+        if curr_r >= t4_thresh_r and tier < 4:
             sell_qty = round(init_shares * 0.25, 5) if init_shares > 0 else 0.0
             if sell_qty > 0:
                 try:
@@ -330,7 +348,8 @@ def run_guardian_cycle():
                 except Exception as ex:
                     print(f"[{get_est_now_str()}] [Guardian] Tier 4 partial sell error for {sym}: {ex}")
 
-            t4_sl = (entry + (0.50 * init_risk)) if is_long else (entry - (0.50 * init_risk))
+            trail_locked_r = round(setup_target_r * 0.40, 2)
+            t4_sl = (entry + (trail_locked_r * init_risk)) if is_long else (entry - (trail_locked_r * init_risk))
             c.execute("UPDATE alerts SET partial_tier_done = 4, stop_loss = ? WHERE id = ?", (t4_sl, trade_id))
             conn.commit()
             tier = 4
@@ -338,17 +357,18 @@ def run_guardian_cycle():
             t['stop_loss'] = t4_sl
             curr_sl = t4_sl
             t4_msg = (
-                f"💰 [GUARDIAN] TIER 4 CORE PAYDAY: {sym} reaches +{curr_r:.2f}R!\n"
-                f"• Action: Banked 25% ({sell_qty} shares, 55% total).\n"
-                f"• Defense: Stop Loss locked in at ${t4_sl:.2f} (+0.50R guaranteed win on remainder)."
+                f"💰 [GUARDIAN] TIER 4 RESISTANCE HIT (85% Target): {sym} reaches +{curr_r:.2f}R (+{t4_thresh_r:.2f}R milestone)!\n"
+                f"• Target Setup: +{setup_target_r:.2f}R (Front-running ceiling)\n"
+                f"• Action: Banked 25% ({sell_qty} shares, 60% total banked!).\n"
+                f"• Defense: Stop Loss locked in at ${t4_sl:.2f} (+{trail_locked_r:+.2f}R guaranteed win on remainder)."
             )
             print(f"[{get_est_now_str()}] {t4_msg}")
             send_tg(t4_msg)
 
         # -------------------------------------------------------------
-        # TIER 5: +1.30R (Sell 25%, Trail Stop to +0.85R Range Ceiling)
+        # TIER 5: 100% OF TARGET (Sell 25%, Full Target Tag)
         # -------------------------------------------------------------
-        if curr_r >= 1.30 and tier < 5:
+        if curr_r >= t5_thresh_r and tier < 5:
             sell_qty = round(init_shares * 0.25, 5) if init_shares > 0 else 0.0
             if sell_qty > 0:
                 try:
@@ -357,7 +377,7 @@ def run_guardian_cycle():
                 except Exception as ex:
                     print(f"[{get_est_now_str()}] [Guardian] Tier 5 partial sell error for {sym}: {ex}")
 
-            t5_sl = (entry + (0.85 * init_risk)) if is_long else (entry - (0.85 * init_risk))
+            t5_sl = (entry + (t4_thresh_r * init_risk)) if is_long else (entry - (t4_thresh_r * init_risk))
             c.execute("""
                 UPDATE alerts 
                 SET partial_tier_done = 5, partial_exit_done = 1,
@@ -371,18 +391,18 @@ def run_guardian_cycle():
             t['stop_loss'] = t5_sl
             curr_sl = t5_sl
             t5_msg = (
-                f"🚀 [GUARDIAN] TIER 5 CEILING HIT: {sym} reaches +{curr_r:.2f}R!\n"
-                f"• Action: Banked 25% ({sell_qty} shares, 80% total banked!).\n"
-                f"• Runner: Final 20% moonbag trailing 0.25R below peak into 3:55 PM EOD flatten."
+                f"🚀 [GUARDIAN] TIER 5 FULL TARGET HIT (100%): {sym} reaches +{curr_r:.2f}R (+{t5_thresh_r:.2f}R target)!\n"
+                f"• Action: Banked 25% ({sell_qty} shares, 85% total banked!).\n"
+                f"• Runner: Final 15% moonbag trailing 0.25R below peak into 3:55 PM EOD flatten."
             )
             print(f"[{get_est_now_str()}] {t5_msg}")
             send_tg(t5_msg)
 
         # -------------------------------------------------------------
-        # TIER 6: UNCAPPED 20% RUNNER (Trailing 0.25R below Peak High)
+        # TIER 6: UNCAPPED 15% RUNNER (Trailing 0.25R below Peak High)
         # -------------------------------------------------------------
         if tier >= 5:
-            trail_stop_r = max(0.85, peak_r - 0.25)
+            trail_stop_r = max(t4_thresh_r, peak_r - 0.25)
             runner_sl = (entry + (trail_stop_r * init_risk)) if is_long else (entry - (trail_stop_r * init_risk))
 
             if is_long and runner_sl > curr_sl:
@@ -408,7 +428,7 @@ def run_guardian_cycle():
                 conn.commit()
                 runner_exit_msg = (
                     f"🎯 [GUARDIAN] RUNNER TRAIL STOP HIT: {sym} closed at ${price:.2f} (+{final_r:+.2f}R)!\n"
-                    f"Position 100% closed. 80% banked in tiers, runner exited at +{final_r:+.2f}R."
+                    f"Position 100% closed. 85% banked in tiers, runner exited at +{final_r:+.2f}R."
                 )
                 print(f"[{get_est_now_str()}] {runner_exit_msg}")
                 send_tg(runner_exit_msg)

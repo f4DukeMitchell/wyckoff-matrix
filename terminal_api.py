@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse, Response
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
+from typing import Optional
 import secrets
 
 from public_executor import (
@@ -243,16 +244,71 @@ def get_terminal_state():
     except Exception:
         pass
     
+    import config_manager
+    cfg = config_manager.load_config()
+    bp_val = float(cap.get('buying_power') or 0.0)
+    sizing_info = config_manager.calculate_sizing_allocation(bp_val, target_r=1.0)
+    
     return {
         "status": "ONLINE",
         "timestamp": datetime.datetime.now().strftime("%H:%M:%S"),
         "capital": cap,
-        "test_allocation_1pct": calculate_test_allocation(0.01),
+        "test_allocation_1pct": sizing_info['base_alloc'],
+        "config": cfg,
+        "sizing": sizing_info,
         "algo_pnl_dollar": round(total_algo_pnl_dollar, 2),
         "positions": active_positions,
         "scanner": scanner_results,
         "stalker_radar": stalker_list,
         "history": history
+    }
+
+class ConfigUpdateRequest(BaseModel):
+    alloc_mode: Optional[str] = None
+    alloc_value: Optional[float] = None
+    target_weighted_sizing: Optional[bool] = None
+    min_r_units: Optional[float] = None
+    max_concurrent: Optional[int] = None
+    auto_buy_enabled: Optional[bool] = None
+
+@app.get("/api/terminal/config")
+def get_terminal_config():
+    import config_manager
+    cap = get_account_capital_summary()
+    cfg = config_manager.load_config()
+    bp_val = float(cap.get('buying_power') or 0.0)
+    sizing_info = config_manager.calculate_sizing_allocation(bp_val, target_r=1.0)
+    return {
+        "config": cfg,
+        "sizing": sizing_info,
+        "buying_power": bp_val
+    }
+
+@app.post("/api/terminal/config")
+def update_terminal_config(req: ConfigUpdateRequest):
+    import config_manager
+    updates = {}
+    if req.alloc_mode is not None:
+        updates["alloc_mode"] = req.alloc_mode
+    if req.alloc_value is not None:
+        updates["alloc_value"] = float(req.alloc_value)
+    if req.target_weighted_sizing is not None:
+        updates["target_weighted_sizing"] = bool(req.target_weighted_sizing)
+    if req.min_r_units is not None:
+        updates["min_r_units"] = float(req.min_r_units)
+    if req.max_concurrent is not None:
+        updates["max_concurrent"] = int(req.max_concurrent)
+    if req.auto_buy_enabled is not None:
+        updates["auto_buy_enabled"] = bool(req.auto_buy_enabled)
+        
+    saved = config_manager.save_config(updates)
+    cap = get_account_capital_summary()
+    bp_val = float(cap.get('buying_power') or 0.0)
+    sizing_info = config_manager.calculate_sizing_allocation(bp_val, target_r=1.0)
+    return {
+        "success": True,
+        "config": saved,
+        "sizing": sizing_info
     }
 
 @app.get("/api/bars/{ticker}")

@@ -698,9 +698,13 @@
           <option value="pct" selected>% OF BP</option>
           <option value="fixed">$ FIXED</option>
         </select>
-        <input type="number" id="custom-size-val" value="1.0" min="0.1" max="100" step="0.5" oninput="updateCalculatedSlot()" style="width: 48px; background: #000; color: var(--wsr-yellow); border: 1px solid var(--wsr-yellow); font-family: inherit; font-size: 11px; text-align: center; font-weight: bold; padding: 1px 2px;" />
+        <input type="number" id="custom-size-val" value="1.0" min="0.1" max="100" step="0.5" oninput="updateCalculatedSlot()" onchange="saveSizingToServer()" style="width: 48px; background: #000; color: var(--wsr-yellow); border: 1px solid var(--wsr-yellow); font-family: inherit; font-size: 11px; text-align: center; font-weight: bold; padding: 1px 2px;" />
         <b class="meta-val c-yellow" id="slot-val">($--)</b>
       </span>
+      <label title="Target-Weighted Sizing dynamically scales risk: 0.60x for 0.65-0.79R, 1.00x for 0.80-1.19R, 1.25x for >=1.20R" style="display: inline-flex; align-items: center; gap: 4px; cursor: pointer; color: #00ffff; font-size: 10px; user-select: none;">
+        <input type="checkbox" id="toggle-weighted-sizing" checked onchange="saveSizingToServer()" style="accent-color: #00ffff; cursor: pointer;" />
+        <span>TARGET-WEIGHTED SIZING</span>
+      </label>
       <span>ENGINE: <span class="badge-status">PUBLIC LIVE</span></span>
       <span id="clock" class="c-muted">00:00:00</span>
     </div>
@@ -1264,6 +1268,26 @@
       renderScannerTable();
     }
 
+    async function saveSizingToServer() {
+      const mode = document.getElementById('size-mode')?.value === 'fixed' ? 'FIXED_DOLLAR' : 'PERCENT_BP';
+      const inputVal = parseFloat(document.getElementById('custom-size-val')?.value) || 1.0;
+      const targetWeighted = document.getElementById('toggle-weighted-sizing')?.checked ?? true;
+
+      try {
+        await fetch('/api/terminal/config', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            alloc_mode: mode,
+            alloc_value: inputVal,
+            target_weighted_sizing: targetWeighted
+          })
+        });
+      } catch (err) {
+        console.error("Error saving sizing config to server:", err);
+      }
+    }
+
     function onSizeModeChange() {
       const mode = document.getElementById('size-mode').value;
       const inputEl = document.getElementById('custom-size-val');
@@ -1279,6 +1303,7 @@
         inputEl.max = "10000";
       }
       updateCalculatedSlot();
+      saveSizingToServer();
     }
 
     // --- CLOCK ---
@@ -1832,6 +1857,24 @@
         const cap = data.capital || {};
         cachedBuyingPower = cap.buying_power || 2000.0;
         document.getElementById('bp-val').innerText = `$${cachedBuyingPower.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+
+        // Sync user configuration from server once
+        if (!window._configInitialized && data.config) {
+          const modeEl = document.getElementById('size-mode');
+          const inputEl = document.getElementById('custom-size-val');
+          const toggleEl = document.getElementById('toggle-weighted-sizing');
+          
+          if (modeEl && data.config.alloc_mode) {
+            modeEl.value = data.config.alloc_mode === 'FIXED_DOLLAR' ? 'fixed' : 'pct';
+          }
+          if (inputEl && data.config.alloc_value !== undefined) {
+            inputEl.value = data.config.alloc_value;
+          }
+          if (toggleEl && data.config.target_weighted_sizing !== undefined) {
+            toggleEl.checked = data.config.target_weighted_sizing;
+          }
+          window._configInitialized = true;
+        }
         updateCalculatedSlot();
 
         // Active Positions Table

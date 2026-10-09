@@ -14,10 +14,11 @@ from telegram_notifier import send_message
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wyckoff_trades.db")
 
 # --- AUTONOMOUS BUY SETTINGS ---
-AUTO_BUY_ENABLED = os.getenv("AUTO_BUY_ENABLED", "true").lower() in ("true", "1", "yes")
-AUTO_BUY_ALLOC_MODE = os.getenv("AUTO_BUY_ALLOC_MODE", "FIXED_TEST")  # "FIXED_TEST" ($20) or "PERCENT_1PCT" (~$20.88)
-AUTO_BUY_FIXED_AMOUNT = float(os.getenv("AUTO_BUY_FIXED_AMOUNT", "20.00"))
-AUTO_BUY_MAX_CONCURRENT = int(os.getenv("AUTO_BUY_MAX_CONCURRENT", "5"))
+import config_manager
+
+def get_config():
+    return config_manager.load_config()
+
 AUTO_BUY_MIN_ML_CONF = float(os.getenv("AUTO_BUY_MIN_ML_CONF", "60.0"))
 
 # Allowed Auto-Buy Timeframes: Strictly 5m Day Trades Only (No swings or higher TF holds)
@@ -63,6 +64,14 @@ def get_open_trade_for_second_spring(ticker, current_price):
         init_sl = float(trade.get('initial_stop_loss') or trade.get('stop_loss') or 0.0)
         tier = int(trade.get('partial_tier_done') or 0)
         already_added = int(trade.get('second_spring_added') or 0)
+        tp = float(trade.get('take_profit') or 0.0)
+        entry = float(trade.get('entry_price') or 0.0)
+        init_risk = abs(entry - init_sl)
+        target_r = (abs(tp - entry) / init_risk) if (init_risk > 0.001 and tp > 0) else 1.0
+
+        # Conditional Pyramiding Rule: Only pyramid 2nd Spring if Target R >= 0.80R
+        if target_r < 0.80:
+            return None
 
         if already_added == 0 and tier == 0 and current_price > init_sl:
             return trade
@@ -76,7 +85,8 @@ def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     Evaluates whether an incoming Wyckoff Spring signal satisfies all institutional guardrails.
     Returns (eligible: bool, reason: str)
     """
-    if not AUTO_BUY_ENABLED:
+    cfg = get_config()
+    if not cfg.get("auto_buy_enabled", True):
         return False, "AUTO_BUY_DISABLED"
 
     # 0. Timeframe Guardrail (Strictly 5m day trades only; exclude 15m, 1h, 1d swings)
@@ -105,12 +115,13 @@ def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
-    # 5. Max Concurrent Active Positions (Max 5)
+    # 5. Max Concurrent Active Positions
+    max_concurrent = int(cfg.get("max_concurrent", 5))
     c.execute("SELECT COUNT(id) FROM alerts WHERE outcome = 'OPEN' AND user_active = 1")
     active_count = (c.fetchone() or (0,))[0]
-    if active_count >= AUTO_BUY_MAX_CONCURRENT:
+    if active_count >= max_concurrent:
         conn.close()
-        return False, f"MAX_POSITIONS_REACHED ({active_count}/{AUTO_BUY_MAX_CONCURRENT})"
+        return False, f"MAX_POSITIONS_REACHED ({active_count}/{max_concurrent})"
 
     # 6. Check for active open trade vs clean re-entry
     c.execute("""
@@ -191,11 +202,16 @@ def execute_autonomous_second_spring_buy(parent_trade_id, ticker, price, ml_conf
     old_entry = float(trade.get('entry_price') or price)
     old_shares = float(trade.get('initial_shares') or 0.0)
 
-    # Determine allocation (standard 1% tranche to 2X position)
-    if AUTO_BUY_ALLOC_MODE == "PERCENT_1PCT":
-        dollar_alloc = calculate_test_allocation(0.01)
-    else:
-        dollar_alloc = AUTO_BUY_FIXED_AMOUNT
+    # Determine allocation based on user configuration
+    from public_executor import get_account_capital_summary
+    cap_summary = get_account_capital_summary()
+    bp = cap_summary.get('buying_power', 0.0)
+
+    init_risk = abs(old_entry - structural_stop)
+    tp = float(trade.get('take_profit') or 0.0)
+    target_r = (abs(tp - old_entry) / init_risk) if (init_risk > 0.001 and tp > 0) else 1.0
+    sizing = config_manager.calculate_sizing_allocation(bp, target_r=target_r)
+    dollar_alloc = sizing['final_alloc']
 
     try:
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ⚡ EXECUTING 2X SECOND SPRING BUY: {ticker} (${dollar_alloc:.2f}) on Public.com...")
@@ -252,8 +268,7 @@ def execute_autonomous_second_spring_buy(parent_trade_id, ticker, price, ml_conf
             f"Order UUID: {order_uuid}{conf_str}\n\n"
             f"🛡️ Exit Guardian Synchronized:\n"
             f"• Both tranches share the exact same invalidation line.\n"
-            f"• Sizing doubled to 2% max allocation.\n"
-            f"• 10% partial ladder scaled to bank double cash at targets!"
+            f"• Target-Relative partial ladder scaled to bank double cash at targets!"
         )
         send_message(msg)
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ✅ 2X Second Spring Success: {ticker} (${dollar_alloc:.2f})")
@@ -267,30 +282,44 @@ def execute_autonomous_second_spring_buy(parent_trade_id, ticker, price, ml_conf
             conn.close()
         return False, str(e)
 
-def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, timeframe="5m"):
+def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, timeframe="5m", target_r=None):
     """
     Submits a market fractional BUY to Public.com, marks the trade active in DB,
-    and dispatches instant notifications.
+    and dispatches instant notifications with dynamic Target-Relative Ladder.
     """
     eligible, reason = check_auto_buy_eligibility(ticker, ml_conf, timeframe=timeframe)
     if not eligible:
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Auto-Buy Bypassed for {ticker} ({timeframe}): {reason}")
         return False, reason
 
-    # Determine allocation
-    if AUTO_BUY_ALLOC_MODE == "PERCENT_1PCT":
-        dollar_alloc = calculate_test_allocation(0.01)
-    else:
-        dollar_alloc = AUTO_BUY_FIXED_AMOUNT
+    # Determine allocation based on user configuration and target R
+    from public_executor import get_account_capital_summary
+    cap_summary = get_account_capital_summary()
+    bp = cap_summary.get('buying_power', 0.0)
+
+    init_risk = abs(price - sl)
+    calc_target_r = target_r if target_r is not None else (abs(tp - price) / init_risk if (init_risk > 0.001 and tp > 0) else 1.15)
+    calc_target_r = max(0.65, calc_target_r)
+
+    sizing = config_manager.calculate_sizing_allocation(bp, target_r=calc_target_r)
+    dollar_alloc = sizing['final_alloc']
+    base_alloc = sizing['base_alloc']
+    mult = sizing['multiplier']
+
+    t1_r = round(calc_target_r * 0.20, 2)
+    t2_r = round(calc_target_r * 0.40, 2)
+    t3_r = round(calc_target_r * 0.60, 2)
+    t4_r = round(calc_target_r * 0.85, 2)
+    t5_r = round(calc_target_r * 1.00, 2)
 
     try:
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ⚡ EXECUTING AUTONOMOUS BUY: {ticker} (${dollar_alloc:.2f}) on Public.com...")
         order_res = execute_dollar_buy(ticker.upper(), dollar_alloc)
         
-        # Mark active in database
+        # Mark active in database and store optimal_target_r
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        c.execute("UPDATE alerts SET user_active = 1 WHERE id = ?", (trade_id,))
+        c.execute("UPDATE alerts SET user_active = 1, optimal_target_r = ? WHERE id = ?", (round(calc_target_r, 2), trade_id))
         conn.commit()
         conn.close()
 
@@ -316,23 +345,24 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
 
         # Telegram Alert
         conf_str = f" | ML Edge: {ml_conf:.1f}%" if ml_conf is not None else ""
+        mult_str = f" (Base: ${base_alloc:.2f} × {mult:.2f}x)" if sizing.get('target_weighted') else ""
         msg = (
             f"⚡ AUTONOMOUS BUY EXECUTED!\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"Symbol: {ticker.upper()} (LONG)\n"
             f"Timeframe: {timeframe}\n"
-            f"Amount: ${dollar_alloc:.2f} ({status})\n"
+            f"Allocation: ${dollar_alloc:.2f}{mult_str} ({status})\n"
             f"Entry: ${price:.2f}\n"
             f"Initial Stop: ${sl:.2f}\n"
-            f"Target: ${tp:.2f}\n"
+            f"Wyckoff Target: ${tp:.2f} (+{calc_target_r:.2f}R)\n"
             f"Order UUID: {order_uuid}{conf_str}\n\n"
-            f"🛡️ Exit Guardian 6-Tier Matrix LIVE:\n"
-            f"• +0.20R: Bank 10% (Stop stays -1.0R to breathe)\n"
-            f"• +0.40R: Bank 10% (Stop trails -0.50R)\n"
-            f"• +0.65R: Bank 10% (Stop to Entry $0.00 Breakeven)\n"
-            f"• +1.00R: Bank 25% (Stop to +0.50R guaranteed win)\n"
-            f"• +1.30R: Bank 25% (Stop to +0.85R sweet spot)\n"
-            f"• 20% Runner trails 0.25R into 3:55 PM EST Flatten"
+            f"🛡️ Target-Relative Exit Ladder (+{calc_target_r:.2f}R Target):\n"
+            f"• Tier 1 (+{t1_r:+.2f}R | 20%): Bank 10% (Cushion)\n"
+            f"• Tier 2 (+{t2_r:+.2f}R | 40%): Bank 10% (Stop trails -0.50R)\n"
+            f"• Tier 3 (+{t3_r:+.2f}R | 60%): Bank 15% (Stop to BREAKEVEN $0.00)\n"
+            f"• Tier 4 (+{t4_r:+.2f}R | 85%): Bank 25% (Front-Run Resistance)\n"
+            f"• Tier 5 (+{t5_r:+.2f}R | 100%): Bank 25% (Full Target Hit)\n"
+            f"• Tier 6 (Runner 15%): Trailed into 3:55 PM EST Flatten"
         )
         send_message(msg)
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ✅ Auto-Buy Success: {ticker} (${dollar_alloc:.2f})")
