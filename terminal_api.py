@@ -892,6 +892,122 @@ def trigger_ml_evolution():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/ml/paper_trades")
+def get_ml_paper_trades():
+    """
+    Returns AI Learning Model simulated paper trades (ghost trades).
+    Strictly air-gapped from actual broker positions (user_active = 0 or NULL).
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        
+        # 1. Fetch all open paper trades (learning model)
+        c.execute("""
+            SELECT id, ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe, 
+                   timestamp, outcome, pnl_r, breakeven_set, partial_exit_done, peak_high_r, 
+                   trailing_stop_price, ml_confidence, model_version, vwap_distance, dealer_gamma_regime
+            FROM alerts
+            WHERE outcome = 'OPEN' AND (user_active = 0 OR user_active IS NULL)
+            ORDER BY id DESC
+        """)
+        raw_open = [dict(r) for r in c.fetchall()]
+        
+        # 2. Get live prices for open tickers
+        tickers = list(set([r['ticker'] for r in raw_open if r.get('ticker')]))
+        live_prices = get_live_prices(tickers) if tickers else {}
+        
+        enriched_open = []
+        tf_counts = {}
+        dir_counts = {'LONG': 0, 'SHORT': 0}
+        
+        for t in raw_open:
+            sym = t.get('ticker', '')
+            tf = t.get('timeframe') or '5m'
+            direction = (t.get('direction') or 'LONG').upper()
+            tf_counts[tf] = tf_counts.get(tf, 0) + 1
+            dir_counts[direction] = dir_counts.get(direction, 0) + 1
+            
+            entry = float(t.get('entry_price') or 0.0)
+            sl = float(t.get('stop_loss') or 0.0)
+            tp = float(t.get('take_profit') or 0.0)
+            curr = float(live_prices.get(sym) or entry)
+            
+            risk = abs(entry - sl) if abs(entry - sl) > 0.001 else max(0.5, entry * 0.015)
+            is_long = direction == 'LONG'
+            
+            curr_r = ((curr - entry) / risk) if is_long else ((entry - curr) / risk)
+            pnl_pct = ((curr - entry) / entry * 100.0) if is_long else ((entry - curr) / entry * 100.0)
+            
+            t['current_price'] = round(curr, 2)
+            t['current_r'] = round(curr_r, 2)
+            t['pnl_pct'] = round(pnl_pct, 2)
+            t['risk_per_share'] = round(risk, 2)
+            
+            if t.get('breakeven_set'):
+                t['status_label'] = 'BREAKEVEN LOCKED'
+            elif t.get('partial_exit_done'):
+                t['status_label'] = 'PARTIAL SCALED'
+            elif curr_r >= 1.0:
+                t['status_label'] = 'RUNNING IN PROFIT'
+            elif curr_r < -0.8:
+                t['status_label'] = 'NEAR STOP'
+            else:
+                t['status_label'] = 'ACTIVE MONITORING'
+                
+            enriched_open.append(t)
+            
+        # 3. KPI stats from closed paper dataset
+        c.execute("""
+            SELECT 
+                COUNT(id) as total_closed,
+                SUM(CASE WHEN outcome = 'WIN' THEN 1 ELSE 0 END) as wins,
+                SUM(CASE WHEN outcome = 'LOSS' THEN 1 ELSE 0 END) as losses,
+                SUM(CASE WHEN outcome = 'BREAKEVEN' THEN 1 ELSE 0 END) as be,
+                COALESCE(SUM(pnl_r), 0.0) as net_r
+            FROM alerts
+            WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN') AND (user_active = 0 OR user_active IS NULL)
+        """)
+        stats_row = dict(c.fetchone() or {})
+        
+        # 4. Recent closed ghost trades (for model audit)
+        c.execute("""
+            SELECT id, ticker, direction, entry_price, exit_price, outcome, pnl_r, timestamp, timeframe, regime, model_version
+            FROM alerts
+            WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN') AND (user_active = 0 OR user_active IS NULL)
+            ORDER BY id DESC LIMIT 50
+        """)
+        recent_closed = [dict(r) for r in c.fetchall()]
+        conn.close()
+        
+        total_closed = stats_row.get('total_closed') or 0
+        wins = stats_row.get('wins') or 0
+        losses = stats_row.get('losses') or 0
+        be = stats_row.get('be') or 0
+        decisive = wins + losses
+        winrate_ex_be = round((wins / decisive * 100.0), 1) if decisive > 0 else 0.0
+        
+        return {
+            "status": "SUCCESS",
+            "kpis": {
+                "total_open_paper": len(enriched_open),
+                "by_timeframe": tf_counts,
+                "by_direction": dir_counts,
+                "closed_trades": total_closed,
+                "wins": wins,
+                "losses": losses,
+                "breakeven": be,
+                "winrate_ex_be": winrate_ex_be,
+                "net_r": round(float(stats_row.get('net_r') or 0.0), 2),
+                "air_gap_status": "SECURE // REAL BROKER POSITIONS ISOLATED"
+            },
+            "open_trades": enriched_open,
+            "recent_closed": recent_closed
+        }
+    except Exception as e:
+        return {"status": "ERROR", "error": str(e), "kpis": {}, "open_trades": [], "recent_closed": []}
+
 @app.post("/api/alerts/sync")
 def sync_alerts(payload: list[dict]):
     """Receives alerts from another instance and inserts any missing records."""

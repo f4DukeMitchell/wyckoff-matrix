@@ -261,14 +261,20 @@ def get_options_scanner_data():
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
     
-    # 1. Fetch live active open trades (highest priority)
+    # 1. Fetch live active open trades (user_active = 1 strictly, meaning REAL BROKER TRADES!)
     c.execute("""
         SELECT ticker, entry_price, stop_loss, take_profit, optimal_target_r, timestamp, outcome, breakeven_set, partial_exit_done, peak_high_r, trailing_stop_price
         FROM alerts
-        WHERE outcome = 'OPEN' AND telegram_alerted = 1
+        WHERE outcome = 'OPEN' AND user_active = 1
         ORDER BY id DESC
     """)
-    active_rows = {r['ticker'].upper(): dict(r) for r in c.fetchall()}
+    active_rows_raw = {r['ticker'].upper(): dict(r) for r in c.fetchall()}
+    try:
+        from public_executor import get_broker_portfolio_positions
+        held_tickers = set(p['ticker'].upper() for p in get_broker_portfolio_positions() if p.get('ticker') and p.get('ticker').upper() not in ['AMC', 'APE', 'NKE'])
+        active_rows = {k: v for k, v in active_rows_raw.items() if k in held_tickers}
+    except:
+        active_rows = {}
     
     # 2. Fetch recent Long alerts from past 48 hours
     c.execute("""

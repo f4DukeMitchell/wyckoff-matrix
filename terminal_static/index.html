@@ -827,6 +827,65 @@
       color: #000;
       border-color: #a855f7;
     }
+
+    /* DEDICATED ML PAPER LAB VIEW */
+    #paper-lab-grid {
+      flex: 1;
+      display: none;
+      flex-direction: column;
+      gap: 1px;
+      background: var(--wsr-border);
+      overflow-y: auto;
+    }
+    .paper-ribbon {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 1px;
+      background: var(--wsr-border);
+    }
+    .paper-kpi-card {
+      background: var(--wsr-panel);
+      padding: 8px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .paper-toolbar {
+      background: var(--wsr-panel-alt);
+      padding: 6px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--wsr-border);
+      gap: 8px;
+    }
+    .paper-filter-btn {
+      background: #141414;
+      border: 1px solid var(--wsr-border);
+      color: var(--wsr-muted);
+      padding: 3px 8px;
+      font-family: inherit;
+      font-size: 10px;
+      cursor: pointer;
+      text-transform: uppercase;
+      font-weight: 600;
+      transition: all 0.15s;
+    }
+    .paper-filter-btn.active, .paper-filter-btn:hover {
+      background: #06232d;
+      border-color: #00e5ff;
+      color: #00e5ff;
+    }
+    .paper-notice-banner {
+      background: #081318;
+      border-left: 3px solid #00e5ff;
+      padding: 6px 12px;
+      font-size: 10.5px;
+      color: #9fe7ff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
   </style>
 </head>
 <body>
@@ -838,6 +897,7 @@
       <button id="tab-terminal" class="view-tab active" onclick="switchView('terminal')">📊 TRADING</button>
       <button id="tab-mllab" class="view-tab" onclick="switchView('mllab')">🧠 AI / ML LAB</button>
       <button id="tab-options" class="view-tab" onclick="switchView('options')" style="border-color: #a855f7; color: #c084fc;" title="Dedicated Options Matrix: Real-time 0.65 Delta Weekly Calls & Multi-Tranche Exits">⚡ OPTIONS MATRIX</button>
+      <button id="tab-paper" class="view-tab" onclick="switchView('paper')" style="border-color: #00e5ff; color: #00e5ff;" title="AI Learning Model Simulated Paper Trades (Air-gapped from live broker trades)">🤖 ML PAPER LAB</button>
       <button id="tab-toggle-drawer" class="view-tab" onclick="toggleBottomDrawer()" style="border-color: #00e5ff; color: #00e5ff;" title="Toggle bottom intel drawer to maximize vertical chart height">🔽 BOTTOM: ON</button>
       <button id="tab-restart" class="view-tab" onclick="triggerServiceRestart()" style="border-color: var(--wsr-orange); color: var(--wsr-orange);" title="Restart Wyckoff Bot & Terminal Services on Cloud VM">⚡ RESTART</button>
       <button id="tab-flatten" class="view-tab" onclick="executeFlattenAll()" style="border-color: #e63946; color: #ff4d4d;" title="Emergency: Flatten all open algo positions immediately">🚨 FLATTEN</button>
@@ -1473,6 +1533,135 @@
 
   </div>
 
+  <!-- DEDICATED ML PAPER LAB VIEW -->
+  <div id="paper-lab-grid">
+    <!-- AIR GAP NOTICE BANNER -->
+    <div class="paper-notice-banner">
+      <div>
+        <b style="color: #00e5ff;">🧪 AI LEARNING MODEL // SIMULATED PAPER TRADING LAB</b>
+        <span style="color: #bbb; margin-left: 8px;">Simulated Ghost Positions tracked for Machine Learning feature optimization, RF retraining, and out-of-sample forward testing.</span>
+      </div>
+      <div>
+        <span style="background: #003322; border: 1px solid #00d26a; color: #00d26a; font-size: 9.5px; font-weight: 700; padding: 2px 6px; border-radius: 2px;">🛡️ AIR-GAPPED // ZERO REAL BROKER CAPITAL</span>
+      </div>
+    </div>
+
+    <!-- TOP KPI RIBBON -->
+    <div class="paper-ribbon">
+      <div class="paper-kpi-card">
+        <span class="options-kpi-title">OPEN SIMULATED TRADES</span>
+        <span class="options-kpi-val c-cyan" id="paper-open-count">-- TRADES</span>
+        <span class="options-kpi-sub">GHOST ENGINE ACTIVE</span>
+      </div>
+      <div class="paper-kpi-card">
+        <span class="options-kpi-title">LEARNING WIN RATE (EX-BE)</span>
+        <span class="options-kpi-val c-green" id="paper-win-rate">--%</span>
+        <span class="options-kpi-sub" id="paper-win-sub">-- WINS / -- LOSSES</span>
+      </div>
+      <div class="paper-kpi-card">
+        <span class="options-kpi-title">SIMULATED NET R MULTIPLE</span>
+        <span class="options-kpi-val c-yellow" id="paper-net-r">+-- R</span>
+        <span class="options-kpi-sub">CUMULATIVE PERFORMANCE</span>
+      </div>
+      <div class="paper-kpi-card">
+        <span class="options-kpi-title">TIMEFRAME COVERAGE</span>
+        <span class="options-kpi-val c-white" id="paper-tf-cov">5M / 15M / 1H / 1D</span>
+        <span class="options-kpi-sub">ALL REGIMES MONITORED</span>
+      </div>
+      <div class="paper-kpi-card">
+        <span class="options-kpi-title">EXECUTION ISOLATION</span>
+        <span class="options-kpi-val c-purple">AIR-GAPPED</span>
+        <span class="options-kpi-sub">REAL TRADES ON "TRADING" TAB</span>
+      </div>
+      <div class="paper-kpi-card">
+        <span class="options-kpi-title">RETRAINING SCHEDULE</span>
+        <span class="options-kpi-val c-orange">4:15 PM EST DAILY</span>
+        <span class="options-kpi-sub">SELF-SUPERVISED EVOLUTION</span>
+      </div>
+    </div>
+
+    <!-- TOOLBAR -->
+    <div class="paper-toolbar">
+      <div style="display: flex; gap: 6px; align-items: center;">
+        <span style="font-weight: 700; color: #00e5ff; margin-right: 4px;">🤖 GHOST TRADES</span>
+        <button class="paper-filter-btn active" id="btn-paper-all" onclick="filterPaperTable('ALL')">ALL TIMEFRAMES</button>
+        <button class="paper-filter-btn" id="btn-paper-5m" onclick="filterPaperTable('5m')">5M DAY RUNNERS</button>
+        <button class="paper-filter-btn" id="btn-paper-15m" onclick="filterPaperTable('15m')">15M MOMENTUM</button>
+        <button class="paper-filter-btn" id="btn-paper-1h" onclick="filterPaperTable('1h')">1H SWINGS</button>
+        <button class="paper-filter-btn" id="btn-paper-1d" onclick="filterPaperTable('1d')">1D MACRO</button>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <input type="text" id="paper-search-input" placeholder="SEARCH TICKER..." oninput="searchPaperTable()" style="background: #111; border: 1px solid #333; color: #fff; padding: 2px 6px; font-family: inherit; font-size: 10px; width: 130px; text-transform: uppercase;" />
+        <button class="paper-filter-btn" onclick="fetchMLPaperTrades()" style="border-color: #00e5ff; color: #00e5ff;">🔄 REFRESH SIMULATION</button>
+      </div>
+    </div>
+
+    <!-- MAIN BODY: TWO STACKED PANES -->
+    <div style="display: flex; flex-direction: column; gap: 1px; flex: 1; min-height: 0;">
+      <!-- TOP: ACTIVE OPEN PAPER TRADES TABLE -->
+      <div class="pane" style="flex: 2; min-height: 280px; display: flex; flex-direction: column;">
+        <div class="pane-header">
+          <span>ACTIVE SIMULATED PAPER TRADES (<span id="paper-table-count">0</span> OPEN)</span>
+          <span class="c-cyan">REAL-TIME PRICE &amp; R-TRACKING</span>
+        </div>
+        <div class="pane-content" style="flex: 1; overflow-y: auto;">
+          <table class="data-table" style="width: 100%;">
+            <thead>
+              <tr>
+                <th style="width: 75px;">TICKER</th>
+                <th style="width: 55px;">DIR</th>
+                <th style="width: 50px;">TF</th>
+                <th style="width: 65px;">ENTRY</th>
+                <th style="width: 65px;">LIVE</th>
+                <th style="width: 65px;">STOP</th>
+                <th style="width: 65px;">TARGET</th>
+                <th style="width: 75px;">CURRENT R</th>
+                <th style="width: 65px;">PEAK R</th>
+                <th style="width: 120px;">SIMULATED STATUS</th>
+                <th style="width: 65px;">ML CONF</th>
+                <th style="width: 110px;">TRIGGERED</th>
+                <th style="width: 75px;">ACTION</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-paper-trades-body">
+              <tr><td colspan="13" style="text-align: center; padding: 20px; color: var(--wsr-muted);">Loading simulated paper trades...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- BOTTOM: RECENT CLOSED GHOST TRADES FOR TRAINING -->
+      <div class="pane" style="flex: 1; min-height: 180px; display: flex; flex-direction: column;">
+        <div class="pane-header">
+          <span>RECENT CLOSED PAPER OUTCOMES // MODEL RETRAINING CORPUS (LAST 50)</span>
+          <span class="c-yellow">LAB OUT-OF-SAMPLE DATASET</span>
+        </div>
+        <div class="pane-content" style="flex: 1; overflow-y: auto;">
+          <table class="data-table" style="width: 100%;">
+            <thead>
+              <tr>
+                <th style="width: 75px;">TICKER</th>
+                <th style="width: 55px;">DIR</th>
+                <th style="width: 50px;">TF</th>
+                <th style="width: 65px;">ENTRY</th>
+                <th style="width: 65px;">EXIT</th>
+                <th style="width: 75px;">OUTCOME</th>
+                <th style="width: 75px;">REALIZED R</th>
+                <th style="width: 90px;">MODEL VER</th>
+                <th>TIMESTAMP</th>
+                <th style="width: 75px;">ACTION</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-paper-closed-body">
+              <tr><td colspan="10" style="text-align: center; padding: 15px; color: var(--wsr-muted);">Loading closed paper history...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
   <!-- BOTTOM FUNCTION BAR -->
   <div id="function-bar">
     <div class="fn-keys">
@@ -1483,6 +1672,7 @@
       <span class="fn-key" style="cursor:pointer;" onclick="handleManualRefresh()"><b>F5</b> REFRESH</span>
       <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'terminal' ? 'mllab' : 'terminal')"><b>F6</b> ML LAB</span>
       <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'options' ? 'terminal' : 'options')"><b>F7</b> OPTIONS</span>
+      <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'paper' ? 'terminal' : 'paper')"><b>F8</b> PAPER LAB</span>
       <span class="fn-key"><b>ESC</b> CLEAR</span>
     </div>
     <div>
@@ -2554,16 +2744,20 @@
       const terminalGrid = document.getElementById('main-grid');
       const mlGrid = document.getElementById('ml-lab-grid');
       const optGrid = document.getElementById('options-matrix-grid');
+      const paperGrid = document.getElementById('paper-lab-grid');
       const tabTerm = document.getElementById('tab-terminal');
       const tabML = document.getElementById('tab-mllab');
       const tabOpt = document.getElementById('tab-options');
+      const tabPaper = document.getElementById('tab-paper');
 
       terminalGrid.style.display = 'none';
       mlGrid.style.display = 'none';
       if (optGrid) optGrid.style.display = 'none';
+      if (paperGrid) paperGrid.style.display = 'none';
       tabTerm.classList.remove('active');
       tabML.classList.remove('active');
       if (tabOpt) tabOpt.classList.remove('active');
+      if (tabPaper) tabPaper.classList.remove('active');
 
       if (view === 'mllab') {
         mlGrid.style.display = 'flex';
@@ -2573,6 +2767,10 @@
         if (optGrid) optGrid.style.display = 'flex';
         if (tabOpt) tabOpt.classList.add('active');
         fetchOptionsScanner();
+      } else if (view === 'paper') {
+        if (paperGrid) paperGrid.style.display = 'flex';
+        if (tabPaper) tabPaper.classList.add('active');
+        fetchMLPaperTrades();
       } else {
         terminalGrid.style.display = 'grid';
         tabTerm.classList.add('active');
@@ -3117,9 +3315,181 @@
       }
     }
 
+    // --- ML PAPER LAB ENGINE ---
+    let paperTradesData = [];
+    let paperClosedData = [];
+    let currentPaperTF = 'ALL';
+
+    async function fetchMLPaperTrades() {
+      try {
+        const res = await fetch('/api/ml/paper_trades');
+        const data = await res.json();
+        if (!data || data.status !== 'SUCCESS') return;
+        
+        paperTradesData = data.open_trades || [];
+        paperClosedData = data.recent_closed || [];
+        const kpis = data.kpis || {};
+        
+        // KPI Cards
+        const openCountEl = document.getElementById('paper-open-count');
+        if (openCountEl) openCountEl.innerText = `${kpis.total_open_paper || 0} TRADES`;
+        
+        const wrEl = document.getElementById('paper-win-rate');
+        if (wrEl) wrEl.innerText = `${kpis.winrate_ex_be || 0}%`;
+        
+        const wrSubEl = document.getElementById('paper-win-sub');
+        if (wrSubEl) wrSubEl.innerText = `${kpis.wins || 0} WINS / ${kpis.losses || 0} LOSSES (${kpis.breakeven || 0} BE)`;
+        
+        const netREl = document.getElementById('paper-net-r');
+        if (netREl) {
+          const net = kpis.net_r || 0;
+          netREl.innerText = `${net >= 0 ? '+' : ''}${net.toFixed(2)} R`;
+          netREl.className = `options-kpi-val ${net >= 0 ? 'c-green' : 'c-red'}`;
+        }
+        
+        renderPaperTradesTable();
+        renderPaperClosedTable();
+      } catch (err) {
+        console.error('Failed to load paper trades:', err);
+      }
+    }
+
+    function filterPaperTable(tf) {
+      currentPaperTF = tf;
+      document.querySelectorAll('.paper-filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      const activeBtn = document.getElementById(`btn-paper-${tf.toLowerCase()}`);
+      if (activeBtn) activeBtn.classList.add('active');
+      renderPaperTradesTable();
+    }
+
+    function searchPaperTable() {
+      renderPaperTradesTable();
+    }
+
+    function renderPaperTradesTable() {
+      const tbody = document.getElementById('tbl-paper-trades-body');
+      if (!tbody) return;
+      const search = (document.getElementById('paper-search-input')?.value || '').trim().toUpperCase();
+      
+      let filtered = paperTradesData.filter(t => {
+        if (currentPaperTF !== 'ALL' && (t.timeframe || '').toLowerCase() !== currentPaperTF.toLowerCase()) return false;
+        if (search && !t.ticker.toUpperCase().includes(search)) return false;
+        return true;
+      });
+      
+      const countEl = document.getElementById('paper-table-count');
+      if (countEl) countEl.innerText = filtered.length;
+      
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="13" style="text-align: center; padding: 20px; color: var(--wsr-muted);">No simulated trades matching filter.</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = filtered.map(t => {
+        const isLong = (t.direction || 'LONG').toUpperCase() === 'LONG';
+        const dirBadge = isLong 
+          ? '<span style="color: #00d26a; font-weight: 700;">▲ LONG</span>'
+          : '<span style="color: #ff4d4d; font-weight: 700;">▼ SHORT</span>';
+        
+        const rVal = parseFloat(t.current_r || 0);
+        const rClass = rVal >= 0 ? 'c-green' : 'c-red';
+        const rStr = `${rVal >= 0 ? '+' : ''}${rVal.toFixed(2)}R`;
+        
+        const peakR = parseFloat(t.peak_high_r || 0);
+        const peakStr = peakR > 0 ? `+${peakR.toFixed(2)}R` : '--';
+        
+        let statusBadge = '<span style="color: #888;">RUNNING</span>';
+        if (t.breakeven_set) {
+          statusBadge = '<span style="color: #c084fc; font-weight: 700; background: #221433; padding: 1px 4px; border-radius: 2px; border: 1px solid #7c3aed;">🔒 BE LOCKED</span>';
+        } else if (t.partial_exit_done) {
+          statusBadge = '<span style="color: #00e5ff; font-weight: 700; background: #002b33; padding: 1px 4px; border-radius: 2px; border: 1px solid #00a3cc;">💰 PARTIAL</span>';
+        } else if (rVal >= 1.0) {
+          statusBadge = '<span style="color: #00d26a; font-weight: 700; background: #003314; padding: 1px 4px; border-radius: 2px; border: 1px solid #00b347;">🔥 +1R RUNNER</span>';
+        } else if (rVal < -0.8) {
+          statusBadge = '<span style="color: #ff4d4d; font-weight: 700; background: #330000; padding: 1px 4px; border-radius: 2px; border: 1px solid #b30000;">⚠️ NEAR STOP</span>';
+        }
+        
+        const mlConf = t.ml_confidence ? `${Math.round(t.ml_confidence * 100)}%` : '--';
+        const timeStr = t.timestamp ? t.timestamp.replace('T', ' ').substring(5, 16) : '--';
+        
+        return `<tr>
+          <td style="font-weight: 700; color: #fff;">${t.ticker}</td>
+          <td>${dirBadge}</td>
+          <td><span style="font-size: 9.5px; color: #00e5ff; font-weight: 700;">${(t.timeframe || '5m').toUpperCase()}</span></td>
+          <td>$${parseFloat(t.entry_price || 0).toFixed(2)}</td>
+          <td style="font-weight: 700; color: #fff;">$${parseFloat(t.current_price || 0).toFixed(2)}</td>
+          <td style="color: #ff4d4d;">$${parseFloat(t.stop_loss || 0).toFixed(2)}</td>
+          <td style="color: #00d26a;">$${parseFloat(t.take_profit || 0).toFixed(2)}</td>
+          <td style="font-weight: 700;" class="${rClass}">${rStr}</td>
+          <td style="color: #ffd700; font-weight: 600;">${peakStr}</td>
+          <td>${statusBadge}</td>
+          <td style="color: #00e5ff;">${mlConf}</td>
+          <td style="color: #888; font-size: 9.5px;">${timeStr}</td>
+          <td>
+            <button class="options-filter-btn" style="padding: 1px 5px; font-size: 9px;" onclick="openChartFromPaper('${t.ticker}', '${t.timeframe || '5m'}')">📊 CHART</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    function openChartFromPaper(ticker, tf) {
+      switchView('terminal');
+      loadChartData(ticker, tf || '5m');
+    }
+
+    function renderPaperClosedTable() {
+      const tbody = document.getElementById('tbl-paper-closed-body');
+      if (!tbody) return;
+      if (!paperClosedData || paperClosedData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 15px; color: var(--wsr-muted);">No closed paper trade history yet.</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = paperClosedData.map(c => {
+        const isLong = (c.direction || 'LONG').toUpperCase() === 'LONG';
+        const dirBadge = isLong 
+          ? '<span style="color: #00d26a; font-weight: 700;">▲ LONG</span>'
+          : '<span style="color: #ff4d4d; font-weight: 700;">▼ SHORT</span>';
+          
+        let outcomeBadge = '<span style="color: #888;">--</span>';
+        if (c.outcome === 'WIN') {
+          outcomeBadge = '<span style="color: #00d26a; font-weight: 700; background: #003314; padding: 1px 4px; border-radius: 2px;">WIN</span>';
+        } else if (c.outcome === 'LOSS') {
+          outcomeBadge = '<span style="color: #ff4d4d; font-weight: 700; background: #330000; padding: 1px 4px; border-radius: 2px;">LOSS</span>';
+        } else if (c.outcome === 'BREAKEVEN') {
+          outcomeBadge = '<span style="color: #c084fc; font-weight: 700; background: #221433; padding: 1px 4px; border-radius: 2px;">BE</span>';
+        }
+        
+        const rVal = parseFloat(c.pnl_r || 0);
+        const rClass = rVal >= 0 ? 'c-green' : 'c-red';
+        const rStr = `${rVal >= 0 ? '+' : ''}${rVal.toFixed(2)}R`;
+        const timeStr = c.timestamp ? c.timestamp.replace('T', ' ').substring(5, 16) : '--';
+        
+        return `<tr>
+          <td style="font-weight: 700; color: #fff;">${c.ticker}</td>
+          <td>${dirBadge}</td>
+          <td><span style="font-size: 9.5px; color: #00e5ff;">${(c.timeframe || '5m').toUpperCase()}</span></td>
+          <td>$${parseFloat(c.entry_price || 0).toFixed(2)}</td>
+          <td>$${parseFloat(c.exit_price || 0).toFixed(2)}</td>
+          <td>${outcomeBadge}</td>
+          <td style="font-weight: 700;" class="${rClass}">${rStr}</td>
+          <td style="color: #ff8c00; font-size: 9.5px;">${c.model_version || 'v1.7'}</td>
+          <td style="color: #888; font-size: 9.5px;">${timeStr}</td>
+          <td>
+            <button class="options-filter-btn" style="padding: 1px 5px; font-size: 9px;" onclick="openChartFromPaper('${c.ticker}', '${c.timeframe || '5m'}')">📊 CHART</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
     // --- KEYBOARD SHORTCUTS ---
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'F7') {
+      if (e.key === 'F8') {
+        e.preventDefault();
+        switchView(currentView === 'paper' ? 'terminal' : 'paper');
+      } else if (e.key === 'F7') {
         e.preventDefault();
         switchView(currentView === 'options' ? 'terminal' : 'options');
       } else if (e.key === 'F6') {
@@ -3139,6 +3509,8 @@
         cmdInput.value = '';
         if (val === 'OPTIONS' || val === '/OPTIONS' || val === 'OPT' || val === 'MATRIX') {
           switchView('options');
+        } else if (val === 'PAPER' || val === '/PAPER' || val === 'GHOST' || val === 'SIM') {
+          switchView('paper');
         } else if (val === 'ML' || val === '/ML' || val === 'AI') {
           switchView('mllab');
         } else if (val === 'TERM' || val === 'CHART' || val === 'TRADING' || val === 'HOME') {
@@ -3152,7 +3524,7 @@
         } else if (val === '/FLATTEN' || val === 'FLATTEN') {
           executeFlattenAll();
         } else if (val) {
-          if (currentView === 'mllab' || currentView === 'options') switchView('terminal');
+          if (currentView === 'mllab' || currentView === 'options' || currentView === 'paper') switchView('terminal');
           loadChartData(val, '5m');
         }
       }
