@@ -1149,6 +1149,7 @@ def bot_health():
     import shutil
     import os
     import sys
+    import time
     if os.name == 'nt':
         return {"status": "WINDOWS_LOCAL"}
 
