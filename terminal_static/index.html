@@ -1405,8 +1405,9 @@
             </div>
           </div>
           <div style="display: flex; gap: 6px;">
-            <button class="options-filter-btn" id="wb-btn-chart" onclick="viewSelectedInChart()" style="border-color: #00e5ff; color: #00e5ff;">📊 VIEW 5M CHART</button>
-            <button class="options-filter-btn" id="wb-btn-pilot" onclick="executeSelectedOptionPilot()" style="border-color: #00d26a; background: rgba(0, 210, 106, 0.15); color: #00d26a; font-weight: bold; padding: 4px 10px;">⚡ EXECUTE PILOT (2x CALLS @ MID)</button>
+            <button class="options-filter-btn" id="wb-btn-chart" onclick="viewSelectedInChart()" style="border-color: #00e5ff; color: #00e5ff;">📊 5M CHART</button>
+            <button class="options-filter-btn" id="wb-btn-pilot" onclick="executeSelectedOptionPilot(1)" style="border-color: #00d26a; background: rgba(0, 210, 106, 0.2); color: #00d26a; font-weight: bold; padding: 4px 10px;">⚡ EXECUTE PILOT (1x CALL @ MID)</button>
+            <button class="options-filter-btn" id="wb-btn-pilot-2x" onclick="executeSelectedOptionPilot(2)" style="border-color: #a855f7; background: rgba(168, 85, 247, 0.15); color: #c084fc; font-weight: bold; padding: 4px 8px;">⚡ 2x CALLS</button>
           </div>
         </div>
 
@@ -3416,7 +3417,7 @@
       }
     }
 
-    async function executeSelectedOptionPilot() {
+    async function executeSelectedOptionPilot(qty = 1) {
       if (!selectedOptionsTicker) {
         alert('Please select an options candidate from the table first.');
         return;
@@ -3429,10 +3430,12 @@
       const call = item.optimal_call;
       const sym = call.symbol || selectedOptionsTicker;
       const mid = call.mid || 0;
-      if (!confirm(`🚀 CONFIRM PILOT ORDER:\n\nBuy 2 contracts of ${selectedOptionsTicker} ($${call.strike}C) at Limit Mid-Price $${mid.toFixed(2)} on Public.com?\n\nThis will immediately freeze auto-buying into ONE-AND-DONE mode.`)) {
+      const quantity = parseInt(qty) || 1;
+      const estCost = (mid * 100 * quantity).toFixed(2);
+      if (!confirm(`🚀 CONFIRM PILOT ORDER:\n\nBuy ${quantity} contract${quantity > 1 ? 's' : ''} of ${selectedOptionsTicker} ($${call.strike}C) at Limit Mid-Price $${mid.toFixed(2)} on Public.com?\n\nEstimated Cost: $${estCost}\n\nThis will immediately freeze auto-buying into ONE-AND-DONE mode.`)) {
         return;
       }
-      const btn = document.getElementById('wb-btn-pilot');
+      const btn = document.getElementById(quantity === 1 ? 'wb-btn-pilot' : 'wb-btn-pilot-2x');
       const prevText = btn ? btn.innerText : '';
       if (btn) btn.innerText = 'TRANSMITTING...';
       try {
@@ -3441,13 +3444,13 @@
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
             symbol: sym,
-            quantity: 2,
+            quantity: quantity,
             limit_price: mid
           })
         });
         const data = await res.json();
         if (data.success) {
-          alert(`✓ PILOT ORDER TRANSMITTED!\n\nContract: ${sym}\nStatus: ${data.order.status}\nOrder ID: ${data.order.order_id}\n\nAuto-buyer is frozen to One-and-Done. Exit Guardian is armed!`);
+          alert(`✓ PILOT ORDER TRANSMITTED!\n\nContract: ${sym} (Qty: ${quantity})\nStatus: ${data.order.status}\nOrder ID: ${data.order.order_id}\n\nAuto-buyer is frozen to One-and-Done. Exit Guardian is armed!`);
           fetchState();
         } else {
           alert('Order error: ' + (data.detail || JSON.stringify(data)));
