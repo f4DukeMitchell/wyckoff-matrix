@@ -991,6 +991,28 @@ def trigger_system_restart():
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+@app.get("/api/options/scanner")
+def get_options_scanner():
+    """Returns real-time options intelligence and multi-tranche strategy recommendations for Wyckoff setups."""
+    try:
+        import options_engine
+        data = options_engine.get_options_scanner_data()
+        return {"status": "SUCCESS", "count": len(data), "setups": data}
+    except Exception as e:
+        return {"status": "ERROR", "error": str(e), "setups": []}
+
+@app.get("/api/options/ticker/{ticker}")
+def get_ticker_options(ticker: str):
+    """Scans and structures options intelligence for a specific user-requested ticker."""
+    try:
+        import options_engine
+        data = options_engine.scan_single_ticker_options(ticker.upper())
+        if not data:
+            return {"status": "NOT_FOUND", "message": f"No liquid weekly options found for {ticker.upper()}"}
+        return {"status": "SUCCESS", "data": data}
+    except Exception as e:
+        return {"status": "ERROR", "error": str(e)}
+
 @app.get("/api/health")
 def health_check():
     return {"status": "ONLINE", "version": "2.2.0"}
