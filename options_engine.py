@@ -188,9 +188,19 @@ def scan_single_ticker_options(ticker, stock_price=None, target_r=1.15, init_ris
         pos_be = bool(active_pos.get('breakeven_set'))
         pos_partial = bool(active_pos.get('partial_exit_done'))
         peak_r = float(active_pos.get('peak_high_r') or 0.0)
-        
-        pos_risk = abs(pos_entry - pos_sl) if abs(pos_entry - pos_sl) > 0.01 else 1.0
-        current_r = round((current_p - pos_entry) / pos_risk, 2)
+        # Check if option contract position from broker
+        b_pos = active_pos.get('broker_pos')
+        if b_pos and 'entry_price' in b_pos and 'current_price' in b_pos:
+            opt_entry = float(b_pos['entry_price'])
+            opt_curr = float(b_pos['current_price'])
+            pos_entry = opt_entry
+            pos_sl = round(opt_entry * 0.65, 2)
+            pos_tp = round(opt_entry * 1.50, 2)
+            pnl_pct = float(b_pos.get('unrealized_pnl_pct', 0.0))
+            current_r = round(pnl_pct / 35.0, 2)
+        else:
+            pos_risk = abs(pos_entry - pos_sl) if abs(pos_entry - pos_sl) > 0.01 else 1.0
+            current_r = round((current_p - pos_entry) / pos_risk, 2)
         
         if pos_partial or pos_be or current_r >= 0.50:
             active_milestone = 3
@@ -279,12 +289,42 @@ def get_options_scanner_data(force_refresh=False):
         ORDER BY id DESC
     """)
     active_rows_raw = {r['ticker'].upper(): dict(r) for r in c.fetchall()}
+    import re
+    broker_held = {}
     try:
         from public_executor import get_broker_portfolio_positions
-        held_tickers = set(p['ticker'].upper() for p in get_broker_portfolio_positions() if p.get('ticker') and p.get('ticker').upper() not in ['AMC', 'APE', 'NKE'])
-        active_rows = {k: v for k, v in active_rows_raw.items() if k in held_tickers}
-    except:
-        active_rows = {}
+        for p in get_broker_portfolio_positions():
+            raw_sym = (p.get('ticker') or '').upper()
+            if not raw_sym or raw_sym in ['AMC', 'APE', 'NKE']:
+                continue
+            m = re.match(r"^([A-Z]+)", raw_sym)
+            root_sym = m.group(1) if m else raw_sym
+            broker_held[root_sym] = p
+    except Exception:
+        broker_held = {}
+
+    active_rows = {}
+    for sym, b_pos in broker_held.items():
+        if sym in active_rows_raw:
+            row_dict = dict(active_rows_raw[sym])
+            row_dict['broker_pos'] = b_pos
+            active_rows[sym] = row_dict
+        else:
+            entry_p = float(b_pos.get('entry_price') or 0.0)
+            active_rows[sym] = {
+                'ticker': sym,
+                'entry_price': entry_p,
+                'stop_loss': round(entry_p * 0.65, 2),
+                'take_profit': round(entry_p * 1.50, 2),
+                'optimal_target_r': 1.15,
+                'timestamp': str(datetime.datetime.now()),
+                'outcome': 'OPEN',
+                'breakeven_set': False,
+                'partial_exit_done': False,
+                'peak_high_r': 0.0,
+                'trailing_stop_price': round(entry_p * 0.65, 2),
+                'broker_pos': b_pos
+            }
     
     # 2. Fetch recent Long alerts from past 48 hours
     c.execute("""
@@ -310,7 +350,9 @@ def get_options_scanner_data(force_refresh=False):
             sl = float(pos.get('stop_loss') or 0.0)
             risk = abs(entry - sl) if abs(entry - sl) > 0.001 else 1.0
             tgt_r = float(pos.get('optimal_target_r') or 1.15)
-            opt_data = scan_single_ticker_options(sym, stock_price=entry, target_r=tgt_r, init_risk=risk, active_pos=pos)
+            # Pass None for stock_price if entry is option premium (< $10)
+            stk_p = None if (pos.get('broker_pos') and entry < 10.0) else entry
+            opt_data = scan_single_ticker_options(sym, stock_price=stk_p, target_r=tgt_r, init_risk=risk, active_pos=pos)
             if opt_data:
                 results.append(opt_data)
         except: pass
