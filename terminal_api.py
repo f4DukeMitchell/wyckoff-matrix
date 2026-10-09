@@ -936,15 +936,16 @@ def trigger_system_update():
             if p not in current_path:
                 current_path = f"{p}:{current_path}"
         env["PATH"] = current_path
+        repo_dir = os.path.dirname(os.path.abspath(__file__))
 
-        subprocess.run([git_bin, "checkout", "--", "."], capture_output=True, text=True, timeout=10, env=env)
-        pull_res = subprocess.run([git_bin, "pull", "origin", "main"], capture_output=True, text=True, timeout=30, env=env)
+        subprocess.run([git_bin, "checkout", "--", "."], cwd=repo_dir, capture_output=True, text=True, timeout=10, env=env)
+        pull_res = subprocess.run([git_bin, "pull", "origin", "main"], cwd=repo_dir, capture_output=True, text=True, timeout=30, env=env)
         py_exe = sys.executable or shutil.which("python3") or "python3"
-        mig_res = subprocess.run([py_exe, "migrate_db.py"], capture_output=True, text=True, timeout=30, env=env)
+        mig_res = subprocess.run([py_exe, "migrate_db.py"], cwd=repo_dir, capture_output=True, text=True, timeout=30, env=env)
 
         if os.name != 'nt':
             bash_bin = shutil.which("bash") or "/bin/bash" or "/usr/bin/bash"
-            cmd = "sleep 2 && (sudo systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (pkill -f wyckoff_alert_bot.py 2>/dev/null; sleep 1; pkill -9 -f 'terminal_api:app' 2>/dev/null))"
+            cmd = f"cd {repo_dir} && sleep 2 && (sudo systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (pkill -f wyckoff_alert_bot.py 2>/dev/null; sleep 1; pkill -9 -f 'terminal_api:app' 2>/dev/null))"
             try:
                 subprocess.Popen(
                     [bash_bin, "-c", cmd],
