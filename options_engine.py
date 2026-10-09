@@ -111,13 +111,34 @@ def scan_single_ticker_options(ticker, stock_price=None, target_r=1.15, init_ris
     if not parsed_calls:
         return None
         
-    # Find Optimal 0.65 Delta Call
-    target_delta = 0.67
-    parsed_calls.sort(key=lambda x: abs(x['delta'] - target_delta))
-    optimal_call = parsed_calls[0]
+    # If the user already holds an active contract in their broker portfolio, match that exact contract!
+    held_contract_sym = None
+    if active_pos and active_pos.get('broker_pos'):
+        held_contract_sym = (active_pos['broker_pos'].get('ticker') or '').upper()
+
+    optimal_call = None
+    if held_contract_sym:
+        for c in parsed_calls:
+            if c.get('symbol') and c['symbol'].upper() == held_contract_sym:
+                optimal_call = c
+                break
+
+    if not optimal_call:
+        # Find Optimal 0.65 Delta Call
+        target_delta = 0.67
+        parsed_calls.sort(key=lambda x: abs(x['delta'] - target_delta))
+        optimal_call = parsed_calls[0]
     
-    # Current underlying estimate from ATM strike or passed price
-    current_p = stock_price if (stock_price and stock_price > 0) else optimal_call['strike']
+    # Current underlying estimate from passed price or live price lookup or ATM strike
+    if not stock_price or stock_price <= 0:
+        try:
+            from public_executor import get_live_prices
+            p_map = get_live_prices([ticker])
+            current_p = p_map.get(ticker) or optimal_call['strike']
+        except Exception:
+            current_p = optimal_call['strike']
+    else:
+        current_p = stock_price
     
     # Determine Architecture Classification (Mix of 1, 3, 4)
     is_sweet_spot = 15.0 <= current_p <= 75.0
@@ -157,7 +178,14 @@ def scan_single_ticker_options(ticker, stock_price=None, target_r=1.15, init_ris
         }
         
     # Concentrated Multi-Tranche Architecture: Strictly Strategy 1 and Strategy 4
-    if is_sweet_spot:
+    if active_pos and active_pos.get('broker_pos'):
+        b_pos = active_pos['broker_pos']
+        b_qty = float(b_pos.get('quantity') or 2.0)
+        b_entry = float(b_pos.get('entry_price') or optimal_call['mid'])
+        est_risk = round(b_entry * 100.0 * b_qty, 2)
+        recommended_strategy = "STRATEGY_1_TRANCHE"
+        strategy_desc = f"ACTIVE POSITION ({b_qty:.0f}x Calls - ${est_risk:.0f} total debit): Entry at ${b_entry:.2f}. Milestone 1 stop armed at $0.31 (-35%). Target 1 @ $0.72 (+50%)."
+    elif is_sweet_spot:
         recommended_strategy = "STRATEGY_1_TRANCHE"
         strategy_desc = f"STRATEGY 1 (2x Calls - ${contract_cost * 2:.0f} total): Sell Tranche 1 @ +50% target to bank profit & ratchet Stop to Breakeven $0.00. Ride Tranche 2 to resistance."
         est_risk = contract_cost * 2
