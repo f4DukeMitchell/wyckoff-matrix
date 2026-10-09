@@ -945,12 +945,12 @@
         <table id="tbl-positions" style="font-size: 10px; table-layout: auto; width: 100%;">
           <thead>
             <tr>
-              <th style="padding: 3px 4px;">SYM</th>
-              <th style="padding: 3px 4px;">DIR</th>
-              <th style="padding: 3px 4px;">ENTRY</th>
-              <th style="padding: 3px 4px;">LAST</th>
-              <th style="padding: 3px 4px;">P&L</th>
-              <th style="padding: 3px 4px;">TP</th>
+              <th style="padding: 3px 4px; cursor: pointer;" onclick="sortPositions('ticker')">SYM &#x25B4;&#x25BE;</th>
+              <th style="padding: 3px 4px; cursor: pointer;" onclick="sortPositions('direction')">DIR &#x25B4;&#x25BE;</th>
+              <th style="padding: 3px 4px; cursor: pointer;" onclick="sortPositions('entry_price')">ENTRY &#x25B4;&#x25BE;</th>
+              <th style="padding: 3px 4px; cursor: pointer;" onclick="sortPositions('current_price')">LAST &#x25B4;&#x25BE;</th>
+              <th style="padding: 3px 4px; cursor: pointer;" onclick="sortPositions('unrealized_pnl_pct')">P&L &#x25B4;&#x25BE;</th>
+              <th style="padding: 3px 4px; cursor: pointer;" onclick="sortPositions('take_profit')">TP &#x25B4;&#x25BE;</th>
               <th style="padding: 3px 4px; text-align: center;">ACT</th>
             </tr>
           </thead>
@@ -1372,15 +1372,15 @@
         <table class="data-table" style="width: 100%;">
           <thead>
             <tr>
-              <th style="width: 70px;">TICKER</th>
-              <th style="width: 60px;">PRICE</th>
-              <th style="width: 55px;">SCORE</th>
-              <th>OPTIMAL 0.65Δ CALL</th>
-              <th style="width: 55px;">DELTA</th>
-              <th style="width: 55px;">GAMMA</th>
-              <th style="width: 50px;">IV</th>
-              <th>RECOMMENDED STRATEGY</th>
-              <th style="width: 75px;">RISK</th>
+              <th style="width: 70px; cursor: pointer;" onclick="sortOptions('ticker')">TICKER &#x25B4;&#x25BE;</th>
+              <th style="width: 60px; cursor: pointer;" onclick="sortOptions('stock_price')">PRICE &#x25B4;&#x25BE;</th>
+              <th style="width: 55px; cursor: pointer;" onclick="sortOptions('confluence_score')">SCORE &#x25B4;&#x25BE;</th>
+              <th style="cursor: pointer;" onclick="sortOptions('call_strike')">OPTIMAL 0.65Δ CALL &#x25B4;&#x25BE;</th>
+              <th style="width: 55px; cursor: pointer;" onclick="sortOptions('delta')">DELTA &#x25B4;&#x25BE;</th>
+              <th style="width: 55px; cursor: pointer;" onclick="sortOptions('gamma')">GAMMA &#x25B4;&#x25BE;</th>
+              <th style="width: 50px; cursor: pointer;" onclick="sortOptions('iv')">IV &#x25B4;&#x25BE;</th>
+              <th style="cursor: pointer;" onclick="sortOptions('recommended_strategy')">RECOMMENDED STRATEGY &#x25B4;&#x25BE;</th>
+              <th style="width: 75px; cursor: pointer;" onclick="sortOptions('estimated_risk')">RISK &#x25B4;&#x25BE;</th>
               <th style="width: 80px;">ACTION</th>
             </tr>
           </thead>
@@ -1608,18 +1608,18 @@
           <table class="data-table" style="width: 100%;">
             <thead>
               <tr>
-                <th style="width: 75px;">TICKER</th>
-                <th style="width: 55px;">DIR</th>
-                <th style="width: 50px;">TF</th>
-                <th style="width: 65px;">ENTRY</th>
-                <th style="width: 65px;">LIVE</th>
-                <th style="width: 65px;">STOP</th>
-                <th style="width: 65px;">TARGET</th>
-                <th style="width: 75px;">CURRENT R</th>
-                <th style="width: 65px;">PEAK R</th>
-                <th style="width: 120px;">SIMULATED STATUS</th>
-                <th style="width: 65px;">ML CONF</th>
-                <th style="width: 110px;">TRIGGERED</th>
+                <th style="width: 75px; cursor: pointer;" onclick="sortPaperTrades('ticker')">TICKER &#x25B4;&#x25BE;</th>
+                <th style="width: 55px; cursor: pointer;" onclick="sortPaperTrades('direction')">DIR &#x25B4;&#x25BE;</th>
+                <th style="width: 50px; cursor: pointer;" onclick="sortPaperTrades('timeframe')">TF &#x25B4;&#x25BE;</th>
+                <th style="width: 65px; cursor: pointer;" onclick="sortPaperTrades('entry_price')">ENTRY &#x25B4;&#x25BE;</th>
+                <th style="width: 65px; cursor: pointer;" onclick="sortPaperTrades('current_price')">LIVE &#x25B4;&#x25BE;</th>
+                <th style="width: 65px; cursor: pointer;" onclick="sortPaperTrades('stop_loss')">STOP &#x25B4;&#x25BE;</th>
+                <th style="width: 65px; cursor: pointer;" onclick="sortPaperTrades('take_profit')">TARGET &#x25B4;&#x25BE;</th>
+                <th style="width: 75px; cursor: pointer;" onclick="sortPaperTrades('current_r')">CURRENT R &#x25B4;&#x25BE;</th>
+                <th style="width: 65px; cursor: pointer;" onclick="sortPaperTrades('peak_high_r')">PEAK R &#x25B4;&#x25BE;</th>
+                <th style="width: 120px; cursor: pointer;" onclick="sortPaperTrades('status_label')">SIMULATED STATUS &#x25B4;&#x25BE;</th>
+                <th style="width: 65px; cursor: pointer;" onclick="sortPaperTrades('ml_confidence')">ML CONF &#x25B4;&#x25BE;</th>
+                <th style="width: 110px; cursor: pointer;" onclick="sortPaperTrades('timestamp')">TRIGGERED &#x25B4;&#x25BE;</th>
                 <th style="width: 75px;">ACTION</th>
               </tr>
             </thead>
@@ -1640,15 +1640,15 @@
           <table class="data-table" style="width: 100%;">
             <thead>
               <tr>
-                <th style="width: 75px;">TICKER</th>
-                <th style="width: 55px;">DIR</th>
-                <th style="width: 50px;">TF</th>
-                <th style="width: 65px;">ENTRY</th>
-                <th style="width: 65px;">EXIT</th>
-                <th style="width: 75px;">OUTCOME</th>
-                <th style="width: 75px;">REALIZED R</th>
-                <th style="width: 90px;">MODEL VER</th>
-                <th>TIMESTAMP</th>
+                <th style="width: 75px; cursor: pointer;" onclick="sortPaperClosed('ticker')">TICKER &#x25B4;&#x25BE;</th>
+                <th style="width: 55px; cursor: pointer;" onclick="sortPaperClosed('direction')">DIR &#x25B4;&#x25BE;</th>
+                <th style="width: 50px; cursor: pointer;" onclick="sortPaperClosed('timeframe')">TF &#x25B4;&#x25BE;</th>
+                <th style="width: 65px; cursor: pointer;" onclick="sortPaperClosed('entry_price')">ENTRY &#x25B4;&#x25BE;</th>
+                <th style="width: 65px; cursor: pointer;" onclick="sortPaperClosed('exit_price')">EXIT &#x25B4;&#x25BE;</th>
+                <th style="width: 75px; cursor: pointer;" onclick="sortPaperClosed('outcome')">OUTCOME &#x25B4;&#x25BE;</th>
+                <th style="width: 75px; cursor: pointer;" onclick="sortPaperClosed('pnl_r')">REALIZED R &#x25B4;&#x25BE;</th>
+                <th style="width: 90px; cursor: pointer;" onclick="sortPaperClosed('model_version')">MODEL VER &#x25B4;&#x25BE;</th>
+                <th style="cursor: pointer;" onclick="sortPaperClosed('timestamp')">TIMESTAMP &#x25B4;&#x25BE;</th>
                 <th style="width: 75px;">ACTION</th>
               </tr>
             </thead>
@@ -2414,6 +2414,174 @@
       }
     }
 
+    let positionsSortField = 'ticker';
+    let positionsSortAsc = true;
+
+    function sortPositions(field) {
+      if (positionsSortField === field) {
+        positionsSortAsc = !positionsSortAsc;
+      } else {
+        positionsSortField = field;
+        positionsSortAsc = true;
+      }
+      renderPositionsTable();
+    }
+
+    function renderPositionsTable() {
+      const posTbody = document.querySelector('#tbl-positions tbody');
+      if (!posTbody) return;
+      posTbody.innerHTML = '';
+      if (!rawPositionsData || rawPositionsData.length === 0) {
+        posTbody.innerHTML = '<tr><td colspan="7" class="c-muted">No open active positions</td></tr>';
+        return;
+      }
+
+      let sorted = [...rawPositionsData];
+      sorted.sort((a, b) => {
+        let valA = a[positionsSortField];
+        let valB = b[positionsSortField];
+
+        if (['entry_price', 'current_price', 'unrealized_pnl_pct', 'take_profit', 'quantity', 'market_value'].includes(positionsSortField)) {
+          valA = parseFloat(valA || 0);
+          valB = parseFloat(valB || 0);
+          return positionsSortAsc ? valA - valB : valB - valA;
+        }
+
+        valA = (valA || '').toString().toLowerCase();
+        valB = (valB || '').toString().toLowerCase();
+        if (valA < valB) return positionsSortAsc ? -1 : 1;
+        if (valA > valB) return positionsSortAsc ? 1 : -1;
+        return 0;
+      });
+
+      sorted.forEach(p => {
+        const isLong = p.direction === 'LONG';
+        const currPrice = p.current_price ? `$${p.current_price.toFixed(2)}` : '--';
+        const pnlPct = p.unrealized_pnl_pct !== undefined && p.unrealized_pnl_pct !== null ? p.unrealized_pnl_pct : 0;
+        const pnlDollar = p.unrealized_pnl_dollar !== undefined && p.unrealized_pnl_dollar !== null ? p.unrealized_pnl_dollar : 0;
+        const isProfit = (pnlDollar !== 0) ? (pnlDollar > 0) : (pnlPct >= 0);
+        const pnlClass = isProfit ? 'c-green' : 'c-red';
+        const pnlSign = isProfit ? '+' : '';
+        
+        const absDollar = Math.abs(pnlDollar);
+        const dollarFormatted = absDollar >= 1000 ? absDollar.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : absDollar.toFixed(2);
+        const dollarStr = (pnlDollar >= 0 ? '+$' : '-$') + dollarFormatted;
+
+        let pnlDisplay = '--';
+        if (p.current_price) {
+          if (p.unrealized_r !== null && p.unrealized_r !== undefined) {
+            pnlDisplay = `${dollarStr} (${pnlSign}${p.unrealized_r.toFixed(1)}R)`;
+          } else {
+            pnlDisplay = `${dollarStr} (${pnlSign}${pnlPct.toFixed(1)}%)`;
+          }
+        }
+
+        let dirBadge = p.direction === 'LONG' ? 'L' : 'S';
+        if (p.partial_tier_done >= 1) {
+          dirBadge += ` <span style="font-size:8px; color:var(--wsr-orange); font-weight:bold;">[T${p.tier || p.partial_tier_done}]</span>`;
+        } else if (p.breakeven_set) {
+          dirBadge += ` <span style="font-size:8px; color:var(--wsr-yellow);">[BE]</span>`;
+        }
+
+        let targetDisplay = p.take_profit && p.take_profit > 0 ? `$${p.take_profit.toFixed(1)}` : (p.is_broker_native ? '<span class="c-muted">HOLD</span>' : '--');
+        if (p.partial_tier_done >= 1 || p.partial_exit_done) {
+          targetDisplay = `<span style="color:var(--wsr-orange); font-size:9.5px;">TRAIL $${p.stop_loss ? p.stop_loss.toFixed(2) : '--'}</span>`;
+        }
+
+        const exitCall = p.id ? `executeExit('${p.ticker}', ${p.id})` : `executeExit('${p.ticker}', null)`;
+
+        const isAlgoTrade = !p.is_broker_native;
+        const isOpen = expandedTradeSet.has(p.ticker);
+        const expandBtn = isAlgoTrade 
+          ? `<button class="term-btn" style="padding: 1px 4px; font-weight:bold; font-size:9px; margin-right:4px;" onclick="event.stopPropagation(); toggleTradeDetails('${p.ticker}')" id="btn-exp-${p.ticker}">${isOpen ? '[-]' : '[+]'}</button>` 
+          : '';
+
+        const isSelected = (currentTicker || '').toUpperCase() === p.ticker.toUpperCase();
+        const tr = document.createElement('tr');
+        tr.className = `pos-row ${isSelected ? 'pos-row-active' : ''}`;
+        tr.setAttribute('data-ticker', p.ticker);
+        tr.onclick = (e) => {
+          if (e.target.closest('.term-btn') || e.target.closest('.pos-details-row')) return;
+          selectTicker(p.ticker);
+        };
+        tr.innerHTML = `
+          <td class="c-cyan" style="padding:3px 4px;">${expandBtn}<b style="text-decoration: underline dotted;" title="Click to view ${p.ticker} chart">${p.ticker}</b></td>
+          <td class="${isLong ? 'c-green' : 'c-red'}" style="padding:3px 4px;">${dirBadge}</td>
+          <td style="padding:3px 4px;">$${p.entry_price ? p.entry_price.toFixed(2) : '--'}</td>
+          <td style="padding:3px 4px;"><b class="c-white">${currPrice}</b></td>
+          <td class="${pnlClass}" style="padding:3px 4px; font-weight:600;">${pnlDisplay}</td>
+          <td style="padding:3px 4px;">${targetDisplay}</td>
+          <td style="padding:3px 4px; text-align:center;"><button class="term-btn term-btn-exit" style="padding: 2px 6px; font-size: 9px;" onclick="event.stopPropagation(); ${exitCall}">EXIT</button></td>
+        `;
+        posTbody.appendChild(tr);
+
+        if (isAlgoTrade) {
+          const tier = p.tier || p.partial_tier_done || 0;
+          const initShares = p.initial_shares || p.quantity || 0;
+          const initCost = p.initial_cost || (initShares * (p.entry_price || 0));
+          const sharesSold = p.shares_sold || 0;
+          const realizedProfit = p.realized_profit_dollar || 0;
+          const totalPnl = p.total_trade_pnl_dollar !== undefined ? p.total_trade_pnl_dollar : pnlDollar;
+          const peakR = p.peak_high_r || p.unrealized_r || 0;
+
+          const drawerTr = document.createElement('tr');
+          drawerTr.id = `trade-drawer-${p.ticker}`;
+          drawerTr.className = 'pos-details-row';
+          drawerTr.style.display = isOpen ? 'table-row' : 'none';
+
+          drawerTr.innerHTML = `
+            <td colspan="7" style="padding: 6px 8px;">
+              <div class="pos-detail-card">
+                <div class="pos-detail-grid">
+                  <!-- Box 1: Beginning Balance & Entry -->
+                  <div class="detail-box">
+                    <div class="detail-title">INITIAL ALLOCATION & ENTRY</div>
+                    <div>Beginning Size: <b class="c-yellow">$${initCost.toFixed(2)}</b></div>
+                    <div>Initial Shares: <b class="c-white">${initShares.toFixed(4)}</b> @ $${p.entry_price ? p.entry_price.toFixed(2) : '--'}</div>
+                    <div>Initial Stop: <b class="c-red">$${p.initial_stop_loss ? p.initial_stop_loss.toFixed(2) : '--'}</b> (-1.0R)</div>
+                    <div>Initial Risk (1R): <b class="c-red">$${p.initial_risk_dollar ? p.initial_risk_dollar.toFixed(2) : '--'}</b></div>
+                  </div>
+
+                  <!-- Box 2: Current Position & Holdings -->
+                  <div class="detail-box">
+                    <div class="detail-title">CURRENT HOLDING & DEFENSE</div>
+                    <div>Remaining Shares: <b class="c-cyan">${p.quantity ? p.quantity.toFixed(4) : '--'}</b></div>
+                    <div>Market Value: <b class="c-white">$${p.market_value ? p.market_value.toFixed(2) : '--'}</b></div>
+                    <div>Shares Banked: <b class="c-green">${sharesSold > 0 ? sharesSold.toFixed(4) : '0.00'}</b></div>
+                    <div>Active Stop: <b class="${p.breakeven_set ? 'c-yellow' : 'c-white'}">$${p.stop_loss ? p.stop_loss.toFixed(2) : '--'} ${p.breakeven_set ? '(BREAKEVEN)' : ''}</b></div>
+                  </div>
+
+                  <!-- Box 3: P&L Breakdown -->
+                  <div class="detail-box">
+                    <div class="detail-title">P&L & CASH BANKED</div>
+                    <div>Banked Cash: <b class="c-green">+$${realizedProfit.toFixed(2)}</b></div>
+                    <div>Open Gain: <b class="${pnlClass}">${pnlDisplay}</b></div>
+                    <div>Total Trade P&L: <b class="${totalPnl >= 0 ? 'c-green' : 'c-red'}">${totalPnl >= 0 ? '+$' : '-$'}${Math.abs(totalPnl).toFixed(2)}</b></div>
+                    <div>Peak R Reached: <b class="c-yellow">+${peakR.toFixed(2)}R</b></div>
+                  </div>
+                </div>
+
+                <!-- 6-Tier Progress Ladder -->
+                <div class="detail-ladder">
+                  <div class="detail-title">6-TIER PROFIT LADDER STATUS</div>
+                  <div class="tier-steps">
+                    <span class="tier-step ${tier >= 1 ? 'tier-done' : ''}">${tier >= 1 ? '✓' : '○'} T1 (+0.20R) [10% Bank]</span>
+                    <span class="tier-step ${tier >= 2 ? 'tier-done' : ''}">${tier >= 2 ? '✓' : '○'} T2 (+0.40R) [10% Bank]</span>
+                    <span class="tier-step ${tier >= 3 ? 'tier-done' : ''}">${tier >= 3 ? '✓' : '○'} T3 (+0.65R) [10% + BE $0]</span>
+                    <span class="tier-step ${tier >= 4 ? 'tier-done' : ''}">${tier >= 4 ? '✓' : '○'} T4 (+1.00R) [25% Bank]</span>
+                    <span class="tier-step ${tier >= 5 ? 'tier-done' : ''}">${tier >= 5 ? '✓' : '○'} T5 (+1.30R) [25% Bank]</span>
+                    <span class="tier-step ${tier >= 5 ? 'tier-active' : ''}">${tier >= 5 ? '🚀' : '○'} T6 (20% Runner Trailing)</span>
+                  </div>
+                </div>
+              </div>
+            </td>
+          `;
+          posTbody.appendChild(drawerTr);
+        }
+      });
+      updateActiveTradePriceLines(currentTicker);
+    }
+
     // --- LOAD COMPLETE TERMINAL STATE ---
     async function fetchState() {
       try {
@@ -2446,138 +2614,7 @@
 
         // Active Positions Table
         rawPositionsData = data.positions || [];
-        const posTbody = document.querySelector('#tbl-positions tbody');
-        posTbody.innerHTML = '';
-        if (rawPositionsData.length > 0) {
-          rawPositionsData.forEach(p => {
-            const isLong = p.direction === 'LONG';
-            const currPrice = p.current_price ? `$${p.current_price.toFixed(2)}` : '--';
-            const pnlPct = p.unrealized_pnl_pct !== undefined && p.unrealized_pnl_pct !== null ? p.unrealized_pnl_pct : 0;
-            const pnlDollar = p.unrealized_pnl_dollar !== undefined && p.unrealized_pnl_dollar !== null ? p.unrealized_pnl_dollar : 0;
-            const isProfit = (pnlDollar !== 0) ? (pnlDollar > 0) : (pnlPct >= 0);
-            const pnlClass = isProfit ? 'c-green' : 'c-red';
-            const pnlSign = isProfit ? '+' : '';
-            
-            const absDollar = Math.abs(pnlDollar);
-            const dollarFormatted = absDollar >= 1000 ? absDollar.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : absDollar.toFixed(2);
-            const dollarStr = (pnlDollar >= 0 ? '+$' : '-$') + dollarFormatted;
-
-            let pnlDisplay = '--';
-            if (p.current_price) {
-              if (p.unrealized_r !== null && p.unrealized_r !== undefined) {
-                pnlDisplay = `${dollarStr} (${pnlSign}${p.unrealized_r.toFixed(1)}R)`;
-              } else {
-                pnlDisplay = `${dollarStr} (${pnlSign}${pnlPct.toFixed(1)}%)`;
-              }
-            }
-
-            let dirBadge = p.direction === 'LONG' ? 'L' : 'S';
-            if (p.partial_tier_done >= 1) {
-              dirBadge += ` <span style="font-size:8px; color:var(--wsr-orange); font-weight:bold;">[T${p.tier || p.partial_tier_done}]</span>`;
-            } else if (p.breakeven_set) {
-              dirBadge += ` <span style="font-size:8px; color:var(--wsr-yellow);">[BE]</span>`;
-            }
-
-            let targetDisplay = p.take_profit && p.take_profit > 0 ? `$${p.take_profit.toFixed(1)}` : (p.is_broker_native ? '<span class="c-muted">HOLD</span>' : '--');
-            if (p.partial_tier_done >= 1 || p.partial_exit_done) {
-              targetDisplay = `<span style="color:var(--wsr-orange); font-size:9.5px;">TRAIL $${p.stop_loss ? p.stop_loss.toFixed(2) : '--'}</span>`;
-            }
-
-            const exitCall = p.id ? `executeExit('${p.ticker}', ${p.id})` : `executeExit('${p.ticker}', null)`;
-
-            const isAlgoTrade = !p.is_broker_native;
-            const isOpen = expandedTradeSet.has(p.ticker);
-            const expandBtn = isAlgoTrade 
-              ? `<button class="term-btn" style="padding: 1px 4px; font-weight:bold; font-size:9px; margin-right:4px;" onclick="event.stopPropagation(); toggleTradeDetails('${p.ticker}')" id="btn-exp-${p.ticker}">${isOpen ? '[-]' : '[+]'}</button>` 
-              : '';
-
-            const isSelected = (currentTicker || '').toUpperCase() === p.ticker.toUpperCase();
-            const tr = document.createElement('tr');
-            tr.className = `pos-row ${isSelected ? 'pos-row-active' : ''}`;
-            tr.setAttribute('data-ticker', p.ticker);
-            tr.onclick = (e) => {
-              if (e.target.closest('.term-btn') || e.target.closest('.pos-details-row')) return;
-              selectTicker(p.ticker);
-            };
-            tr.innerHTML = `
-              <td class="c-cyan" style="padding:3px 4px;">${expandBtn}<b style="text-decoration: underline dotted;" title="Click to view ${p.ticker} chart">${p.ticker}</b></td>
-              <td class="${isLong ? 'c-green' : 'c-red'}" style="padding:3px 4px;">${dirBadge}</td>
-              <td style="padding:3px 4px;">$${p.entry_price ? p.entry_price.toFixed(2) : '--'}</td>
-              <td style="padding:3px 4px;"><b class="c-white">${currPrice}</b></td>
-              <td class="${pnlClass}" style="padding:3px 4px; font-weight:600;">${pnlDisplay}</td>
-              <td style="padding:3px 4px;">${targetDisplay}</td>
-              <td style="padding:3px 4px; text-align:center;"><button class="term-btn term-btn-exit" style="padding: 2px 6px; font-size: 9px;" onclick="event.stopPropagation(); ${exitCall}">EXIT</button></td>
-            `;
-            posTbody.appendChild(tr);
-
-            if (isAlgoTrade) {
-              const tier = p.tier || p.partial_tier_done || 0;
-              const initShares = p.initial_shares || p.quantity || 0;
-              const initCost = p.initial_cost || (initShares * (p.entry_price || 0));
-              const sharesSold = p.shares_sold || 0;
-              const realizedProfit = p.realized_profit_dollar || 0;
-              const totalPnl = p.total_trade_pnl_dollar !== undefined ? p.total_trade_pnl_dollar : pnlDollar;
-              const peakR = p.peak_high_r || p.unrealized_r || 0;
-
-              const drawerTr = document.createElement('tr');
-              drawerTr.id = `trade-drawer-${p.ticker}`;
-              drawerTr.className = 'pos-details-row';
-              drawerTr.style.display = isOpen ? 'table-row' : 'none';
-
-              drawerTr.innerHTML = `
-                <td colspan="7" style="padding: 6px 8px;">
-                  <div class="pos-detail-card">
-                    <div class="pos-detail-grid">
-                      <!-- Box 1: Beginning Balance & Entry -->
-                      <div class="detail-box">
-                        <div class="detail-title">INITIAL ALLOCATION & ENTRY</div>
-                        <div>Beginning Size: <b class="c-yellow">$${initCost.toFixed(2)}</b></div>
-                        <div>Initial Shares: <b class="c-white">${initShares.toFixed(4)}</b> @ $${p.entry_price ? p.entry_price.toFixed(2) : '--'}</div>
-                        <div>Initial Stop: <b class="c-red">$${p.initial_stop_loss ? p.initial_stop_loss.toFixed(2) : '--'}</b> (-1.0R)</div>
-                        <div>Initial Risk (1R): <b class="c-red">$${p.initial_risk_dollar ? p.initial_risk_dollar.toFixed(2) : '--'}</b></div>
-                      </div>
-
-                      <!-- Box 2: Current Position & Holdings -->
-                      <div class="detail-box">
-                        <div class="detail-title">CURRENT HOLDING & DEFENSE</div>
-                        <div>Remaining Shares: <b class="c-cyan">${p.quantity ? p.quantity.toFixed(4) : '--'}</b></div>
-                        <div>Market Value: <b class="c-white">$${p.market_value ? p.market_value.toFixed(2) : '--'}</b></div>
-                        <div>Shares Banked: <b class="c-green">${sharesSold > 0 ? sharesSold.toFixed(4) : '0.00'}</b></div>
-                        <div>Active Stop: <b class="${p.breakeven_set ? 'c-yellow' : 'c-white'}">$${p.stop_loss ? p.stop_loss.toFixed(2) : '--'} ${p.breakeven_set ? '(BREAKEVEN)' : ''}</b></div>
-                      </div>
-
-                      <!-- Box 3: P&L Breakdown -->
-                      <div class="detail-box">
-                        <div class="detail-title">P&L & CASH BANKED</div>
-                        <div>Banked Cash: <b class="c-green">+$${realizedProfit.toFixed(2)}</b></div>
-                        <div>Open Gain: <b class="${pnlClass}">${pnlDisplay}</b></div>
-                        <div>Total Trade P&L: <b class="${totalPnl >= 0 ? 'c-green' : 'c-red'}">${totalPnl >= 0 ? '+$' : '-$'}${Math.abs(totalPnl).toFixed(2)}</b></div>
-                        <div>Peak R Reached: <b class="c-yellow">+${peakR.toFixed(2)}R</b></div>
-                      </div>
-                    </div>
-
-                    <!-- 6-Tier Progress Ladder -->
-                    <div class="detail-ladder">
-                      <div class="detail-title">6-TIER PROFIT LADDER STATUS</div>
-                      <div class="tier-steps">
-                        <span class="tier-step ${tier >= 1 ? 'tier-done' : ''}">${tier >= 1 ? '✓' : '○'} T1 (+0.20R) [10% Bank]</span>
-                        <span class="tier-step ${tier >= 2 ? 'tier-done' : ''}">${tier >= 2 ? '✓' : '○'} T2 (+0.40R) [10% Bank]</span>
-                        <span class="tier-step ${tier >= 3 ? 'tier-done' : ''}">${tier >= 3 ? '✓' : '○'} T3 (+0.65R) [10% + BE $0]</span>
-                        <span class="tier-step ${tier >= 4 ? 'tier-done' : ''}">${tier >= 4 ? '✓' : '○'} T4 (+1.00R) [25% Bank]</span>
-                        <span class="tier-step ${tier >= 5 ? 'tier-done' : ''}">${tier >= 5 ? '✓' : '○'} T5 (+1.30R) [25% Bank]</span>
-                        <span class="tier-step ${tier >= 5 ? 'tier-active' : ''}">${tier >= 5 ? '🚀' : '○'} T6 (20% Runner Trailing)</span>
-                      </div>
-                    </div>
-                  </div>
-                </td>
-              `;
-              posTbody.appendChild(drawerTr);
-            }
-          });
-        } else {
-          posTbody.innerHTML = '<tr><td colspan="7" class="c-muted">No open active positions</td></tr>';
-        }
-        updateActiveTradePriceLines(currentTicker);
+        renderPositionsTable();
 
         const algoPnlEl = document.getElementById('header-algo-pnl');
         if (algoPnlEl) {
@@ -3091,6 +3128,19 @@
       renderOptionsTable(filtered);
     }
 
+    let optionsSortField = 'confluence_score';
+    let optionsSortAsc = false;
+
+    function sortOptions(field) {
+      if (optionsSortField === field) {
+        optionsSortAsc = !optionsSortAsc;
+      } else {
+        optionsSortField = field;
+        optionsSortAsc = true;
+      }
+      filterOptionsTable(currentOptFilter);
+    }
+
     function renderOptionsTable(items) {
       const tbody = document.getElementById('tbl-options-scanner-body');
       tbody.innerHTML = '';
@@ -3099,7 +3149,39 @@
         return;
       }
 
-      items.forEach(item => {
+      let sorted = [...items];
+      sorted.sort((a, b) => {
+        let valA = a[optionsSortField];
+        let valB = b[optionsSortField];
+
+        if (optionsSortField === 'delta') {
+          valA = a.optimal_call ? a.optimal_call.delta : 0;
+          valB = b.optimal_call ? b.optimal_call.delta : 0;
+        } else if (optionsSortField === 'gamma') {
+          valA = a.optimal_call ? a.optimal_call.gamma : 0;
+          valB = b.optimal_call ? b.optimal_call.gamma : 0;
+        } else if (optionsSortField === 'iv') {
+          valA = a.optimal_call ? a.optimal_call.iv : 0;
+          valB = b.optimal_call ? b.optimal_call.iv : 0;
+        } else if (optionsSortField === 'call_strike') {
+          valA = a.optimal_call ? a.optimal_call.strike : 0;
+          valB = b.optimal_call ? b.optimal_call.strike : 0;
+        }
+
+        if (typeof valA === 'number' || typeof valB === 'number') {
+          valA = parseFloat(valA || 0);
+          valB = parseFloat(valB || 0);
+          return optionsSortAsc ? valA - valB : valB - valA;
+        }
+
+        valA = (valA || '').toString().toLowerCase();
+        valB = (valB || '').toString().toLowerCase();
+        if (valA < valB) return optionsSortAsc ? -1 : 1;
+        if (valA > valB) return optionsSortAsc ? 1 : -1;
+        return 0;
+      });
+
+      sorted.forEach(item => {
         const tr = document.createElement('tr');
         if (selectedOptionsTicker === item.ticker) {
           tr.style.backgroundColor = '#161320';
@@ -3368,6 +3450,32 @@
       renderPaperTradesTable();
     }
 
+    let paperSortField = 'timestamp';
+    let paperSortAsc = false;
+
+    function sortPaperTrades(field) {
+      if (paperSortField === field) {
+        paperSortAsc = !paperSortAsc;
+      } else {
+        paperSortField = field;
+        paperSortAsc = true;
+      }
+      renderPaperTradesTable();
+    }
+
+    let paperClosedSortField = 'id';
+    let paperClosedSortAsc = false;
+
+    function sortPaperClosed(field) {
+      if (paperClosedSortField === field) {
+        paperClosedSortAsc = !paperClosedSortAsc;
+      } else {
+        paperClosedSortField = field;
+        paperClosedSortAsc = true;
+      }
+      renderPaperClosedTable();
+    }
+
     function renderPaperTradesTable() {
       const tbody = document.getElementById('tbl-paper-trades-body');
       if (!tbody) return;
@@ -3386,6 +3494,24 @@
         tbody.innerHTML = '<tr><td colspan="13" style="text-align: center; padding: 20px; color: var(--wsr-muted);">No simulated trades matching filter.</td></tr>';
         return;
       }
+
+      // Dynamic sorting across all fields
+      filtered.sort((a, b) => {
+        let valA = a[paperSortField];
+        let valB = b[paperSortField];
+
+        if (['entry_price', 'current_price', 'stop_loss', 'take_profit', 'current_r', 'peak_high_r', 'ml_confidence'].includes(paperSortField)) {
+          valA = parseFloat(valA || 0);
+          valB = parseFloat(valB || 0);
+          return paperSortAsc ? valA - valB : valB - valA;
+        }
+
+        valA = (valA || '').toString().toLowerCase();
+        valB = (valB || '').toString().toLowerCase();
+        if (valA < valB) return paperSortAsc ? -1 : 1;
+        if (valA > valB) return paperSortAsc ? 1 : -1;
+        return 0;
+      });
       
       tbody.innerHTML = filtered.map(t => {
         const isLong = (t.direction || 'LONG').toUpperCase() === 'LONG';
@@ -3411,7 +3537,10 @@
           statusBadge = '<span style="color: #ff4d4d; font-weight: 700; background: #330000; padding: 1px 4px; border-radius: 2px; border: 1px solid #b30000;">⚠️ NEAR STOP</span>';
         }
         
-        const mlConf = t.ml_confidence ? `${Math.round(t.ml_confidence * 100)}%` : '--';
+        // Exact percentage formatting: handles both raw % (33.2) and decimals (0.332)
+        const rawConf = parseFloat(t.ml_confidence || 0);
+        const confVal = rawConf > 1.0 ? rawConf : rawConf * 100.0;
+        const mlConf = rawConf > 0 ? `${confVal.toFixed(1)}%` : '--';
         const timeStr = t.timestamp ? t.timestamp.replace('T', ' ').substring(5, 16) : '--';
         
         return `<tr>
@@ -3425,7 +3554,7 @@
           <td style="font-weight: 700;" class="${rClass}">${rStr}</td>
           <td style="color: #ffd700; font-weight: 600;">${peakStr}</td>
           <td>${statusBadge}</td>
-          <td style="color: #00e5ff;">${mlConf}</td>
+          <td style="color: #00e5ff; font-weight: 600;">${mlConf}</td>
           <td style="color: #888; font-size: 9.5px;">${timeStr}</td>
           <td>
             <button class="options-filter-btn" style="padding: 1px 5px; font-size: 9px;" onclick="openChartFromPaper('${t.ticker}', '${t.timeframe || '5m'}')">📊 CHART</button>
@@ -3447,7 +3576,25 @@
         return;
       }
       
-      tbody.innerHTML = paperClosedData.map(c => {
+      let closedList = [...paperClosedData];
+      closedList.sort((a, b) => {
+        let valA = a[paperClosedSortField];
+        let valB = b[paperClosedSortField];
+
+        if (['entry_price', 'exit_price', 'pnl_r', 'id'].includes(paperClosedSortField)) {
+          valA = parseFloat(valA || 0);
+          valB = parseFloat(valB || 0);
+          return paperClosedSortAsc ? valA - valB : valB - valA;
+        }
+
+        valA = (valA || '').toString().toLowerCase();
+        valB = (valB || '').toString().toLowerCase();
+        if (valA < valB) return paperClosedSortAsc ? -1 : 1;
+        if (valA > valB) return paperClosedSortAsc ? 1 : -1;
+        return 0;
+      });
+
+      tbody.innerHTML = closedList.map(c => {
         const isLong = (c.direction || 'LONG').toUpperCase() === 'LONG';
         const dirBadge = isLong 
           ? '<span style="color: #00d26a; font-weight: 700;">▲ LONG</span>'
