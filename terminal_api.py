@@ -1163,19 +1163,18 @@ def bot_health():
 
         started = False
         if not is_bot_running:
-            # Auto-restart the alert bot immediately!
-            cmd = f"cd {repo_dir} && (echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service)"
-            res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            if res.returncode != 0:
-                subprocess.Popen(
-                    [py_exe, "wyckoff_alert_bot.py"],
-                    cwd=repo_dir,
-                    stdout=open(os.path.join(repo_dir, "bot.log"), "a"),
-                    stderr=subprocess.STDOUT,
-                    stdin=subprocess.DEVNULL,
-                    start_new_session=True
-                )
+            # Direct detached python process launch
+            log_file = open(os.path.join(repo_dir, "bot.log"), "a")
+            subprocess.Popen(
+                [py_exe, os.path.join(repo_dir, "wyckoff_alert_bot.py")],
+                cwd=repo_dir,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True
+            )
             started = True
+            time.sleep(2)
 
         bot_log_tail = ""
         log_path = os.path.join(repo_dir, "bot.log")
