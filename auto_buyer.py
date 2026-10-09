@@ -307,10 +307,11 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
     mult = sizing['multiplier']
 
     t1_r = round(calc_target_r * 0.20, 2)
-    t2_r = round(calc_target_r * 0.40, 2)
-    t3_r = round(calc_target_r * 0.60, 2)
+    t2_r = round(calc_target_r * 0.35, 2)
+    t3_r = round(calc_target_r * 0.50, 2)
     t4_r = round(calc_target_r * 0.85, 2)
     t5_r = round(calc_target_r * 1.00, 2)
+    t1_risk_cap = round(min(0.55, max(0.35, calc_target_r * 0.50)), 2)
 
     try:
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ⚡ EXECUTING AUTONOMOUS BUY: {ticker} (${dollar_alloc:.2f}) on Public.com...")
@@ -356,12 +357,12 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
             f"Initial Stop: ${sl:.2f}\n"
             f"Wyckoff Target: ${tp:.2f} (+{calc_target_r:.2f}R)\n"
             f"Order UUID: {order_uuid}{conf_str}\n\n"
-            f"🛡️ Target-Relative Exit Ladder (+{calc_target_r:.2f}R Target):\n"
-            f"• Tier 1 (+{t1_r:+.2f}R | 20%): Bank 10% (Cushion)\n"
-            f"• Tier 2 (+{t2_r:+.2f}R | 40%): Bank 10% (Stop trails -0.50R)\n"
-            f"• Tier 3 (+{t3_r:+.2f}R | 60%): Bank 15% (Stop to BREAKEVEN $0.00)\n"
+            f"🛡️ Elastic Risk/Reward Envelope (+{calc_target_r:.2f}R Target):\n"
+            f"• Tier 1 (+{t1_r:+.2f}R | 20%): Bank 10% (Risk capped at -{t1_risk_cap:.2f}R)\n"
+            f"• Tier 2 (+{t2_r:+.2f}R | 35%): Bank 10% (Stop trails -0.20R micro-risk)\n"
+            f"• Tier 3 (+{t3_r:+.2f}R | 50%): Bank 15% (Stop to BREAKEVEN $0.00 Free Trade)\n"
             f"• Tier 4 (+{t4_r:+.2f}R | 85%): Bank 25% (Front-Run Resistance)\n"
-            f"• Tier 5 (+{t5_r:+.2f}R | 100%): Bank 25% (Full Target Hit)\n"
+            f"• Tier 5 (+{t5_r:+.2f}R | 100%): Bank 25% (Full Target Tag)\n"
             f"• Tier 6 (Runner 15%): Trailed into 3:55 PM EST Flatten"
         )
         send_message(msg)

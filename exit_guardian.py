@@ -249,13 +249,16 @@ def run_guardian_cycle():
 
         # Dynamic Thresholds based on Expected Target R:
         t1_thresh_r = round(setup_target_r * 0.20, 2)  # 20% of Target
-        t2_thresh_r = round(setup_target_r * 0.40, 2)  # 40% of Target
-        t3_thresh_r = round(setup_target_r * 0.60, 2)  # 60% of Target (Breakeven trigger)
+        t2_thresh_r = round(setup_target_r * 0.35, 2)  # 35% of Target
+        t3_thresh_r = round(setup_target_r * 0.50, 2)  # 50% of Target (Early Breakeven trigger)
         t4_thresh_r = round(setup_target_r * 0.85, 2)  # 85% of Target (Front-run resistance)
         t5_thresh_r = round(setup_target_r * 1.00, 2)  # 100% of Target (Full tag)
+        
+        # Symmetrically compressed risk cap at Tier 1 (e.g. -0.35R on 0.65R trade, -0.50R on 1.0R trade)
+        t1_risk_cap = round(min(0.55, max(0.35, setup_target_r * 0.50)), 2)
 
         # -------------------------------------------------------------
-        # TIER 1: 20% OF TARGET (Sell 10%, Keep Stop at -1.0R Initial Stop)
+        # TIER 1: 20% OF TARGET (Sell 10%, Compress Stop to Elastic Risk Cap)
         # -------------------------------------------------------------
         if curr_r >= t1_thresh_r and tier < 1:
             sell_qty = round(init_shares * 0.10, 5) if init_shares > 0 else 0.0
@@ -266,21 +269,24 @@ def run_guardian_cycle():
                 except Exception as ex:
                     print(f"[{get_est_now_str()}] [Guardian] Tier 1 partial sell error for {sym}: {ex}")
 
-            c.execute("UPDATE alerts SET partial_tier_done = 1 WHERE id = ?", (trade_id,))
+            t1_sl = (entry - (t1_risk_cap * init_risk)) if is_long else (entry + (t1_risk_cap * init_risk))
+            c.execute("UPDATE alerts SET partial_tier_done = 1, stop_loss = ? WHERE id = ?", (t1_sl, trade_id))
             conn.commit()
             tier = 1
             t['partial_tier_done'] = 1
+            t['stop_loss'] = t1_sl
+            curr_sl = t1_sl
             t1_msg = (
                 f"🎯 [GUARDIAN] TIER 1 HIT (20% Target): {sym} reaches +{curr_r:.2f}R (+{t1_thresh_r:.2f}R milestone)!\n"
                 f"• Target Setup: +{setup_target_r:.2f}R\n"
                 f"• Action: Banked 10% ({sell_qty} shares) @ ${price:.2f}.\n"
-                f"• Defense: Initial Stop remains at ${init_sl:.2f} (-1.0R) to let trade breathe."
+                f"• Elastic Defense: Stop Loss compressed to ${t1_sl:.2f} (-{t1_risk_cap:.2f}R max risk)."
             )
             print(f"[{get_est_now_str()}] {t1_msg}")
             send_tg(t1_msg)
 
         # -------------------------------------------------------------
-        # TIER 2: 40% OF TARGET (Sell 10%, Trail Stop to -0.50R)
+        # TIER 2: 35% OF TARGET (Sell 10%, Trail Stop to -0.20R Micro Risk)
         # -------------------------------------------------------------
         if curr_r >= t2_thresh_r and tier < 2:
             sell_qty = round(init_shares * 0.10, 5) if init_shares > 0 else 0.0
@@ -291,7 +297,7 @@ def run_guardian_cycle():
                 except Exception as ex:
                     print(f"[{get_est_now_str()}] [Guardian] Tier 2 partial sell error for {sym}: {ex}")
 
-            t2_sl = (entry - (0.50 * init_risk)) if is_long else (entry + (0.50 * init_risk))
+            t2_sl = (entry - (0.20 * init_risk)) if is_long else (entry + (0.20 * init_risk))
             c.execute("UPDATE alerts SET partial_tier_done = 2, stop_loss = ? WHERE id = ?", (t2_sl, trade_id))
             conn.commit()
             tier = 2
@@ -299,16 +305,16 @@ def run_guardian_cycle():
             t['stop_loss'] = t2_sl
             curr_sl = t2_sl
             t2_msg = (
-                f"🎯 [GUARDIAN] TIER 2 HIT (40% Target): {sym} reaches +{curr_r:.2f}R (+{t2_thresh_r:.2f}R milestone)!\n"
+                f"🎯 [GUARDIAN] TIER 2 HIT (35% Target): {sym} reaches +{curr_r:.2f}R (+{t2_thresh_r:.2f}R milestone)!\n"
                 f"• Target Setup: +{setup_target_r:.2f}R\n"
                 f"• Action: Banked 10% ({sell_qty} shares, 20% total).\n"
-                f"• Defense: Stop Loss trailed to ${t2_sl:.2f} (-0.50R, risk cut in half)."
+                f"• Elastic Defense: Stop Loss trailed to ${t2_sl:.2f} (-0.20R micro risk)."
             )
             print(f"[{get_est_now_str()}] {t2_msg}")
             send_tg(t2_msg)
 
         # -------------------------------------------------------------
-        # TIER 3: 60% OF TARGET (Sell 15%, Move Stop to Entry $0.00 Breakeven)
+        # TIER 3: 50% OF TARGET (Sell 15%, Move Stop to Entry $0.00 Breakeven)
         # -------------------------------------------------------------
         if curr_r >= t3_thresh_r and tier < 3:
             sell_qty = round(init_shares * 0.15, 5) if init_shares > 0 else 0.0
@@ -328,7 +334,7 @@ def run_guardian_cycle():
             curr_sl = entry
             be_set = True
             t3_msg = (
-                f"🛡️ [GUARDIAN] TIER 3 BREAKEVEN LOCK (60% Target): {sym} reaches +{curr_r:.2f}R (+{t3_thresh_r:.2f}R milestone)!\n"
+                f"🛡️ [GUARDIAN] TIER 3 BREAKEVEN LOCK (50% Target): {sym} reaches +{curr_r:.2f}R (+{t3_thresh_r:.2f}R milestone)!\n"
                 f"• Target Setup: +{setup_target_r:.2f}R\n"
                 f"• Action: Banked 15% ({sell_qty} shares, 35% total banked).\n"
                 f"• Defense: Stop moved to Entry (${entry:.2f}). Dollar risk is now $0.00 (Free Trade)!"
