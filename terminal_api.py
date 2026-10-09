@@ -3,6 +3,17 @@ import json
 import sqlite3
 import datetime
 import asyncio
+
+# Ensure standard Linux system PATHs are always present in virtualenv environment
+if os.name != 'nt':
+    std_paths = ["/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin", "/sbin", "/bin"]
+    curr_path = os.environ.get("PATH", "")
+    for p in std_paths:
+        if p not in curr_path:
+            curr_path = f"{p}:{curr_path}"
+    os.environ["PATH"] = curr_path
+    os.environ["PYTHONUNBUFFERED"] = "1"
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, status, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse, Response
@@ -1164,16 +1175,26 @@ def bot_health():
 
         started = False
         if not is_bot_running:
-            # Direct detached python process launch
-            log_file = open(os.path.join(repo_dir, "bot.log"), "a")
-            subprocess.Popen(
-                [py_exe, os.path.join(repo_dir, "wyckoff_alert_bot.py")],
-                cwd=repo_dir,
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-                stdin=subprocess.DEVNULL,
-                start_new_session=True
-            )
+            # First attempt to trigger via systemctl if service registered
+            subprocess.run("echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service 2>/dev/null", shell=True)
+            time.sleep(1)
+            ps_check = subprocess.run("ps aux | grep -v grep | grep wyckoff_alert_bot", shell=True, capture_output=True, text=True)
+            is_bot_running = bool(ps_check.stdout.strip())
+
+            if not is_bot_running:
+                # Direct detached unbuffered python process launch
+                log_file = open(os.path.join(repo_dir, "bot.log"), "a")
+                env = dict(os.environ)
+                env["PYTHONUNBUFFERED"] = "1"
+                subprocess.Popen(
+                    [py_exe, "-u", os.path.join(repo_dir, "wyckoff_alert_bot.py")],
+                    cwd=repo_dir,
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    stdin=subprocess.DEVNULL,
+                    start_new_session=True,
+                    env=env
+                )
             started = True
             time.sleep(2)
 

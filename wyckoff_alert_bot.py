@@ -651,10 +651,11 @@ reports_sent = {"morning": False, "lunch": False, "power": False}
 
 def send_market_report(session_name):
     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Generating {session_name} Report...")
-    data = yf.download(TICKERS, period="10d", interval="1h", group_by='ticker', progress=False)
+    scan_tickers = TICKERS[:25]
+    data = yf.download(scan_tickers, period="10d", interval="1h", group_by='ticker', progress=False)
     
     exhausted = []
-    for ticker in TICKERS:
+    for ticker in scan_tickers:
         try:
             df = data[ticker].dropna() if len(TICKERS) > 1 else data.dropna()
             if df.empty or len(df) < 50: continue
@@ -724,10 +725,11 @@ def send_market_report(session_name):
 
 def send_daily_recap():
     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Generating Daily Recap...")
-    data = yf.download(TICKERS, period="10d", interval="1h", group_by='ticker', progress=False)
+    scan_tickers = TICKERS[:25]
+    data = yf.download(scan_tickers, period="10d", interval="1h", group_by='ticker', progress=False)
     
     exhausted = []
-    for ticker in TICKERS:
+    for ticker in scan_tickers:
         try:
             df = data[ticker].dropna() if len(TICKERS) > 1 else data.dropna()
             if df.empty or len(df) < 50: continue
@@ -820,7 +822,8 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Error launching Stalker Radar daemon: {e}")
 
-    send_market_report("On-Demand")
+    # Immediate start of live scanner without blocking boot
+    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Entering live market scanning loop...")
     
     while True:
         check_telegram_commands()
