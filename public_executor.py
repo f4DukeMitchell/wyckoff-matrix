@@ -187,9 +187,17 @@ def execute_short_sell(ticker, dollar_amount=None):
 def execute_exit_position(ticker, quantity=None, direction=None):
     """
     Closes an open position on Public.com:
-    - If LONG: Executes OrderSide.SELL (sell to close).
-    - If SHORT: Executes OrderSide.BUY with OpenCloseIndicator.CLOSE (buy to cover).
+    - Auto-detects whether the asset is an OPTION or an EQUITY from live portfolio holdings.
+    - If OPTION: Executes OrderInstrument(symbol=..., type='OPTION'), OrderSide.SELL with OpenCloseIndicator.CLOSE.
+    - If EQUITY LONG: Executes OrderSide.SELL (sell to close).
+    - If EQUITY SHORT: Executes OrderSide.BUY with OpenCloseIndicator.CLOSE (buy to cover).
+    - Strictly preserves core protected holds: AMC, APE, NKE.
     """
+    PROTECTED_HOLDS = {'AMC', 'APE', 'NKE'}
+    sym_upper = ticker.upper()
+    if sym_upper in PROTECTED_HOLDS:
+        return {'status': 'SKIPPED_PROTECTED_HOLD', 'ticker': sym_upper}
+
     client = get_client()
     acc_id = get_account_id()
     order_uuid = str(uuid.uuid4())
@@ -198,27 +206,53 @@ def execute_exit_position(ticker, quantity=None, direction=None):
     if direction and direction.upper() == 'SHORT':
         is_short = True
     
-    # If quantity not provided or direction not provided, inspect portfolio
-    if quantity is None or direction is None:
-        port = client.get_portfolio(acc_id)
-        for p in (port.positions or []):
-            if hasattr(p, 'instrument') and p.instrument.symbol.upper() == ticker.upper():
-                q = Decimal(str(p.quantity))
-                if q < 0:
-                    is_short = True
-                    quantity = abs(q)
-                else:
-                    quantity = q
-                break
-                
+    actual_symbol = sym_upper
+    inst_type = 'EQUITY'
+    
+    # Inspect portfolio to determine exact broker instrument, symbol, and quantity
+    port = client.get_portfolio(acc_id)
+    matched_pos = None
+    for p in (port.positions or []):
+        if not hasattr(p, 'instrument'): continue
+        psym = p.instrument.symbol.upper()
+        if psym in PROTECTED_HOLDS: continue
+        
+        # Match exact symbol or option derivative of ticker (e.g. NVDA261016C00115000)
+        if psym == sym_upper or psym.startswith(sym_upper):
+            matched_pos = p
+            actual_symbol = psym
+            p_type_str = str(getattr(p.instrument, 'type', 'EQUITY'))
+            if 'OPTION' in p_type_str.upper() or len(psym) > 10:
+                inst_type = 'OPTION'
+            break
+            
+    if matched_pos:
+        q = Decimal(str(matched_pos.quantity))
+        if q < 0:
+            is_short = True
+            quantity = abs(q)
+        else:
+            quantity = q
+            
     if not quantity or quantity <= 0:
         return {'status': 'NO_POSITION_FOUND', 'ticker': ticker}
         
-    if is_short:
-        # Buy to cover short
+    if inst_type == 'OPTION':
+        # Sell to close option contract
         req = OrderRequest(
             order_id=order_uuid,
-            instrument=OrderInstrument(symbol=ticker.upper(), type='EQUITY'),
+            instrument=OrderInstrument(symbol=actual_symbol, type='OPTION'),
+            order_side=OrderSide.SELL,
+            order_type=OrderType.MARKET,
+            expiration=OrderExpirationRequest(time_in_force=TimeInForce.DAY),
+            quantity=Decimal(str(quantity)),
+            open_close_indicator=OpenCloseIndicator.CLOSE
+        )
+    elif is_short:
+        # Buy to cover short equity
+        req = OrderRequest(
+            order_id=order_uuid,
+            instrument=OrderInstrument(symbol=actual_symbol, type='EQUITY'),
             order_side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             expiration=OrderExpirationRequest(time_in_force=TimeInForce.DAY),
@@ -226,10 +260,10 @@ def execute_exit_position(ticker, quantity=None, direction=None):
             open_close_indicator=OpenCloseIndicator.CLOSE
         )
     else:
-        # Sell to close long
+        # Sell to close long equity
         req = OrderRequest(
             order_id=order_uuid,
-            instrument=OrderInstrument(symbol=ticker.upper(), type='EQUITY'),
+            instrument=OrderInstrument(symbol=actual_symbol, type='EQUITY'),
             order_side=OrderSide.SELL,
             order_type=OrderType.MARKET,
             expiration=OrderExpirationRequest(time_in_force=TimeInForce.DAY),
@@ -239,9 +273,10 @@ def execute_exit_position(ticker, quantity=None, direction=None):
     res = client.place_order(req, account_id=acc_id)
     return {
         'order_id': order_uuid,
-        'ticker': ticker.upper(),
+        'ticker': actual_symbol,
+        'instrument_type': inst_type,
         'quantity': float(quantity),
-        'side': 'COVER' if is_short else 'SELL',
+        'side': 'SELL' if (inst_type == 'OPTION' or not is_short) else 'COVER',
         'status': str(getattr(res, 'status', 'SUBMITTED')),
         'account_id': acc_id
     }

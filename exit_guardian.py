@@ -88,26 +88,34 @@ def check_eod_flatten(trades, live_prices, conn):
     return True
 
 def flatten_all_algo_trades(reason="MANUAL_TERMINAL_TRIGGER"):
-    """Manually flattens all open algo positions immediately."""
+    """
+    Manually flattens all open algo and trading positions immediately.
+    Dual-layer guarantee:
+    1. Closes and updates all active DB alerts (user_active = 1).
+    2. Directly sweeps the live Public.com broker portfolio and closes any open non-core position (equities & options), strictly protecting AMC, APE, NKE.
+    """
+    PROTECTED_HOLDS = {'AMC', 'APE', 'NKE'}
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
     c.execute("SELECT * FROM alerts WHERE outcome = 'OPEN' AND user_active = 1")
     trades = [dict(r) for r in c.fetchall()]
-    if not trades:
-        conn.close()
-        return {"success": True, "closed_count": 0, "message": "No active algo trades open."}
 
     tickers = list(set([t['ticker'] for t in trades]))
     try:
-        from public_executor import get_live_prices, execute_exit_position
+        from public_executor import get_live_prices, execute_exit_position, get_client, get_account_id
         live_prices = get_live_prices(tickers)
     except Exception:
         live_prices = {}
 
     closed = []
+    processed_tickers = set()
+
+    # 1. Sweep active DB trades
     for t in trades:
-        sym = t['ticker']
+        sym = t['ticker'].upper()
+        if sym in PROTECTED_HOLDS: continue
+        processed_tickers.add(sym)
         direction = t.get('direction', 'LONG')
         price = live_prices.get(sym) or float(t.get('entry_price', 0))
         entry = float(t.get('entry_price', 0))
@@ -118,7 +126,8 @@ def flatten_all_algo_trades(reason="MANUAL_TERMINAL_TRIGGER"):
         outcome = 'WIN' if curr_r > 0 else ('BREAKEVEN' if curr_r == 0 else 'LOSS')
 
         try:
-            execute_exit_position(sym, direction=direction)
+            exit_res = execute_exit_position(sym, direction=direction)
+            print(f"Flatten DB trade {sym}: {exit_res}")
         except Exception as e:
             print(f"Flatten error for {sym}: {e}")
 
@@ -132,9 +141,35 @@ def flatten_all_algo_trades(reason="MANUAL_TERMINAL_TRIGGER"):
     conn.commit()
     conn.close()
 
-    lines = [f"• {c_item['ticker']}: {c_item['pnl_r']:+.2f}R @ ${c_item['price']:.2f}" for c_item in closed]
-    msg = f"🚨 [MANUAL FLATTEN] Closed {len(closed)} open algo trades at market:\n" + "\n".join(lines)
-    send_tg(msg)
+    # 2. Broker-level sweep: Close any remaining non-core holdings (including options or untracked equity trades)
+    try:
+        from public_executor import get_client, get_account_id, execute_exit_position
+        client = get_client()
+        acc_id = get_account_id()
+        port = client.get_portfolio(acc_id)
+        for p in (port.positions or []):
+            if not hasattr(p, 'instrument'): continue
+            psym = p.instrument.symbol.upper()
+            if psym in PROTECTED_HOLDS or psym in processed_tickers:
+                continue
+            
+            # Check quantity
+            qty = abs(float(p.quantity or 0.0))
+            if qty > 0:
+                print(f"Flatten sweeping broker holding: {psym} (Qty: {qty})")
+                try:
+                    b_exit = execute_exit_position(psym, quantity=qty)
+                    closed.append({"ticker": psym, "pnl_r": 0.0, "price": float(p.last_price.last_price or 0.0) if hasattr(p, 'last_price') and p.last_price else 0.0})
+                    processed_tickers.add(psym)
+                except Exception as b_err:
+                    print(f"Broker sweep error for {psym}: {b_err}")
+    except Exception as sweep_err:
+        print(f"Error during broker portfolio sweep: {sweep_err}")
+
+    if closed:
+        lines = [f"• {c_item['ticker']}: @ ${c_item['price']:.2f}" for c_item in closed]
+        msg = f"🚨 [MANUAL FLATTEN] Closed {len(closed)} open positions at market on Public.com:\n" + "\n".join(lines)
+        send_tg(msg)
     return {"success": True, "closed_count": len(closed), "trades": closed}
 
 def run_guardian_cycle():
