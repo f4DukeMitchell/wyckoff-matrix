@@ -253,11 +253,20 @@ def scan_single_ticker_options(ticker, stock_price=None, target_r=1.15, init_ris
         }
     }
 
-def get_options_scanner_data():
+_OPTIONS_CACHE = {"data": [], "timestamp": 0}
+CACHE_TTL = 60 # Cache for 60 seconds to ensure instant UI rendering
+
+def get_options_scanner_data(force_refresh=False):
     """
     Scans active open trades AND recent Wyckoff Spring setups,
     pairing them with live options intelligence and milestone tracking.
     """
+    global _OPTIONS_CACHE
+    import time
+    now = time.time()
+    if not force_refresh and _OPTIONS_CACHE["data"] and (now - _OPTIONS_CACHE["timestamp"] < CACHE_TTL):
+        return _OPTIONS_CACHE["data"]
+
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
@@ -284,7 +293,7 @@ def get_options_scanner_data():
         WHERE direction = 'LONG'
         GROUP BY ticker
         ORDER BY id DESC
-        LIMIT 15
+        LIMIT 4
     """)
     recent_rows = [dict(r) for r in c.fetchall()]
     conn.close()
@@ -321,10 +330,12 @@ def get_options_scanner_data():
                 results.append(opt_data)
         except: pass
             
-    # Backfill with top liquid sweet-spot tickers if fewer than 6
-    if len(results) < 6:
-        backfills = ['UBER', 'PLTR', 'CCL', 'NVDA', 'AAPL', 'AMD']
+    # Backfill with top liquid sweet-spot tickers if fewer than 4
+    if len(results) < 4:
+        backfills = ['UBER', 'PLTR', 'AAPL']
         for sym in backfills:
+            if len(results) >= 4:
+                break
             if sym not in seen:
                 seen.add(sym)
                 try:
@@ -335,4 +346,8 @@ def get_options_scanner_data():
                 
     # Sort active positions first, then by Confluence Score descending
     results.sort(key=lambda x: (1 if x.get('trade_status', {}).get('is_active') else 0, x['confluence_score']), reverse=True)
+    
+    # Save to memory cache
+    _OPTIONS_CACHE["data"] = results
+    _OPTIONS_CACHE["timestamp"] = now
     return results
