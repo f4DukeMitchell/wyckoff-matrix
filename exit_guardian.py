@@ -43,10 +43,13 @@ def check_eod_flatten(trades, live_prices, conn):
         return False
 
     c = conn.cursor()
+    PROTECTED_HOLDS = {'AMC', 'APE', 'NKE'}
     summary_lines = []
     for t in trades:
         trade_id = t['id']
-        sym = t['ticker']
+        sym = t['ticker'].upper()
+        if sym in PROTECTED_HOLDS:
+            continue
         direction = (t.get('direction') or 'LONG').upper()
         entry = float(t.get('entry_price') or 0.0)
         init_sl = float(t.get('initial_stop_loss') or t.get('stop_loss') or entry * 0.985)
