@@ -664,9 +664,11 @@ def place_option_buy(order: OptionOrderPayload):
         res = execute_option_buy(order.symbol, quantity=order.quantity, limit_price=order.limit_price)
         
         # Turn off auto buy immediately to enforce One-and-Done mode
-        config_data = load_terminal_config()
-        config_data["auto_buy_enabled"] = False
-        save_terminal_config(config_data)
+        try:
+            import config_manager
+            config_manager.save_config({"auto_buy_enabled": False})
+        except Exception:
+            pass
         
         if order.trade_id:
             try:
