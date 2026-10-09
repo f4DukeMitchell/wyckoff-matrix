@@ -148,6 +148,8 @@ def get_terminal_state():
         # Pull broker quantity and market value
         bh = broker_map.get(ticker.upper())
         qty = float(bh.get('quantity') or 0.0) if bh else 0.0
+        if not bh or qty <= 0:
+            continue
         pos['quantity'] = qty
         pos['market_value'] = float(bh.get('market_value') or 0.0) if bh else 0.0
 
