@@ -1403,8 +1403,10 @@
             <div style="font-size: 10px; color: var(--wsr-muted); margin-top: 2px;">
               Expiry: <span id="wb-expiry" class="c-purple">2026-10-16 (7 DTE)</span> | PCR Vol: <span id="wb-pcr" class="c-cyan">0.58</span>
             </div>
+          <div style="display: flex; gap: 6px;">
+            <button class="options-filter-btn" id="wb-btn-chart" onclick="viewSelectedInChart()" style="border-color: #00e5ff; color: #00e5ff;">📊 VIEW 5M CHART</button>
+            <button class="options-filter-btn" id="wb-btn-pilot" onclick="executeSelectedOptionPilot()" style="border-color: #00d26a; background: rgba(0, 210, 106, 0.15); color: #00d26a; font-weight: bold; padding: 4px 10px;">⚡ EXECUTE PILOT (2x CALLS @ MID)</button>
           </div>
-          <button class="options-filter-btn" id="wb-btn-chart" onclick="viewSelectedInChart()" style="border-color: #00e5ff; color: #00e5ff;">📊 VIEW 5M CHART</button>
         </div>
 
         <!-- LIVE TRADE STATUS & LOCATION TRACKER -->
@@ -3394,6 +3396,49 @@
     function viewSelectedInChart() {
       if (selectedOptionsTicker) {
         viewChartFromOptions(selectedOptionsTicker);
+      }
+    }
+
+    async function executeSelectedOptionPilot() {
+      if (!selectedOptionsTicker) {
+        alert('Please select an options candidate from the table first.');
+        return;
+      }
+      const item = rawOptionsData.find(d => d.ticker === selectedOptionsTicker);
+      if (!item || !item.optimal_call) {
+        alert('No optimal call contract found for ' + selectedOptionsTicker);
+        return;
+      }
+      const call = item.optimal_call;
+      const sym = call.symbol || selectedOptionsTicker;
+      const mid = call.mid || 0;
+      if (!confirm(`🚀 CONFIRM PILOT ORDER:\n\nBuy 2 contracts of ${selectedOptionsTicker} ($${call.strike}C) at Limit Mid-Price $${mid.toFixed(2)} on Public.com?\n\nThis will immediately freeze auto-buying into ONE-AND-DONE mode.`)) {
+        return;
+      }
+      const btn = document.getElementById('wb-btn-pilot');
+      const prevText = btn ? btn.innerText : '';
+      if (btn) btn.innerText = 'TRANSMITTING...';
+      try {
+        const res = await fetch('/api/order/buy_option', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            symbol: sym,
+            quantity: 2,
+            limit_price: mid
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(`✓ PILOT ORDER TRANSMITTED!\n\nContract: ${sym}\nStatus: ${data.order.status}\nOrder ID: ${data.order.order_id}\n\nAuto-buyer is frozen to One-and-Done. Exit Guardian is armed!`);
+          fetchState();
+        } else {
+          alert('Order error: ' + (data.detail || JSON.stringify(data)));
+        }
+      } catch (err) {
+        alert('Execution error: ' + err);
+      } finally {
+        if (btn) btn.innerText = prevText;
       }
     }
 

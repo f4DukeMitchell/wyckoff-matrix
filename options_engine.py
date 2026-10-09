@@ -95,6 +95,7 @@ def scan_single_ticker_options(ticker, stock_price=None, target_r=1.15, init_ris
             iv = float(getattr(grk, 'implied_volatility', 0.0) or 0.0)
             
             parsed_calls.append({
+                'symbol': c.instrument.symbol if (hasattr(c, 'instrument') and c.instrument) else None,
                 'strike': strike,
                 'bid': bid,
                 'ask': ask,

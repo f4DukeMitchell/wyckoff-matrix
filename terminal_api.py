@@ -637,6 +637,38 @@ def place_short(order: OrderPayload):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+class OptionOrderPayload(BaseModel):
+    symbol: str
+    quantity: int = 2
+    limit_price: float
+    trade_id: int | None = None
+
+@app.post("/api/order/buy_option")
+def place_option_buy(order: OptionOrderPayload):
+    """Executes a limit buy on Public.com for options contracts and freezes auto-buyer into one-and-done."""
+    try:
+        from public_executor import execute_option_buy
+        res = execute_option_buy(order.symbol, quantity=order.quantity, limit_price=order.limit_price)
+        
+        # Turn off auto buy immediately to enforce One-and-Done mode
+        config_data = load_terminal_config()
+        config_data["auto_buy_enabled"] = False
+        save_terminal_config(config_data)
+        
+        if order.trade_id:
+            try:
+                conn = sqlite3.connect(DB_PATH)
+                c = conn.cursor()
+                c.execute("UPDATE alerts SET user_active = 1 WHERE id = ?", (order.trade_id,))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
+                
+        return {"success": True, "order": res}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 class ExitPayload(BaseModel):
     ticker: str
     trade_id: int | None = None

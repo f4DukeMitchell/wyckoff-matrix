@@ -728,7 +728,8 @@ def sync_public_positions():
         c.execute("SELECT id, ticker FROM alerts WHERE outcome = 'OPEN' AND user_active = 0")
         for row in c.fetchall():
             t_id, sym = row[0], row[1].upper()
-            if sym in held_symbols:
+            is_held = (sym in held_symbols) or any(h.startswith(sym) for h in held_symbols)
+            if is_held:
                 c.execute("UPDATE alerts SET user_active = 1 WHERE id = ?", (t_id,))
                 newly_active.append((t_id, sym))
                 

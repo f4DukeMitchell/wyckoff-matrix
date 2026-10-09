@@ -184,6 +184,62 @@ def execute_short_sell(ticker, dollar_amount=None):
         'account_id': acc_id
     }
 
+def execute_option_buy(option_symbol, quantity=2, limit_price=None):
+    """
+    Executes a limit order to BUY 2 option contracts on Public.com at the mid-price.
+    Sends instant Telegram confirmation and enforces one-and-done entry.
+    """
+    client = get_client()
+    acc_id = get_account_id()
+    order_uuid = str(uuid.uuid4())
+    option_symbol = option_symbol.upper()
+
+    if limit_price is None or float(limit_price) <= 0:
+        raise ValueError("Valid limit_price (mid-price) is required for options orders.")
+
+    limit_dec = Decimal(f"{float(limit_price):.2f}")
+    qty_dec = Decimal(str(quantity))
+
+    req = OrderRequest(
+        order_id=order_uuid,
+        instrument=OrderInstrument(symbol=option_symbol, type='OPTION'),
+        order_side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        limit_price=limit_dec,
+        quantity=qty_dec,
+        open_close_indicator=OpenCloseIndicator.OPEN,
+        expiration=OrderExpirationRequest(time_in_force=TimeInForce.DAY)
+    )
+
+    res = client.place_order(req, account_id=acc_id)
+    status_str = str(getattr(res, 'status', 'SUBMITTED'))
+
+    try:
+        from telegram_notifier import send_message, is_configured
+        if is_configured():
+            msg = (
+                f"⚡ [OPTIONS PILOT ORDER EXECUTED]\n"
+                f"• Contract: {option_symbol}\n"
+                f"• Size: {quantity} Contracts\n"
+                f"• Limit Price: ${float(limit_price):.2f} (Mid-Price)\n"
+                f"• Order Status: {status_str}\n"
+                f"• Order ID: {order_uuid[:8]}...\n"
+                f"🛑 One-and-Done Mode: Auto-buy frozen.\n"
+                f"🛡️ Exit Guardian is armed with trailing stop defense."
+            )
+            send_message(msg)
+    except Exception as tg_err:
+        print(f"Telegram notify error on option buy: {tg_err}")
+
+    return {
+        'order_id': order_uuid,
+        'symbol': option_symbol,
+        'quantity': quantity,
+        'limit_price': float(limit_price),
+        'status': status_str,
+        'account_id': acc_id
+    }
+
 def execute_exit_position(ticker, quantity=None, direction=None):
     """
     Closes an open position on Public.com:
