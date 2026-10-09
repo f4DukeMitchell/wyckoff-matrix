@@ -1093,7 +1093,7 @@ def trigger_system_update():
 
         if os.name != 'nt':
             bash_bin = shutil.which("bash") or "/bin/bash" or "/usr/bin/bash"
-            cmd = f"cd {repo_dir} && sleep 2 && (sudo systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (pkill -f wyckoff_alert_bot.py 2>/dev/null; sleep 1; pkill -9 -f 'terminal_api:app' 2>/dev/null))"
+            cmd = f"cd {repo_dir} && sleep 2 && (echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (pkill -f wyckoff_alert_bot.py 2>/dev/null; sleep 1; pkill -9 -f 'terminal_api:app' 2>/dev/null; nohup {py_exe} wyckoff_alert_bot.py > bot.log 2>&1 &))"
             try:
                 subprocess.Popen(
                     [bash_bin, "-c", cmd],
@@ -1120,12 +1120,14 @@ def trigger_system_restart():
     import subprocess
     import shutil
     import os
+    import sys
     if os.name == 'nt':
         return {"success": True, "message": "Windows environment - manual service restart required."}
 
     try:
+        py_exe = sys.executable or shutil.which("python3") or "python3"
         bash_bin = shutil.which("bash") or "/bin/bash" or "/usr/bin/bash"
-        cmd = "sleep 1 && (sudo systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (pkill -f wyckoff_alert_bot.py 2>/dev/null; sleep 1; pkill -9 -f 'terminal_api:app' 2>/dev/null))"
+        cmd = f"sleep 1 && (echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (pkill -f wyckoff_alert_bot.py 2>/dev/null; sleep 1; pkill -9 -f 'terminal_api:app' 2>/dev/null; nohup {py_exe} wyckoff_alert_bot.py > bot.log 2>&1 &))"
         env = dict(os.environ)
         env["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" + (f":{env['PATH']}" if 'PATH' in env else "")
         subprocess.Popen(
@@ -1139,6 +1141,48 @@ def trigger_system_restart():
         return {"success": True, "message": "Services restarting: wyckoff-bot and wyckoff-terminal"}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+@app.get("/api/system/bot_health")
+def bot_health():
+    """Checks if wyckoff_alert_bot.py is actively running, auto-recovers it if dead, and returns process info."""
+    import subprocess
+    import shutil
+    import os
+    import sys
+    if os.name == 'nt':
+        return {"status": "WINDOWS_LOCAL"}
+
+    try:
+        repo_dir = os.path.dirname(os.path.abspath(__file__))
+        py_exe = sys.executable or shutil.which("python3") or "python3"
+        ps_res = subprocess.run("ps aux | grep -v grep | grep wyckoff_alert_bot", shell=True, capture_output=True, text=True)
+        is_bot_running = bool(ps_res.stdout.strip())
+
+        sys_res = subprocess.run("systemctl is-active wyckoff-bot.service 2>/dev/null", shell=True, capture_output=True, text=True)
+        sys_status = sys_res.stdout.strip()
+
+        started = False
+        if not is_bot_running:
+            # Auto-restart the alert bot immediately!
+            cmd = f"cd {repo_dir} && (echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service || nohup {py_exe} wyckoff_alert_bot.py > bot.log 2>&1 &)"
+            subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            started = True
+
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT ticker, direction, timeframe, timestamp FROM alerts ORDER BY id DESC LIMIT 5")
+        recent_alerts = [dict(zip(['ticker', 'direction', 'timeframe', 'timestamp'], row)) for row in c.fetchall()]
+        conn.close()
+
+        return {
+            "is_bot_running": is_bot_running or started,
+            "systemctl_status": sys_status,
+            "auto_recovered": started,
+            "process_info": ps_res.stdout.strip() or ("RECOVERED_AND_STARTED" if started else "OFFLINE"),
+            "recent_alerts": recent_alerts
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.get("/api/options/scanner")
 def get_options_scanner():
