@@ -155,19 +155,20 @@ def scan_single_ticker_options(ticker, stock_price=None, target_r=1.15, init_ris
             'return_on_risk_pct': ror_pct
         }
         
-    # Multi-Tranche Exit Strategy Formulation
+    # Concentrated Multi-Tranche Architecture: Strictly Strategy 1 and Strategy 4
     if is_sweet_spot:
-        recommended_strategy = "2_CONTRACT_TRANCHE"
-        strategy_desc = f"2x Contracts (${contract_cost * 2:.0f} total). Sell 1 @ 50% target to lock BE $0.00, ride 2nd to target."
+        recommended_strategy = "STRATEGY_1_TRANCHE"
+        strategy_desc = f"STRATEGY 1 (2x Calls - ${contract_cost * 2:.0f} total): Sell Tranche 1 @ +50% target to bank profit & ratchet Stop to Breakeven $0.00. Ride Tranche 2 to resistance."
         est_risk = contract_cost * 2
-    elif vertical_spread and vertical_spread['spread_cost'] <= 180.0:
-        recommended_strategy = "VERTICAL_DEBIT_SPREAD"
-        strategy_desc = f"2x Vertical Spreads (${vertical_spread['spread_cost'] * 2:.0f} total). Capped risk, 100%+ max return."
-        est_risk = vertical_spread['spread_cost'] * 2
     else:
-        recommended_strategy = "1_CONTRACT_RATCHET"
-        strategy_desc = f"1x Contract (${contract_cost:.0f}). Ratchet stop to BE $0.00 at 50% target, trail into 100% target tag."
-        est_risk = contract_cost
+        recommended_strategy = "STRATEGY_4_SPREAD"
+        if vertical_spread:
+            spread_2x_cost = vertical_spread['spread_cost'] * 2
+            strategy_desc = f"STRATEGY 4 (2x Bull Call Spreads - ${spread_2x_cost:.0f} total): Buy 2x {vertical_spread['long_strike']}C/{vertical_spread['short_strike']}C spreads. Sell Spread 1 @ +50% target to recover total debit; Spread 2 becomes 100% risk-free runner!"
+            est_risk = spread_2x_cost
+        else:
+            strategy_desc = f"STRATEGY 1 Fallback (2x Contracts - ${contract_cost * 2:.0f} total): Ladder exits into Wyckoff target."
+            est_risk = contract_cost * 2
         
     # Bullish Options Confluence Score (0 to 100)
     score = 50
