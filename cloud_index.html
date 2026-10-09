@@ -1491,7 +1491,7 @@
               <span class="c-yellow">MILESTONE 4: WYCKOFF RESISTANCE EXIT</span>
               <span class="c-yellow" id="step-tag-4">+100% TARGET</span>
             </div>
-            <div style="font-size: 9.5px; color: #bbb;">Reach TR ceiling / +1.0R Wyckoff objective. Liquidate core contract or trail stop at +85% profit.</div>
+            <div style="font-size: 9.5px; color: #bbb;" id="rm-desc-tier4">Reach TR ceiling / +1.0R Wyckoff objective. Liquidate core contract or trail stop at +85% profit.</div>
           </div>
 
           <div class="roadmap-step" id="step-ms-5">
@@ -3319,6 +3319,22 @@
           else if (m === 4) tagEl.innerText = '+100% TARGET';
           else if (m === 5) tagEl.innerText = '3:55 PM EST';
         }
+      }
+
+      // Dynamic Wyckoff TR Ceiling & R Target Calculation for Milestone 4
+      const entryP = st.entry_price || item.stock_price;
+      const slP = st.stop_loss || (entryP * 0.985);
+      const tpP = st.take_profit || (entryP + (Math.abs(entryP - slP) * 1.5));
+      const riskDollar = Math.abs(entryP - slP) || (entryP * 0.015);
+      const targetR = ((tpP - entryP) / riskDollar).toFixed(1);
+
+      const m4DescEl = document.getElementById('rm-desc-tier4');
+      if (m4DescEl) {
+        m4DescEl.innerHTML = `Reach TR ceiling (<b>$${tpP.toFixed(2)}</b> / <b class="c-green">+${targetR}R</b> objective). Liquidate core contract or trail stop into resistance.`;
+      }
+      const tag4El = document.getElementById('step-tag-4');
+      if (tag4El && (!st.is_active || curMs < 4)) {
+        tag4El.innerText = `+${targetR}R (+100%)`;
       }
 
       // Architecture Blueprint (Concentrated on 1 and 4)
