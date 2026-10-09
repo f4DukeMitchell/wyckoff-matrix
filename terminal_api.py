@@ -431,13 +431,22 @@ def get_bars(ticker: str, interval: str = "5m"):
             })
 
         # 5. Detect Spring and UTAD markers
-        if idx >= 1 and not np.isnan(range_low[idx]) and not np.isnan(range_high[idx]):
+        # 5. Detect Spring and UTAD / LPSY markers
+        if idx >= 2 and not np.isnan(range_low[idx]) and not np.isnan(range_high[idx]):
             c_below = (lows[idx] < range_low[idx]) or (lows[idx-1] < range_low[idx-1])
-            c_above = (highs[idx] > range_high[idx]) or (highs[idx-1] > range_high[idx-1])
             vol_dry = rel_vol[idx] < 1.2
             
+            # Spring (Long): Proven contrarian reversal
             is_spring = c_below and u1[idx] and not u1[idx-1] and not u9[idx] and vol_dry
-            is_utad = c_above and not u1[idx] and u1[idx-1] and u9[idx] and vol_dry
+            
+            # Decoupled LPSY / UTAD (Short):
+            sweep_bars = [k for k in range(max(0, idx - 10), idx) if highs[k] > range_high[k]]
+            has_utad_probe = len(sweep_bars) > 0
+            utad_peak = max(highs[k] for k in sweep_bars) if sweep_bars else highs[idx]
+            rejection_accepted = (closes[idx] < range_high[idx]) and (closes[idx-1] < range_high[idx-1])
+            is_lower_high = highs[idx] < utad_peak
+            micro_red_flip = not u1[idx] and u1[idx-1]
+            is_lpsy = has_utad_probe and rejection_accepted and is_lower_high and micro_red_flip
 
             if is_spring:
                 markers.append({
@@ -447,13 +456,13 @@ def get_bars(ticker: str, interval: str = "5m"):
                     "shape": "arrowUp",
                     "text": "SPRING (LONG)"
                 })
-            elif is_utad:
+            elif is_lpsy:
                 markers.append({
                     "time": t_sec,
                     "position": "aboveBar",
                     "color": "#ff3b30",
                     "shape": "arrowDown",
-                    "text": "UTAD (SHORT)"
+                    "text": "LPSY (SHORT)"
                 })
 
         # Volume Profile (Volume at Price distribution)

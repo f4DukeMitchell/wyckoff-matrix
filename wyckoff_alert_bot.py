@@ -289,11 +289,34 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         if pd.isna(range_high[curr]): return
         
         c_below = (lows[curr] < range_low[curr]) or (lows[curr-1] < range_low[curr-1])
-        c_above = (highs[curr] > range_high[curr]) or (highs[curr-1] > range_high[curr-1])
         vol_dry = rel_vol[curr] < VOL_LIMIT
         
+        # LONG (Spring): 100% Intact as originally proven
         is_spring = c_below and u1[curr] and not u1[curr-1] and not u9[curr] and vol_dry
-        is_utad = c_above and not u1[curr] and u1[curr-1] and u9[curr] and vol_dry
+        
+        # SHORT (UTAD / LPSY - Decoupled Wyckoff Distribution Engine):
+        # 1. Structural UTAD Sweep: Price probed above Range High in previous 1 to 10 bars
+        sweep_bars = [k for k in range(max(0, curr - 10), curr) if highs[k] > range_high[k]]
+        has_utad_probe = len(sweep_bars) > 0
+        utad_peak = max(highs[k] for k in sweep_bars) if sweep_bars else highs[curr]
+        
+        # 2. Failed Auction Acceptance (Time In Range): 2 consecutive closes back below Range High
+        rejection_accepted = (closes[curr] < range_high[curr]) and (closes[curr-1] < range_high[curr-1])
+        
+        # 3. LPSY Secondary Test: Current test bar must NOT make a higher high above the UTAD peak
+        is_lower_high = highs[curr] < utad_peak
+        
+        # 4. Micro Rollover: Micro Supertrend flips RED on the test rejection
+        micro_red_flip = not u1[curr] and u1[curr-1]
+        
+        # 5. Dedicated UTAD Signal Trigger: Requires true Phase B distribution time (>= 20 bars in regime)
+        is_utad = (
+            has_utad_probe and 
+            rejection_accepted and 
+            is_lower_high and 
+            micro_red_flip and 
+            (bars_in_regime >= 20)
+        )
         
         current_time = time.time()
         
@@ -444,8 +467,24 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                 last_alerted[ticker] = current_time
                 return
 
-            if now.hour == 9 and 30 <= now.minute < 45 and interval == "5m":
-                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] OPENING SHIELD: {ticker} 5m UTAD suppressed during 9:30-9:45 AM")
+            # Short Timing Gate 1: Morning Expansion Shield (no shorts before 10:30 AM EST)
+            if interval == "5m" and (now.hour == 9 or (now.hour == 10 and now.minute < 30)):
+                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] MORNING EXPANSION SHIELD: {ticker} short suppressed before 10:30 AM EST")
+                return
+
+            # Short Timing Gate 2: Lunch Lull Shield (no shorts 12:30 - 1:30 PM EST)
+            if interval == "5m" and ((now.hour == 12 and now.minute >= 30) or (now.hour == 13 and now.minute < 30)):
+                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] LUNCH LULL SHIELD: {ticker} short suppressed during 12:30-1:30 PM EST")
+                return
+
+            # Short VWAP Gate: Never short runaway parabolic stocks > 2.2% above VWAP
+            if vwap_distance > 2.2:
+                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] VWAP RUNAWAY SHIELD: {ticker} short suppressed (VWAP Dist: {vwap_distance:+.2f}% > +2.2%)")
+                return
+
+            # Short Macro Market Gate: In a Bullish SPY regime, only short if stock shows relative weakness below VWAP
+            if spy_bullish and vwap_distance > 0.0:
+                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] MACRO TIDE SHIELD: {ticker} short suppressed - SPY is Bullish and stock is above VWAP ({vwap_distance:+.2f}%)")
                 return
 
             flow = None
@@ -457,12 +496,13 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     return
                     
             price = closes[curr]
-            sl = max(highs[curr], highs[curr-1]) * (1.0 + SL_BUFFER)
+            # Structural Invalidation Stop Loss: Anchored strictly at the physical UTAD peak
+            sl = max(utad_peak, highs[curr]) * (1.0 + SL_BUFFER)
             risk = abs(sl - price)
             if risk <= 0.001:
                 return
 
-            regime = "BULLISH (Seeking Reversal)" if u9[curr] and u14[curr] else "MIXED"
+            regime = "DISTRIBUTION (LPSY Confirmed)" if u9[curr] and u14[curr] else "MIXED"
             
             # --- Extract All 4 Institutional Tactics ---
             inst = compute_all_institutional_features(ticker, price, vols[curr], rel_vol=rel_vol[curr],
