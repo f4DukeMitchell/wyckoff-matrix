@@ -26,7 +26,7 @@ def get_account_id():
         raise ValueError("No accounts found.")
     return accounts.accounts[0].account_id
 
-def scan_single_ticker_options(ticker, stock_price=None, target_r=1.15, init_risk=1.0):
+def scan_single_ticker_options(ticker, stock_price=None, target_r=1.15, init_risk=1.0, active_pos=None):
     """
     Evaluates options structure for a Wyckoff Spring candidate:
     - Finds nearest weekly Friday expiration (>= 5 DTE)
@@ -179,6 +179,56 @@ def scan_single_ticker_options(ticker, stock_price=None, target_r=1.15, init_ris
     if optimal_call['volume'] >= 100: score += 10 # Liquid
     score = min(100, score)
     
+    # Determine Live Trade Status & Milestone Progression
+    if active_pos:
+        pos_entry = float(active_pos.get('entry_price') or current_p)
+        pos_sl = float(active_pos.get('stop_loss') or 0.0)
+        pos_tp = float(active_pos.get('take_profit') or 0.0)
+        pos_be = bool(active_pos.get('breakeven_set'))
+        pos_partial = bool(active_pos.get('partial_exit_done'))
+        peak_r = float(active_pos.get('peak_high_r') or 0.0)
+        
+        pos_risk = abs(pos_entry - pos_sl) if abs(pos_entry - pos_sl) > 0.01 else 1.0
+        current_r = round((current_p - pos_entry) / pos_risk, 2)
+        
+        if pos_partial or pos_be or current_r >= 0.50:
+            active_milestone = 3
+            milestone_status_text = "Milestone 3 Reached: Tranche 1 Locked, Stop at Breakeven $0.00"
+        elif current_r >= 0.20 or peak_r >= 0.20:
+            active_milestone = 2
+            milestone_status_text = "Milestone 2 Reached: Early Stop Compressed to -20%"
+        else:
+            active_milestone = 1
+            milestone_status_text = "Milestone 1 Active: Position Open at Entry"
+
+        trade_status = {
+            'is_active': True,
+            'badge': 'ACTIVE_POSITION',
+            'status_label': 'LIVE ACTIVE POSITION',
+            'current_r': current_r,
+            'entry_price': round(pos_entry, 2),
+            'stop_loss': round(pos_sl, 2),
+            'take_profit': round(pos_tp, 2),
+            'breakeven_locked': pos_be,
+            'tranche_1_filled': pos_partial,
+            'active_milestone': active_milestone,
+            'milestone_status_text': milestone_status_text
+        }
+    else:
+        trade_status = {
+            'is_active': False,
+            'badge': 'WATCHLIST_SETUP',
+            'status_label': 'SCANNER SETUP (WATCHLIST)',
+            'current_r': 0.0,
+            'entry_price': round(current_p, 2),
+            'stop_loss': 0.0,
+            'take_profit': 0.0,
+            'breakeven_locked': False,
+            'tranche_1_filled': False,
+            'active_milestone': 0,
+            'milestone_status_text': 'Awaiting 9:30 AM Market Open Trigger'
+        }
+    
     return {
         'ticker': ticker,
         'stock_price': round(current_p, 2),
@@ -193,6 +243,7 @@ def scan_single_ticker_options(ticker, stock_price=None, target_r=1.15, init_ris
         'estimated_risk': round(est_risk, 2),
         'optimal_call': optimal_call,
         'vertical_spread': vertical_spread,
+        'trade_status': trade_status,
         'tranche_plan': {
             'tier1_target': "+20% Target: Early Stop Compression",
             'tier3_target': "+50% Target: Lock Tranche 1 Profit & Move Stop to Breakeven $0.00",
@@ -203,13 +254,23 @@ def scan_single_ticker_options(ticker, stock_price=None, target_r=1.15, init_ris
 
 def get_options_scanner_data():
     """
-    Scans the database and live feed for current Wyckoff Spring setups
-    and pairs them with live options intelligence.
+    Scans active open trades AND recent Wyckoff Spring setups,
+    pairing them with live options intelligence and milestone tracking.
     """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    # Get recent Long alerts from the past 48 hours
+    
+    # 1. Fetch live active open trades (highest priority)
+    c.execute("""
+        SELECT ticker, entry_price, stop_loss, take_profit, optimal_target_r, timestamp, outcome, breakeven_set, partial_exit_done, peak_high_r, trailing_stop_price
+        FROM alerts
+        WHERE outcome = 'OPEN' AND telegram_alerted = 1
+        ORDER BY id DESC
+    """)
+    active_rows = {r['ticker'].upper(): dict(r) for r in c.fetchall()}
+    
+    # 2. Fetch recent Long alerts from past 48 hours
     c.execute("""
         SELECT ticker, entry_price, stop_loss, take_profit, optimal_target_r, timestamp
         FROM alerts
@@ -218,32 +279,42 @@ def get_options_scanner_data():
         ORDER BY id DESC
         LIMIT 15
     """)
-    rows = [dict(r) for r in c.fetchall()]
+    recent_rows = [dict(r) for r in c.fetchall()]
     conn.close()
-    
-    # Fallback to key watch tickers if DB is quiet
-    sample_tickers = [r['ticker'] for r in rows] if rows else ['AAPL', 'NVDA', 'UBER', 'PLTR', 'CCL', 'MSFT', 'AMD']
     
     results = []
     seen = set()
-    for t_info in rows:
+    
+    # Priority 1: Process active open trades
+    for sym, pos in active_rows.items():
+        if sym in seen: continue
+        seen.add(sym)
+        try:
+            entry = float(pos.get('entry_price') or 0.0)
+            sl = float(pos.get('stop_loss') or 0.0)
+            risk = abs(entry - sl) if abs(entry - sl) > 0.001 else 1.0
+            tgt_r = float(pos.get('optimal_target_r') or 1.15)
+            opt_data = scan_single_ticker_options(sym, stock_price=entry, target_r=tgt_r, init_risk=risk, active_pos=pos)
+            if opt_data:
+                results.append(opt_data)
+        except: pass
+
+    # Priority 2: Process recent watchlist setups
+    for t_info in recent_rows:
         sym = t_info['ticker'].upper()
         if sym in seen: continue
         seen.add(sym)
         try:
             entry = float(t_info.get('entry_price') or 0.0)
             sl = float(t_info.get('stop_loss') or 0.0)
-            tp = float(t_info.get('take_profit') or 0.0)
             risk = abs(entry - sl) if abs(entry - sl) > 0.001 else 1.0
             tgt_r = float(t_info.get('optimal_target_r') or 1.15)
-            
-            opt_data = scan_single_ticker_options(sym, stock_price=entry, target_r=tgt_r, init_risk=risk)
+            opt_data = scan_single_ticker_options(sym, stock_price=entry, target_r=tgt_r, init_risk=risk, active_pos=None)
             if opt_data:
                 results.append(opt_data)
-        except Exception as e:
-            pass
+        except: pass
             
-    # If fewer than 6, backfill with top liquid sweet-spot tickers
+    # Backfill with top liquid sweet-spot tickers if fewer than 6
     if len(results) < 6:
         backfills = ['UBER', 'PLTR', 'CCL', 'NVDA', 'AAPL', 'AMD']
         for sym in backfills:
@@ -255,6 +326,6 @@ def get_options_scanner_data():
                         results.append(opt_data)
                 except: pass
                 
-    # Sort by Confluence Score descending
-    results.sort(key=lambda x: x['confluence_score'], reverse=True)
+    # Sort active positions first, then by Confluence Score descending
+    results.sort(key=lambda x: (1 if x.get('trade_status', {}).get('is_active') else 0, x['confluence_score']), reverse=True)
     return results

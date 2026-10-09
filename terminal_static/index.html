@@ -1347,12 +1347,26 @@
           <button class="options-filter-btn" id="wb-btn-chart" onclick="viewSelectedInChart()" style="border-color: #00e5ff; color: #00e5ff;">📊 VIEW 5M CHART</button>
         </div>
 
+        <!-- LIVE TRADE STATUS & LOCATION TRACKER -->
+        <div id="wb-status-box" style="background: #111; border: 1px solid #222; border-left: 3px solid #555; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 9.5px; font-weight: 700; color: #888; text-transform: uppercase;">TRADE EXECUTION STATUS</span>
+            <span id="wb-status-badge" style="font-size: 9.5px; font-weight: 700; padding: 1px 6px; border-radius: 2px; background: #1a1a1a; border: 1px solid #444; color: #888;">⚪ WATCHLIST SCANNER CANDIDATE</span>
+          </div>
+          <div id="wb-status-detail" style="font-size: 10px; color: #ddd; font-weight: 600;">
+            Identified 5M Wyckoff Spring Setup. Awaiting 9:30 AM Market Open Confirmation.
+          </div>
+          <div id="wb-milestone-alert" style="font-size: 9px; color: #666; margin-top: 1px;">
+            Milestones will activate when broker/algo fill confirms at market open.
+          </div>
+        </div>
+
         <!-- SELECTED STRATEGY ARCHITECTURE CARD -->
         <div style="background: #111; border: 1px solid #2a2a2a; border-left: 3px solid #a855f7; padding: 8px 10px;">
           <div style="font-size: 9.5px; color: var(--wsr-muted); text-transform: uppercase; font-weight: 600;">ACTIVE ARCHITECTURE BLUEPRINT</div>
-          <div id="wb-strat-name" style="font-size: 12px; font-weight: 700; color: #c084fc; margin-top: 2px;">1-CONTRACT TRAILING RATCHET</div>
+          <div id="wb-strat-name" style="font-size: 12px; font-weight: 700; color: #c084fc; margin-top: 2px;">STRATEGY 1: 2-CONTRACT TRANCHE LADDER</div>
           <div id="wb-strat-desc" style="font-size: 10px; color: #ccc; margin-top: 4px; line-height: 1.3;">
-            1x Contract ($380). Ratchet stop to BE $0.00 at 50% target, trail into 100% target tag.
+            2x Contracts. Sell Tranche 1 @ 50% target to lock BE $0.00, ride Tranche 2 to target.
           </div>
         </div>
 
@@ -1384,44 +1398,44 @@
         <div style="display: flex; flex-direction: column; gap: 6px;">
           <div style="font-size: 9.5px; color: var(--wsr-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">MULTI-TRANCHE EXECUTION MILESTONES</div>
           
-          <div class="roadmap-step active">
+          <div class="roadmap-step" id="step-ms-1">
             <div class="roadmap-step-header">
               <span class="c-purple">MILESTONE 1: ENTRY CONFIRMATION</span>
-              <span class="c-muted">ENTRY 0.0R</span>
+              <span class="c-muted" id="step-tag-1">ENTRY 0.0R</span>
             </div>
             <div style="font-size: 9.5px; color: #bbb;">Buy confirmed 5M Wyckoff Spring. Initial hard option stop set at -35% premium ($<span id="rm-stop-loss">--</span>).</div>
           </div>
 
-          <div class="roadmap-step">
+          <div class="roadmap-step" id="step-ms-2">
             <div class="roadmap-step-header">
               <span class="c-cyan">MILESTONE 2: EARLY STOP COMPRESSION</span>
-              <span class="c-cyan">+20% TARGET</span>
+              <span class="c-cyan" id="step-tag-2">+20% TARGET</span>
             </div>
             <div style="font-size: 9.5px; color: #bbb;">Underlying clears local resistance. Stop loss compressed to -20% premium, reducing risk by half.</div>
           </div>
 
-          <div class="roadmap-step active" style="border-left-color: var(--wsr-green); background: #0c1810;">
+          <div class="roadmap-step" id="step-ms-3">
             <div class="roadmap-step-header">
               <span class="c-green">MILESTONE 3: BREAKEVEN LOCK &amp; SCALE</span>
-              <span class="c-green">+50% TARGET</span>
+              <span class="c-green" id="step-tag-3">+50% TARGET</span>
             </div>
             <div style="font-size: 9.5px; color: #ddd;" id="rm-desc-tier3">
               <b>CRITICAL ACTION:</b> Sell 1st contract / spread to secure profits. Ratchet stop on remaining contract to <b>Breakeven ($0.00 risk free!)</b>.
             </div>
           </div>
 
-          <div class="roadmap-step">
+          <div class="roadmap-step" id="step-ms-4">
             <div class="roadmap-step-header">
               <span class="c-yellow">MILESTONE 4: WYCKOFF RESISTANCE EXIT</span>
-              <span class="c-yellow">+100% TARGET</span>
+              <span class="c-yellow" id="step-tag-4">+100% TARGET</span>
             </div>
             <div style="font-size: 9.5px; color: #bbb;">Reach TR ceiling / +1.0R Wyckoff objective. Liquidate core contract or trail stop at +85% profit.</div>
           </div>
 
-          <div class="roadmap-step">
+          <div class="roadmap-step" id="step-ms-5">
             <div class="roadmap-step-header">
               <span class="c-muted">MILESTONE 5: MARKET FLATTEN</span>
-              <span class="c-muted">3:55 PM EST</span>
+              <span class="c-muted" id="step-tag-5">3:55 PM EST</span>
             </div>
             <div style="font-size: 9.5px; color: #888;">Any remaining runner contracts are closed at market before the closing bell to ensure zero overnight gap risk.</div>
           </div>
@@ -2900,13 +2914,24 @@
           stratBadge = `<span class="strat-badge strat-spread">STRAT 4: 2x SPREAD</span>`;
         }
 
+        const st = item.trade_status || {};
+        let statusPill = '';
+        if (st.is_active) {
+          statusPill = `<span class="strat-badge" style="background: rgba(0, 210, 106, 0.2); border: 1px solid #00d26a; color: #00d26a; font-weight: bold; font-size: 8.5px;">🟢 ACTIVE (${st.current_r >= 0 ? '+' : ''}${st.current_r}R)</span>`;
+        } else {
+          statusPill = `<span class="strat-badge" style="background: #141414; border: 1px solid #333; color: #777; font-size: 8.5px;">⚪ WATCHLIST</span>`;
+        }
+
         const call = item.optimal_call || {};
         const trRisk = `$${item.estimated_risk ? item.estimated_risk.toFixed(0) : '--'}`;
         const scoreCol = item.confluence_score >= 80 ? 'c-green' : (item.confluence_score >= 65 ? 'c-yellow' : 'c-muted');
 
         tr.innerHTML = `
           <td style="cursor:pointer;" onclick="selectOptionsTicker('${item.ticker}')">
-            <b class="c-yellow">${item.ticker}</b>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <b class="c-yellow" style="font-size: 11.5px;">${item.ticker}</b>
+              ${statusPill}
+            </div>
             <div style="font-size: 8.5px; color: #777;">${item.category === 'SWEET_SPOT_MIDCAP' ? 'SWEET SPOT ($15-$75)' : 'MEGA-CAP ($75+)'}</div>
           </td>
           <td><b>$${item.stock_price.toFixed(2)}</b></td>
@@ -2953,6 +2978,65 @@
       } else {
         catBadge.innerText = '🏢 MEGACAP TECH ($75+)';
         catBadge.className = 'strat-badge strat-spread';
+      }
+
+      // Update Live Trade Status Box
+      const st = item.trade_status || {};
+      const statusBox = document.getElementById('wb-status-box');
+      const statusBadge = document.getElementById('wb-status-badge');
+      const statusDetail = document.getElementById('wb-status-detail');
+      const milestoneAlert = document.getElementById('wb-milestone-alert');
+
+      if (st.is_active) {
+        statusBox.style.background = '#09150d';
+        statusBox.style.borderColor = '#1b4a24';
+        statusBox.style.borderLeftColor = 'var(--wsr-green)';
+        statusBadge.innerHTML = `🟢 LIVE ACTIVE POSITION (${st.current_r >= 0 ? '+' : ''}${st.current_r}R)`;
+        statusBadge.style.color = 'var(--wsr-green)';
+        statusBadge.style.background = 'rgba(0, 210, 106, 0.2)';
+        statusBadge.style.borderColor = 'var(--wsr-green)';
+        statusDetail.innerHTML = `Entry: <b>$${st.entry_price}</b> | SL: <b>$${st.stop_loss}</b> | Target: <b>$${st.take_profit}</b> | Breakeven: <b class="${st.breakeven_locked ? 'c-green' : 'c-muted'}">${st.breakeven_locked ? 'LOCKED $0.00' : 'ARMED'}</b>`;
+        milestoneAlert.innerHTML = `⚡ <b>${st.milestone_status_text}</b>`;
+        milestoneAlert.style.color = 'var(--wsr-yellow)';
+      } else {
+        statusBox.style.background = '#111';
+        statusBox.style.borderColor = '#222';
+        statusBox.style.borderLeftColor = '#555';
+        statusBadge.innerHTML = `⚪ WATCHLIST SCANNER CANDIDATE`;
+        statusBadge.style.color = '#888';
+        statusBadge.style.background = '#1a1a1a';
+        statusBadge.style.borderColor = '#444';
+        statusDetail.innerHTML = `Identified 5M Wyckoff Spring Setup. Awaiting 9:30 AM Market Open Confirmation.`;
+        milestoneAlert.innerHTML = `Milestones will activate when broker/algo fill confirms at market open.`;
+        milestoneAlert.style.color = '#666';
+      }
+
+      // Update Roadmap Milestones Dynamic Highlighting
+      const curMs = st.active_milestone || 0;
+      for (let m = 1; m <= 5; m++) {
+        const stepEl = document.getElementById(`step-ms-${m}`);
+        const tagEl = document.getElementById(`step-tag-${m}`);
+        if (!stepEl || !tagEl) continue;
+        stepEl.classList.remove('active');
+        stepEl.style.borderColor = '#1f1f1f';
+        stepEl.style.borderLeftColor = 'var(--wsr-border)';
+        stepEl.style.background = '#0d0d0d';
+
+        if (st.is_active && m === curMs) {
+          stepEl.classList.add('active');
+          stepEl.style.borderLeftColor = 'var(--wsr-green)';
+          stepEl.style.background = '#0d1f12';
+          tagEl.innerHTML = `<span class="c-green" style="font-weight: bold;">📍 YOU ARE HERE</span>`;
+        } else if (st.is_active && m < curMs) {
+          stepEl.style.borderLeftColor = '#a855f7';
+          tagEl.innerHTML = `<span class="c-purple">✓ COMPLETED</span>`;
+        } else {
+          if (m === 1) tagEl.innerText = 'ENTRY 0.0R';
+          else if (m === 2) tagEl.innerText = '+20% TARGET';
+          else if (m === 3) tagEl.innerText = '+50% TARGET';
+          else if (m === 4) tagEl.innerText = '+100% TARGET';
+          else if (m === 5) tagEl.innerText = '3:55 PM EST';
+        }
       }
 
       // Architecture Blueprint (Concentrated on 1 and 4)
