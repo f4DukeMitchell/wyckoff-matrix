@@ -115,7 +115,7 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
                             penetration_depth_pct=0.0, candle_clv=0.70, consumed_atr=1.0,
                             st_volume_ratio=1.0, vpoc_distance_pct=0.0,
                             mtf_atr_ratio=1.0, trend_exhaustion=3.0,
-                            vix_slope=0.0, rs_alpha=0.0):
+                            vix_slope=0.0, rs_alpha=0.0, pcr=0.70):
     """
     Computes real machine learning win probability (0.0 to 100.0%)
     using the trained Random Forest model.
@@ -125,6 +125,7 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
     - Order Flow: SOS Reclaim Volume Ratio, Intraday VPOC Distance (%)
     - Multi-Timeframe: MTF ATR Expansion Ratio, Pre-Spring Trend Exhaustion Score
     - Macro/Intermarket: Intraday VIX Velocity Slope (%), Relative Strength Alpha vs SPY (%)
+    - Options Flow: Put/Call Ratio (Options Skew)
     - Institutional Microstructure (Gamma Regimes, MOC Surges, Block Size, Rebalance Proximity)
     """
     model = get_ml_model()
@@ -152,6 +153,7 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
     t_ex = float(trend_exhaustion if trend_exhaustion is not None else 3.0)
     v_slope = float(vix_slope if vix_slope is not None else 0.0)
     r_alpha = float(rs_alpha if rs_alpha is not None else 0.0)
+    p_cr = float(pcr if pcr is not None else 0.70)
 
     if model is not None:
         try:
@@ -162,6 +164,7 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
                 'atr_expansion': a_exp,
                 'effort_vs_result': evr,
                 'test_vol_ratio': tvr,
+                'pcr': p_cr,
                 'days_to_rebalance': d_reb,
                 'is_triple_witching': i_tw,
                 'dealer_gamma_regime': d_gam,

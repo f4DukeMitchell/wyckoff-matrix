@@ -540,7 +540,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     mtf_atr_ratio=mtf_atr_ratio,
                     trend_exhaustion=trend_exhaustion,
                     vix_slope=vix_slope,
-                    rs_alpha=rs_alpha
+                    rs_alpha=rs_alpha,
+                    pcr=flow.get('put_call_ratio') if flow else 0.70
                 )
             else:
                 opt_target_r = 1.15
@@ -575,7 +576,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               mtf_atr_ratio=mtf_atr_ratio,
                                               trend_exhaustion=trend_exhaustion,
                                               vix_slope=vix_slope,
-                                              rs_alpha=rs_alpha) if TRACKER_ENABLED else None
+                                              rs_alpha=rs_alpha,
+                                              pcr=flow.get('put_call_ratio') if flow else 0.70) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} LONG - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
@@ -721,7 +723,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     mtf_atr_ratio=mtf_atr_ratio,
                     trend_exhaustion=trend_exhaustion,
                     vix_slope=vix_slope,
-                    rs_alpha=rs_alpha
+                    rs_alpha=rs_alpha,
+                    pcr=flow.get('put_call_ratio') if flow else 0.70
                 )
             else:
                 opt_target_r = 1.15
@@ -756,7 +759,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               mtf_atr_ratio=mtf_atr_ratio,
                                               trend_exhaustion=trend_exhaustion,
                                               vix_slope=vix_slope,
-                                              rs_alpha=rs_alpha) if TRACKER_ENABLED else None
+                                              rs_alpha=rs_alpha,
+                                              pcr=flow.get('put_call_ratio') if flow else 0.70) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} SHORT - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
