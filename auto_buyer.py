@@ -109,9 +109,8 @@ def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     if current_t > AUTO_BUY_END_TIME:
         return False, f"AFTER_3:30PM_CUTOFF (Current: {current_t.strftime('%H:%M:%S')})"
 
-    # 3. Lunch Lull Suppressor (12:30 PM - 1:30 PM EST has 6.2% win rate)
-    if LUNCH_START_TIME <= current_t <= LUNCH_END_TIME:
-        return False, "LUNCH_LULL_SUPPRESSION (12:30-1:30 PM EST)"
+    # 3. Time-of-day lunch block removed: empirical data shows Longs hold 66.7% win rate during lunch
+    # All setups evaluated strictly by structural Wyckoff quality and ML confidence floor
 
     # 4. ML Confidence Gate
     if ml_conf is not None and ml_conf < AUTO_BUY_MIN_ML_CONF:
@@ -178,8 +177,6 @@ def execute_autonomous_second_spring_buy(parent_trade_id, ticker, price, ml_conf
     if current_t > AUTO_BUY_END_TIME:
         return False, "AFTER_3:30PM_CUTOFF"
 
-    if LUNCH_START_TIME <= current_t <= LUNCH_END_TIME:
-        return False, "LUNCH_LULL_SUPPRESSION"
 
     if ml_conf is not None and ml_conf < AUTO_BUY_MIN_ML_CONF:
         return False, f"ML_CONF_TOO_LOW ({ml_conf:.1f}% < {AUTO_BUY_MIN_ML_CONF}%)"

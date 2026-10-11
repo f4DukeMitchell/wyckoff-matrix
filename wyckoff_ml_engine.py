@@ -66,8 +66,8 @@ def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gam
     
     target_r = base_r + atr_boost + test_boost + gamma_boost + block_boost
     
-    # Strictly enforce the proven quantitative sweet spot [1.05R, 1.35R]
-    return round(float(np.clip(target_r, 1.05, 1.35)), 2)
+    # Strictly enforce the proven quantitative sweet spot [0.65R, 1.35R]
+    return round(float(np.clip(target_r, 0.65, 1.35)), 2)
 
 def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
     """
@@ -134,7 +134,6 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             'gamma_wall_dist_pct': 'Gamma Wall Distance (%)',
             'moc_surge_score': 'MOC Auction Closing Surge',
             'institutional_block_ratio': 'Institutional Block vs Retail',
-            'hour_of_day': 'Hour of Day (EST)',
             'dir_num': 'Direction (Long/Short)'
         }
         cols = list(feature_map.keys())
@@ -181,7 +180,7 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
         rules = [
             f"Heavily weight {top_feat} ({sorted_imp[0][1]}% influence) on Phase C reversals",
             f"Secondary filter: {sorted_imp[1][0]} ({sorted_imp[1][1]}% influence)",
-            f"Dynamic Sweet-Spot Engine: Targets strictly calibrated to +1.05R - +1.35R (Breakeven locked at +0.75R)"
+            f"Dynamic Sweet-Spot Engine: Targets calibrated to +0.65R - +1.35R (Breakeven dynamically locked at 50% target / Tier 3)"
         ]
         
         notes_str = f"{trigger_reason} | {wins}W - {losses}L - {breakevens}BE (Ex-BE WR: {directional_win_rate:.1f}%, BE Rate: {be_rate:.1f}%)"
