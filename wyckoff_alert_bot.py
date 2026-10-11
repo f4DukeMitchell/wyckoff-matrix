@@ -442,6 +442,29 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         except Exception:
             rs_alpha = 0.0
 
+        # Indicator 2.7: Opening Range (ORB) Position (First 6 bars: 9:30 - 10:00 AM)
+        try:
+            curr_date = df.index[curr].date() if hasattr(df.index[curr], 'date') else None
+            if curr_date is not None:
+                sess_bars = [i for i in range(max(0, curr - 78), curr + 1) if hasattr(df.index[i], 'date') and df.index[i].date() == curr_date]
+            else:
+                sess_bars = list(range(max(0, curr - 20), curr + 1))
+            
+            if len(sess_bars) >= 6:
+                orb_bars = sess_bars[:6]
+                orb_h = max(highs[orb_bars])
+                orb_l = min(lows[orb_bars])
+                if closes[curr] > orb_h:
+                    orb_regime_code = 1
+                elif closes[curr] < orb_l:
+                    orb_regime_code = -1
+                else:
+                    orb_regime_code = 0
+            else:
+                orb_regime_code = 0
+        except Exception:
+            orb_regime_code = 0
+
         c_below = (lows[curr] < range_low[curr]) or (lows[curr-1] < range_low[curr-1])
         vol_dry = rel_vol[curr] < VOL_LIMIT
         
@@ -543,7 +566,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     vix_slope=vix_slope,
                     rs_alpha=rs_alpha,
                     pcr=flow.get('put_call_ratio') if flow else 0.70,
-                    vwap_slope=vwap_slope
+                    vwap_slope=vwap_slope,
+                    orb_regime_code=orb_regime_code
                 )
             else:
                 opt_target_r = 1.15
@@ -580,7 +604,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               vix_slope=vix_slope,
                                               rs_alpha=rs_alpha,
                                               pcr=flow.get('put_call_ratio') if flow else 0.70,
-                                              vwap_slope=vwap_slope) if TRACKER_ENABLED else None
+                                              vwap_slope=vwap_slope,
+                                              orb_regime_code=orb_regime_code) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} LONG - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
@@ -643,7 +668,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           trend_exhaustion=trend_exhaustion,
                           vix_slope=vix_slope,
                           rs_alpha=rs_alpha,
-                          vwap_slope=vwap_slope)
+                          vwap_slope=vwap_slope,
+                          orb_regime_code=orb_regime_code)
             
             auto_executed = False
             if trade_id:
@@ -729,7 +755,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     vix_slope=vix_slope,
                     rs_alpha=rs_alpha,
                     pcr=flow.get('put_call_ratio') if flow else 0.70,
-                    vwap_slope=vwap_slope
+                    vwap_slope=vwap_slope,
+                    orb_regime_code=orb_regime_code
                 )
             else:
                 opt_target_r = 1.15
@@ -766,7 +793,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               vix_slope=vix_slope,
                                               rs_alpha=rs_alpha,
                                               pcr=flow.get('put_call_ratio') if flow else 0.70,
-                                              vwap_slope=vwap_slope) if TRACKER_ENABLED else None
+                                              vwap_slope=vwap_slope,
+                                              orb_regime_code=orb_regime_code) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} SHORT - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
@@ -808,7 +836,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           trend_exhaustion=trend_exhaustion,
                           vix_slope=vix_slope,
                           rs_alpha=rs_alpha,
-                          vwap_slope=vwap_slope)
+                          vwap_slope=vwap_slope,
+                          orb_regime_code=orb_regime_code)
             
             if TELEGRAM_ENABLED:
                 tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow, trade_id, ml_confidence=ml_conf)

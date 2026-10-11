@@ -81,6 +81,7 @@ def init_db():
             ("vix_slope", "REAL DEFAULT 0.0"),
             ("rs_alpha", "REAL DEFAULT 0.0"),
             ("vwap_slope", "REAL DEFAULT 0.0"),
+            ("orb_regime_code", "INTEGER DEFAULT 0"),
         ]
         for col_name, col_type in new_cols:
             try: cursor.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")
@@ -117,7 +118,7 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
                             st_volume_ratio=1.0, vpoc_distance_pct=0.0,
                             mtf_atr_ratio=1.0, trend_exhaustion=3.0,
                             vix_slope=0.0, rs_alpha=0.0, pcr=0.70,
-                            vwap_slope=0.0):
+                            vwap_slope=0.0, orb_regime_code=0):
     """
     Computes real machine learning win probability (0.0 to 100.0%)
     using the trained Random Forest model.
@@ -129,6 +130,7 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
     - Macro/Intermarket: Intraday VIX Velocity Slope (%), Relative Strength Alpha vs SPY (%)
     - Options Flow: Put/Call Ratio (Options Skew)
     - Algorithmic Trend Alignment: Intraday VWAP Slope (%)
+    - Market Structure Balance: Opening Range Breakout (ORB) Locus Code
     - Institutional Microstructure (Gamma Regimes, MOC Surges, Block Size, Rebalance Proximity)
     """
     model = get_ml_model()
@@ -158,6 +160,7 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
     r_alpha = float(rs_alpha if rs_alpha is not None else 0.0)
     p_cr = float(pcr if pcr is not None else 0.70)
     vw_slp = float(vwap_slope if vwap_slope is not None else 0.0)
+    o_reg = int(orb_regime_code if orb_regime_code is not None else 0)
 
     if model is not None:
         try:
@@ -187,6 +190,7 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
                 'vix_slope': v_slope,
                 'rs_alpha': r_alpha,
                 'vwap_slope': vw_slp,
+                'orb_regime_code': o_reg,
                 'hour_of_day': h_day,
                 'dir_num': dir_num
             }
@@ -227,7 +231,7 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
               st_volume_ratio=None, vpoc_distance_pct=None,
               mtf_atr_ratio=None, trend_exhaustion=None,
               vix_slope=None, rs_alpha=None,
-              vwap_slope=None):
+              vwap_slope=None, orb_regime_code=None):
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -246,8 +250,8 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
                                 st_volume_ratio, vpoc_distance_pct,
                                 mtf_atr_ratio, trend_exhaustion,
                                 vix_slope, rs_alpha,
-                                vwap_slope)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                vwap_slope, orb_regime_code)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (ticker, direction, entry_price, stop_loss, take_profit, regime,
               timestamp, pcr, sentiment, timeframe, bars_in_regime,
               vwap_distance, hour_of_day, 1 if spy_bullish else 0 if spy_bullish is not None else None,
@@ -271,7 +275,8 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
               trend_exhaustion if trend_exhaustion is not None else 3.0,
               vix_slope if vix_slope is not None else 0.0,
               rs_alpha if rs_alpha is not None else 0.0,
-              vwap_slope if vwap_slope is not None else 0.0))
+              vwap_slope if vwap_slope is not None else 0.0,
+              orb_regime_code if orb_regime_code is not None else 0))
         conn.commit()
         last_id = cursor.lastrowid
         return last_id
