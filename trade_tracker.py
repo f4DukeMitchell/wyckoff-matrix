@@ -83,6 +83,8 @@ def init_db():
             ("vwap_slope", "REAL DEFAULT 0.0"),
             ("orb_regime_code", "INTEGER DEFAULT 0"),
             ("atr_headroom", "REAL DEFAULT 0.50"),
+            ("sector_ret_pct", "REAL DEFAULT 0.0"),
+            ("sector_aligned", "INTEGER DEFAULT 1"),
         ]
         for col_name, col_type in new_cols:
             try: cursor.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")
@@ -120,7 +122,8 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
                             mtf_atr_ratio=1.0, trend_exhaustion=3.0,
                             vix_slope=0.0, rs_alpha=0.0, pcr=0.70,
                             vwap_slope=0.0, orb_regime_code=0,
-                            atr_headroom=0.50):
+                            atr_headroom=0.50,
+                            sector_ret_pct=0.0, sector_aligned=1):
     """
     Computes real machine learning win probability (0.0 to 100.0%)
     using the trained Random Forest model.
@@ -134,6 +137,7 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
     - Algorithmic Trend Alignment: Intraday VWAP Slope (%)
     - Market Structure Balance: Opening Range Breakout (ORB) Locus Code
     - Daily Volatility Fuel: Daily ATR Headroom Remaining (%)
+    - Sector Beta / Industry Alignment: Sector Intraday Return (%) & Directional Alignment Flag
     - Institutional Microstructure (Gamma Regimes, MOC Surges, Block Size, Rebalance Proximity)
     """
     model = get_ml_model()
@@ -165,6 +169,8 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
     vw_slp = float(vwap_slope if vwap_slope is not None else 0.0)
     o_reg = int(orb_regime_code if orb_regime_code is not None else 0)
     a_head = float(atr_headroom if atr_headroom is not None else 0.50)
+    s_ret = float(sector_ret_pct if sector_ret_pct is not None else 0.0)
+    s_align = int(sector_aligned if sector_aligned is not None else 1)
 
     if model is not None:
         try:
@@ -196,6 +202,8 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
                 'vwap_slope': vw_slp,
                 'orb_regime_code': o_reg,
                 'atr_headroom': a_head,
+                'sector_ret_pct': s_ret,
+                'sector_aligned': s_align,
                 'hour_of_day': h_day,
                 'dir_num': dir_num
             }
@@ -237,7 +245,8 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
               mtf_atr_ratio=None, trend_exhaustion=None,
               vix_slope=None, rs_alpha=None,
               vwap_slope=None, orb_regime_code=None,
-              atr_headroom=None):
+              atr_headroom=None,
+              sector_ret_pct=None, sector_aligned=None):
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -256,8 +265,9 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
                                 st_volume_ratio, vpoc_distance_pct,
                                 mtf_atr_ratio, trend_exhaustion,
                                 vix_slope, rs_alpha,
-                                vwap_slope, orb_regime_code, atr_headroom)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                vwap_slope, orb_regime_code, atr_headroom,
+                                sector_ret_pct, sector_aligned)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (ticker, direction, entry_price, stop_loss, take_profit, regime,
               timestamp, pcr, sentiment, timeframe, bars_in_regime,
               vwap_distance, hour_of_day, 1 if spy_bullish else 0 if spy_bullish is not None else None,
@@ -283,7 +293,9 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
               rs_alpha if rs_alpha is not None else 0.0,
               vwap_slope if vwap_slope is not None else 0.0,
               orb_regime_code if orb_regime_code is not None else 0,
-              atr_headroom if atr_headroom is not None else 0.50))
+              atr_headroom if atr_headroom is not None else 0.50,
+              sector_ret_pct if sector_ret_pct is not None else 0.0,
+              sector_aligned if sector_aligned is not None else 1))
         conn.commit()
         last_id = cursor.lastrowid
         return last_id

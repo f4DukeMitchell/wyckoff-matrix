@@ -53,6 +53,8 @@ def migrate():
         ("vwap_slope", "REAL DEFAULT 0.0"),
         ("orb_regime_code", "INTEGER DEFAULT 0"),
         ("atr_headroom", "REAL DEFAULT 0.50"),
+        ("sector_ret_pct", "REAL DEFAULT 0.0"),
+        ("sector_aligned", "INTEGER DEFAULT 1"),
     ]:
         try:
             c.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")

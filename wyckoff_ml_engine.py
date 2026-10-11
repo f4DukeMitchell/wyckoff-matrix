@@ -39,7 +39,8 @@ def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gam
                                vpoc_distance_pct=0.0, mtf_atr_ratio=1.0, trend_exhaustion=3.0,
                                 vix_slope=0.0, rs_alpha=0.0, pcr=0.70,
                                 vwap_slope=0.0, orb_regime_code=0,
-                                atr_headroom=0.50):
+                                atr_headroom=0.50,
+                                sector_ret_pct=0.0, sector_aligned=1):
     """
     ML Data-Driven R-Target Optimizer:
     Dynamically constrains targets strictly to the proven Sweet Spot [0.65R to 1.35R].
@@ -65,6 +66,7 @@ def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gam
     - Flat VWAP Equilibrium (-0.05% to +0.05%): Horizontal accumulation adds +0.06R
     - Inside ORB Balance Locus (Code 0): High-liquidity morning balance adds +0.04R
     - Daily ATR Headroom Remaining (>= 0.20): Ample expansion fuel expands target by +0.07R
+    - Sector Directional Alignment: Trend tailwind adds +0.06R
     """
     import numpy as np
     base_r = 1.10  # Baseline high-expectancy sweet spot
@@ -144,8 +146,12 @@ def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gam
     # 19. Daily ATR Headroom Remaining (>= 0.20 room left: 92.3% win rate, +0.86R avg)
     a_head = float(atr_headroom if atr_headroom is not None else 0.50)
     head_boost = 0.07 if a_head >= 0.20 else 0.0
+
+    # 20. Sector Directional Alignment (71.4% win rate, +0.74R avg)
+    sec_aligned = int(sector_aligned if sector_aligned is not None else 1)
+    sec_boost = 0.06 if sec_aligned == 1 else 0.0
     
-    target_r = base_r + atr_boost + test_boost + gamma_boost + block_boost + cvd_boost + tod_boost + depth_boost + atr_mom_boost + clv_boost + sos_boost + vpoc_boost + mtf_boost + v_rev_boost + vix_boost + alpha_boost + pcr_boost + vwap_slp_boost + orb_boost + head_boost
+    target_r = base_r + atr_boost + test_boost + gamma_boost + block_boost + cvd_boost + tod_boost + depth_boost + atr_mom_boost + clv_boost + sos_boost + vpoc_boost + mtf_boost + v_rev_boost + vix_boost + alpha_boost + pcr_boost + vwap_slp_boost + orb_boost + head_boost + sec_boost
     
     # Strictly enforce the proven quantitative sweet spot [0.65R, 1.35R]
     return round(float(np.clip(target_r, 0.65, 1.35)), 2)
@@ -210,7 +216,9 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             'pcr': 0.70,
             'vwap_slope': 0.0,
             'orb_regime_code': 0,
-            'atr_headroom': 0.50
+            'atr_headroom': 0.50,
+            'sector_ret_pct': 0.0,
+            'sector_aligned': 1
         }
         for c_name, def_val in col_defaults.items():
             if c_name not in df.columns:
@@ -228,6 +236,8 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             'vwap_slope': 'Intraday VWAP Slope (%)',
             'orb_regime_code': 'Opening Range (ORB) Locus',
             'atr_headroom': 'Daily ATR Headroom Remaining',
+            'sector_ret_pct': 'Sector Intraday Return (%)',
+            'sector_aligned': 'Sector Directional Alignment',
             'cvd_delta_ratio': 'CVD Delta Absorption Ratio',
             'rvol_tod': 'Time-of-Day Relative Volume (RVOL-TOD)',
             'penetration_depth_pct': 'Spring Penetration Depth (%)',

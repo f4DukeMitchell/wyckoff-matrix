@@ -249,6 +249,73 @@ def get_spy_trend():
     except:
         return True
 
+# --- SECTOR ETF MAPPING & CONTEXT ---
+SECTOR_MAP = {
+    # Tech (XLK)
+    'AAPL': 'XLK', 'MSFT': 'XLK', 'NVDA': 'XLK', 'AMD': 'XLK', 'AVGO': 'XLK',
+    'CRM': 'XLK', 'ADBE': 'XLK', 'INTC': 'XLK', 'CSCO': 'XLK', 'QCOM': 'XLK',
+    'AMAT': 'XLK', 'MU': 'XLK', 'LRCX': 'XLK', 'NOW': 'XLK', 'PANW': 'XLK',
+    'SNPS': 'XLK', 'CDNS': 'XLK', 'KLAC': 'XLK', 'ANET': 'XLK', 'CRWD': 'XLK',
+    'PLTR': 'XLK', 'DELL': 'XLK', 'SMCI': 'XLK',
+    # Comm Services (XLC)
+    'GOOGL': 'XLC', 'GOOG': 'XLC', 'META': 'XLC', 'NFLX': 'XLC', 'DIS': 'XLC',
+    'CMCSA': 'XLC', 'TMUS': 'XLC', 'CHTR': 'XLC', 'VZ': 'XLC', 'T': 'XLC',
+    # Consumer Discretionary (XLY)
+    'AMZN': 'XLY', 'TSLA': 'XLY', 'HD': 'XLY', 'MCD': 'XLY', 'NKE': 'XLY',
+    'SBUX': 'XLY', 'BKNG': 'XLY', 'LOW': 'XLY', 'TJX': 'XLY', 'TGT': 'XLY',
+    'LULU': 'XLY', 'ROST': 'XLY', 'ABNB': 'XLY', 'MAR': 'XLY', 'ORLY': 'XLY',
+    # Financials (XLF)
+    'JPM': 'XLF', 'BAC': 'XLF', 'WFC': 'XLF', 'C': 'XLF', 'GS': 'XLF',
+    'MS': 'XLF', 'BLK': 'XLF', 'SCHW': 'XLF', 'V': 'XLF', 'MA': 'XLF',
+    'AXP': 'XLF', 'PGR': 'XLF', 'CB': 'XLF', 'MMC': 'XLF', 'AON': 'XLF',
+    # Healthcare (XLV)
+    'UNH': 'XLV', 'JNJ': 'XLV', 'LLY': 'XLV', 'ABBV': 'XLV', 'MRK': 'XLV',
+    'PFE': 'XLV', 'TMO': 'XLV', 'ABT': 'XLV', 'DHR': 'XLV', 'BMY': 'XLV',
+    'AMGN': 'XLV', 'ISRG': 'XLV', 'VRTX': 'XLV', 'GILD': 'XLV', 'REGN': 'XLV',
+    # Industrials (XLI)
+    'CAT': 'XLI', 'GE': 'XLI', 'UNP': 'XLI', 'HON': 'XLI', 'BA': 'XLI',
+    'UPS': 'XLI', 'RTX': 'XLI', 'DE': 'XLI', 'LMT': 'XLI', 'ETN': 'XLI',
+    # Energy (XLE)
+    'XOM': 'XLE', 'CVX': 'XLE', 'COP': 'XLE', 'SLB': 'XLE', 'EOG': 'XLE',
+    'MPC': 'XLE', 'PSX': 'XLE', 'VLO': 'XLE', 'OXY': 'XLE', 'WMB': 'XLE',
+    # Consumer Staples (XLP)
+    'PG': 'XLP', 'COST': 'XLP', 'PEP': 'XLP', 'KO': 'XLP', 'WMT': 'XLP',
+    # Materials (XLB)
+    'LIN': 'XLB', 'APD': 'XLB', 'SHW': 'XLB', 'FCX': 'XLB', 'NEM': 'XLB',
+    # Utilities (XLU)
+    'NEE': 'XLU', 'SO': 'XLU', 'DUK': 'XLU', 'CEG': 'XLU', 'SRE': 'XLU',
+    # Real Estate (XLRE)
+    'PLD': 'XLRE', 'AMT': 'XLRE', 'EQIX': 'XLRE', 'CCI': 'XLRE', 'SPG': 'XLRE'
+}
+
+_SECTOR_CACHE = {}
+
+def get_sector_return(ticker):
+    """Calculates and caches the intraday return % of the ticker's SPDR sector ETF (2-min TTL)."""
+    global _SECTOR_CACHE
+    sec_etf = SECTOR_MAP.get(ticker, 'SPY')
+    now_ts = time.time()
+    if sec_etf in _SECTOR_CACHE and (now_ts - _SECTOR_CACHE[sec_etf]['time'] < 120):
+        return _SECTOR_CACHE[sec_etf]['ret']
+        
+    try:
+        etf_data = yf.download(sec_etf, period="1d", interval="5m", progress=False)
+        if not etf_data.empty and len(etf_data) >= 2:
+            if isinstance(etf_data.columns, pd.MultiIndex):
+                c_vals = etf_data['Close'].iloc[:, 0].values.astype(float)
+                o_vals = etf_data['Open'].iloc[:, 0].values.astype(float)
+            else:
+                c_vals = etf_data['Close'].values.astype(float)
+                o_vals = etf_data['Open'].values.astype(float)
+            day_open = o_vals[0]
+            curr_c = c_vals[-1]
+            ret_pct = float((curr_c - day_open) / day_open * 100.0) if day_open > 0 else 0.0
+            _SECTOR_CACHE[sec_etf] = {'ret': ret_pct, 'time': now_ts}
+            return ret_pct
+    except Exception:
+        pass
+    return 0.0
+
 # --- TELEGRAM COMMAND LISTENER ---
 LAST_UPDATE_ID = 0
 
@@ -467,6 +534,12 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         except Exception:
             orb_regime_code = 0
 
+        # Indicator 4.4: Sector ETF Intraday Return (%)
+        try:
+            sector_ret_pct = round(get_sector_return(ticker), 2)
+        except Exception:
+            sector_ret_pct = 0.0
+
         c_below = (lows[curr] < range_low[curr]) or (lows[curr-1] < range_low[curr-1])
         vol_dry = rel_vol[curr] < VOL_LIMIT
         
@@ -570,7 +643,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     pcr=flow.get('put_call_ratio') if flow else 0.70,
                     vwap_slope=vwap_slope,
                     orb_regime_code=orb_regime_code,
-                    atr_headroom=atr_headroom
+                    atr_headroom=atr_headroom,
+                    sector_ret_pct=sector_ret_pct,
+                    sector_aligned=1 if sector_ret_pct >= 0.0 else 0
                 )
             else:
                 opt_target_r = 1.15
@@ -609,7 +684,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               pcr=flow.get('put_call_ratio') if flow else 0.70,
                                               vwap_slope=vwap_slope,
                                               orb_regime_code=orb_regime_code,
-                                              atr_headroom=atr_headroom) if TRACKER_ENABLED else None
+                                              atr_headroom=atr_headroom,
+                                              sector_ret_pct=sector_ret_pct,
+                                              sector_aligned=1 if sector_ret_pct >= 0.0 else 0) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} LONG - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
@@ -674,7 +751,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           rs_alpha=rs_alpha,
                           vwap_slope=vwap_slope,
                           orb_regime_code=orb_regime_code,
-                          atr_headroom=atr_headroom)
+                          atr_headroom=atr_headroom,
+                          sector_ret_pct=sector_ret_pct,
+                          sector_aligned=1 if sector_ret_pct >= 0.0 else 0)
             
             auto_executed = False
             if trade_id:
@@ -762,7 +841,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     pcr=flow.get('put_call_ratio') if flow else 0.70,
                     vwap_slope=vwap_slope,
                     orb_regime_code=orb_regime_code,
-                    atr_headroom=atr_headroom
+                    atr_headroom=atr_headroom,
+                    sector_ret_pct=sector_ret_pct,
+                    sector_aligned=1 if sector_ret_pct <= 0.0 else 0
                 )
             else:
                 opt_target_r = 1.15
@@ -801,7 +882,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               pcr=flow.get('put_call_ratio') if flow else 0.70,
                                               vwap_slope=vwap_slope,
                                               orb_regime_code=orb_regime_code,
-                                              atr_headroom=atr_headroom) if TRACKER_ENABLED else None
+                                              atr_headroom=atr_headroom,
+                                              sector_ret_pct=sector_ret_pct,
+                                              sector_aligned=1 if sector_ret_pct <= 0.0 else 0) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} SHORT - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
@@ -845,7 +928,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           rs_alpha=rs_alpha,
                           vwap_slope=vwap_slope,
                           orb_regime_code=orb_regime_code,
-                          atr_headroom=atr_headroom)
+                          atr_headroom=atr_headroom,
+                          sector_ret_pct=sector_ret_pct,
+                          sector_aligned=1 if sector_ret_pct <= 0.0 else 0)
             
             if TELEGRAM_ENABLED:
                 tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow, trade_id, ml_confidence=ml_conf)
