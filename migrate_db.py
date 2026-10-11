@@ -40,6 +40,7 @@ def migrate():
         ("partial_pnl_r", "REAL DEFAULT NULL"),
         ("second_spring_added", "INTEGER DEFAULT 0"),
         ("cvd_delta_ratio", "REAL DEFAULT 0.0"),
+        ("rvol_tod", "REAL DEFAULT 1.0"),
     ]:
         try:
             c.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")

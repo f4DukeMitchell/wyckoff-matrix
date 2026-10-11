@@ -34,7 +34,7 @@ def init_history_table():
 
 def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gamma_regime=0, 
                                gamma_wall_dist_pct=0.0, institutional_block_ratio=1.0, effort_vs_result=1.0,
-                               cvd_delta_ratio=0.0):
+                               cvd_delta_ratio=0.0, rvol_tod=1.0):
     """
     ML Data-Driven R-Target Optimizer:
     Dynamically constrains targets strictly to the proven Sweet Spot [0.65R to 1.35R].
@@ -46,6 +46,7 @@ def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gam
     - Dealer Gamma: Short Gamma (-1) squeeze potential boosts target by +0.08R; Long Gamma (+1) pin lowers to +1.05R
     - Institutional Block Ratio: Heavy block buying/selling adds +0.04R
     - CVD Delta Absorption: Strong positive buy delta (> +0.20) adds +0.05R
+    - RVOL-TOD Surge: Institutional volume surge (>= 2.0x) expands target by +0.08R; Dry-up (< 0.70x) adds +0.03R
     """
     import numpy as np
     base_r = 1.10  # Baseline high-expectancy sweet spot
@@ -70,7 +71,11 @@ def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gam
     c_delta = float(cvd_delta_ratio if cvd_delta_ratio is not None else 0.0)
     cvd_boost = 0.05 if c_delta > 0.20 else (-0.05 if c_delta < -0.30 else 0.0)
     
-    target_r = base_r + atr_boost + test_boost + gamma_boost + block_boost + cvd_boost
+    # 6. RVOL-TOD Institutional Surge Target Expansion
+    r_tod = float(rvol_tod if rvol_tod is not None else 1.0)
+    tod_boost = 0.08 if r_tod >= 2.0 else (0.03 if r_tod < 0.70 else 0.0)
+    
+    target_r = base_r + atr_boost + test_boost + gamma_boost + block_boost + cvd_boost + tod_boost
     
     # Strictly enforce the proven quantitative sweet spot [0.65R, 1.35R]
     return round(float(np.clip(target_r, 0.65, 1.35)), 2)
@@ -121,7 +126,8 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             'gamma_wall_dist_pct': 0.0,
             'moc_surge_score': 0.0,
             'institutional_block_ratio': 1.0,
-            'cvd_delta_ratio': 0.0
+            'cvd_delta_ratio': 0.0,
+            'rvol_tod': 1.0
         }
         for c_name, def_val in col_defaults.items():
             if c_name not in df.columns:
@@ -136,6 +142,7 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             'effort_vs_result': 'Effort vs Result (Absorption)',
             'test_vol_ratio': 'Secondary Test Vol Ratio',
             'cvd_delta_ratio': 'CVD Delta Absorption Ratio',
+            'rvol_tod': 'Time-of-Day Relative Volume (RVOL-TOD)',
             'days_to_rebalance': 'Index Rebalance Proximity (Days)',
             'is_triple_witching': 'Triple Witching Week Flag',
             'dealer_gamma_regime': 'Dealer Gamma Regime (Pin vs Run)',

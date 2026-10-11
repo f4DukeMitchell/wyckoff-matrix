@@ -299,6 +299,20 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         cvd_higher = bool(sub_cvd[-1] >= sub_cvd[prior_low_idx - prior_start]) if prior_low_idx >= prior_start else True
         cvd_absorption = bool(cvd_delta_ratio >= -0.20 or cvd_higher)
         
+        # Indicator 1.2: Time-of-Day Relative Volume (RVOL-TOD)
+        try:
+            curr_dt = df.index[-1]
+            curr_t = curr_dt.time() if hasattr(curr_dt, 'time') else None
+            if curr_t:
+                same_time_mask = [t.time() == curr_t for t in df.index[:-1]]
+                same_vols = vols[:-1][same_time_mask]
+                baseline_tod = float(np.median(same_vols[-15:])) if len(same_vols) >= 3 else float(np.median(vols[max(0, curr-20):curr]))
+            else:
+                baseline_tod = float(np.median(vols[max(0, curr-20):curr]))
+            rvol_tod = float(vols[curr] / max(1.0, baseline_tod))
+        except Exception:
+            rvol_tod = 1.0
+        
         range_high = pd.Series(highs).rolling(lookback, min_periods=20).max().shift(1).values
         range_low = pd.Series(lows).rolling(lookback, min_periods=20).min().shift(1).values
         
@@ -357,9 +371,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] OPENING SHIELD: {ticker} 5m Spring suppressed during 9:30-9:40 AM")
                 return
 
-            # Indicator 1.1: Cumulative Volume Delta (CVD) Absorption Gate
-            if not cvd_absorption:
-                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED BY CVD ABSORPTION: {ticker} LONG - heavy selling volume delta ({cvd_delta_ratio:.2f})")
+            # Indicator 1.1: Cumulative Volume Delta (CVD) Extreme Blowout Shield (Only block extreme toxic dumps < -0.60)
+            if cvd_delta_ratio < -0.60:
+                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED BY CVD BLOWOUT: {ticker} LONG - extreme toxic selling delta ({cvd_delta_ratio:.2f} < -0.60)")
                 last_alerted[ticker] = current_time
                 return
 
@@ -384,7 +398,7 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                                       effort_vs_result=effort_vs_result, options_flow=flow,
                                                       current_time=now) if INST_ENGINE_ENABLED else {}
 
-            # --- ML Dynamic Sweet-Spot Target Optimization [1.05R to 1.35R] ---
+            # --- ML Dynamic Sweet-Spot Target Optimization [0.65R to 1.35R] ---
             if ML_TARGET_OPT_ENABLED:
                 opt_target_r = calculate_optimal_target_r(
                     atr_expansion=atr_expansion,
@@ -392,7 +406,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     dealer_gamma_regime=inst.get('dealer_gamma_regime', 0),
                     gamma_wall_dist_pct=inst.get('gamma_wall_dist_pct', 0.0),
                     institutional_block_ratio=inst.get('institutional_block_ratio', 1.0),
-                    effort_vs_result=effort_vs_result
+                    effort_vs_result=effort_vs_result,
+                    cvd_delta_ratio=cvd_delta_ratio,
+                    rvol_tod=rvol_tod
                 )
             else:
                 opt_target_r = 1.15
@@ -417,7 +433,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               gamma_wall_dist_pct=inst.get('gamma_wall_dist_pct', 0.0),
                                               moc_surge_score=inst.get('moc_surge_score', 0.0),
                                               institutional_block_ratio=inst.get('institutional_block_ratio', 1.0),
-                                              cvd_delta_ratio=cvd_delta_ratio) if TRACKER_ENABLED else None
+                                              cvd_delta_ratio=cvd_delta_ratio,
+                                              rvol_tod=rvol_tod) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} LONG - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
@@ -469,7 +486,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           moc_surge_score=inst.get('moc_surge_score', 0.0),
                           institutional_block_ratio=inst.get('institutional_block_ratio', 1.0),
                           optimal_target_r=opt_target_r,
-                          cvd_delta_ratio=cvd_delta_ratio)
+                          cvd_delta_ratio=cvd_delta_ratio,
+                          rvol_tod=rvol_tod)
             
             auto_executed = False
             if trade_id:
