@@ -391,8 +391,10 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                        abs(lows[1:curr+1] - closes[:curr])))
             avg_tr = np.mean(tr[-78:]) * np.sqrt(78) if len(tr) >= 78 else np.mean(tr) * np.sqrt(len(tr))
             consumed_atr = float(day_range / avg_tr) if avg_tr > 0 else 1.0
+            atr_headroom = max(0.0, round(1.0 - consumed_atr, 3))
         except Exception:
             consumed_atr = 1.0
+            atr_headroom = 0.50
 
         # Indicator 2.4 (Roadmap #9): Secondary Test / SOS Reclaim Volume Ratio
         prev_v = vols[curr - 1]
@@ -567,7 +569,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     rs_alpha=rs_alpha,
                     pcr=flow.get('put_call_ratio') if flow else 0.70,
                     vwap_slope=vwap_slope,
-                    orb_regime_code=orb_regime_code
+                    orb_regime_code=orb_regime_code,
+                    atr_headroom=atr_headroom
                 )
             else:
                 opt_target_r = 1.15
@@ -605,7 +608,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               rs_alpha=rs_alpha,
                                               pcr=flow.get('put_call_ratio') if flow else 0.70,
                                               vwap_slope=vwap_slope,
-                                              orb_regime_code=orb_regime_code) if TRACKER_ENABLED else None
+                                              orb_regime_code=orb_regime_code,
+                                              atr_headroom=atr_headroom) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} LONG - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
@@ -669,7 +673,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           vix_slope=vix_slope,
                           rs_alpha=rs_alpha,
                           vwap_slope=vwap_slope,
-                          orb_regime_code=orb_regime_code)
+                          orb_regime_code=orb_regime_code,
+                          atr_headroom=atr_headroom)
             
             auto_executed = False
             if trade_id:
@@ -756,7 +761,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     rs_alpha=rs_alpha,
                     pcr=flow.get('put_call_ratio') if flow else 0.70,
                     vwap_slope=vwap_slope,
-                    orb_regime_code=orb_regime_code
+                    orb_regime_code=orb_regime_code,
+                    atr_headroom=atr_headroom
                 )
             else:
                 opt_target_r = 1.15
@@ -794,7 +800,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               rs_alpha=rs_alpha,
                                               pcr=flow.get('put_call_ratio') if flow else 0.70,
                                               vwap_slope=vwap_slope,
-                                              orb_regime_code=orb_regime_code) if TRACKER_ENABLED else None
+                                              orb_regime_code=orb_regime_code,
+                                              atr_headroom=atr_headroom) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} SHORT - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
@@ -837,7 +844,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           vix_slope=vix_slope,
                           rs_alpha=rs_alpha,
                           vwap_slope=vwap_slope,
-                          orb_regime_code=orb_regime_code)
+                          orb_regime_code=orb_regime_code,
+                          atr_headroom=atr_headroom)
             
             if TELEGRAM_ENABLED:
                 tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow, trade_id, ml_confidence=ml_conf)
