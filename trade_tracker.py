@@ -80,6 +80,7 @@ def init_db():
             ("trend_exhaustion", "REAL DEFAULT 3.0"),
             ("vix_slope", "REAL DEFAULT 0.0"),
             ("rs_alpha", "REAL DEFAULT 0.0"),
+            ("vwap_slope", "REAL DEFAULT 0.0"),
         ]
         for col_name, col_type in new_cols:
             try: cursor.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")
@@ -115,7 +116,8 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
                             penetration_depth_pct=0.0, candle_clv=0.70, consumed_atr=1.0,
                             st_volume_ratio=1.0, vpoc_distance_pct=0.0,
                             mtf_atr_ratio=1.0, trend_exhaustion=3.0,
-                            vix_slope=0.0, rs_alpha=0.0, pcr=0.70):
+                            vix_slope=0.0, rs_alpha=0.0, pcr=0.70,
+                            vwap_slope=0.0):
     """
     Computes real machine learning win probability (0.0 to 100.0%)
     using the trained Random Forest model.
@@ -126,6 +128,7 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
     - Multi-Timeframe: MTF ATR Expansion Ratio, Pre-Spring Trend Exhaustion Score
     - Macro/Intermarket: Intraday VIX Velocity Slope (%), Relative Strength Alpha vs SPY (%)
     - Options Flow: Put/Call Ratio (Options Skew)
+    - Algorithmic Trend Alignment: Intraday VWAP Slope (%)
     - Institutional Microstructure (Gamma Regimes, MOC Surges, Block Size, Rebalance Proximity)
     """
     model = get_ml_model()
@@ -154,6 +157,7 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
     v_slope = float(vix_slope if vix_slope is not None else 0.0)
     r_alpha = float(rs_alpha if rs_alpha is not None else 0.0)
     p_cr = float(pcr if pcr is not None else 0.70)
+    vw_slp = float(vwap_slope if vwap_slope is not None else 0.0)
 
     if model is not None:
         try:
@@ -182,6 +186,7 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
                 'trend_exhaustion': t_ex,
                 'vix_slope': v_slope,
                 'rs_alpha': r_alpha,
+                'vwap_slope': vw_slp,
                 'hour_of_day': h_day,
                 'dir_num': dir_num
             }
@@ -221,7 +226,8 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
               penetration_depth_pct=None, candle_clv=None, consumed_atr=None,
               st_volume_ratio=None, vpoc_distance_pct=None,
               mtf_atr_ratio=None, trend_exhaustion=None,
-              vix_slope=None, rs_alpha=None):
+              vix_slope=None, rs_alpha=None,
+              vwap_slope=None):
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -239,8 +245,9 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
                                 penetration_depth_pct, candle_clv, consumed_atr,
                                 st_volume_ratio, vpoc_distance_pct,
                                 mtf_atr_ratio, trend_exhaustion,
-                                vix_slope, rs_alpha)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                vix_slope, rs_alpha,
+                                vwap_slope)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (ticker, direction, entry_price, stop_loss, take_profit, regime,
               timestamp, pcr, sentiment, timeframe, bars_in_regime,
               vwap_distance, hour_of_day, 1 if spy_bullish else 0 if spy_bullish is not None else None,
@@ -263,7 +270,8 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
               mtf_atr_ratio if mtf_atr_ratio is not None else 1.0,
               trend_exhaustion if trend_exhaustion is not None else 3.0,
               vix_slope if vix_slope is not None else 0.0,
-              rs_alpha if rs_alpha is not None else 0.0))
+              rs_alpha if rs_alpha is not None else 0.0,
+              vwap_slope if vwap_slope is not None else 0.0))
         conn.commit()
         last_id = cursor.lastrowid
         return last_id

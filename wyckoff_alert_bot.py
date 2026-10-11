@@ -321,6 +321,7 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         # --- Institutional & Wyckoff VSA Features ---
         vwap = calc_vwap(highs, lows, closes, vols)
         vwap_distance = (closes[-1] - vwap[-1]) / vwap[-1] * 100 if vwap[-1] > 0 else 0
+        vwap_slope = float((vwap[-1] - vwap[-7]) / vwap[-7] * 100.0) if (len(vwap) >= 7 and vwap[-7] > 0) else 0.0
         
         atr_exp = calc_atr_expansion(highs, lows, closes)
         atr_expansion = float(atr_exp[-1])
@@ -541,7 +542,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     trend_exhaustion=trend_exhaustion,
                     vix_slope=vix_slope,
                     rs_alpha=rs_alpha,
-                    pcr=flow.get('put_call_ratio') if flow else 0.70
+                    pcr=flow.get('put_call_ratio') if flow else 0.70,
+                    vwap_slope=vwap_slope
                 )
             else:
                 opt_target_r = 1.15
@@ -577,7 +579,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               trend_exhaustion=trend_exhaustion,
                                               vix_slope=vix_slope,
                                               rs_alpha=rs_alpha,
-                                              pcr=flow.get('put_call_ratio') if flow else 0.70) if TRACKER_ENABLED else None
+                                              pcr=flow.get('put_call_ratio') if flow else 0.70,
+                                              vwap_slope=vwap_slope) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} LONG - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
@@ -639,7 +642,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           mtf_atr_ratio=mtf_atr_ratio,
                           trend_exhaustion=trend_exhaustion,
                           vix_slope=vix_slope,
-                          rs_alpha=rs_alpha)
+                          rs_alpha=rs_alpha,
+                          vwap_slope=vwap_slope)
             
             auto_executed = False
             if trade_id:
@@ -724,7 +728,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     trend_exhaustion=trend_exhaustion,
                     vix_slope=vix_slope,
                     rs_alpha=rs_alpha,
-                    pcr=flow.get('put_call_ratio') if flow else 0.70
+                    pcr=flow.get('put_call_ratio') if flow else 0.70,
+                    vwap_slope=vwap_slope
                 )
             else:
                 opt_target_r = 1.15
@@ -760,7 +765,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               trend_exhaustion=trend_exhaustion,
                                               vix_slope=vix_slope,
                                               rs_alpha=rs_alpha,
-                                              pcr=flow.get('put_call_ratio') if flow else 0.70) if TRACKER_ENABLED else None
+                                              pcr=flow.get('put_call_ratio') if flow else 0.70,
+                                              vwap_slope=vwap_slope) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} SHORT - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
@@ -801,7 +807,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           mtf_atr_ratio=mtf_atr_ratio,
                           trend_exhaustion=trend_exhaustion,
                           vix_slope=vix_slope,
-                          rs_alpha=rs_alpha)
+                          rs_alpha=rs_alpha,
+                          vwap_slope=vwap_slope)
             
             if TELEGRAM_ENABLED:
                 tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow, trade_id, ml_confidence=ml_conf)

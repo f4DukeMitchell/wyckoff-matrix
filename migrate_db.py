@@ -50,6 +50,7 @@ def migrate():
         ("trend_exhaustion", "REAL DEFAULT 3.0"),
         ("vix_slope", "REAL DEFAULT 0.0"),
         ("rs_alpha", "REAL DEFAULT 0.0"),
+        ("vwap_slope", "REAL DEFAULT 0.0"),
     ]:
         try:
             c.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")

@@ -37,7 +37,8 @@ def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gam
                                cvd_delta_ratio=0.0, rvol_tod=1.0, penetration_depth_pct=0.0,
                                candle_clv=0.70, consumed_atr=1.0, st_volume_ratio=1.0,
                                vpoc_distance_pct=0.0, mtf_atr_ratio=1.0, trend_exhaustion=3.0,
-                               vix_slope=0.0, rs_alpha=0.0, pcr=0.70):
+                               vix_slope=0.0, rs_alpha=0.0, pcr=0.70,
+                               vwap_slope=0.0):
     """
     ML Data-Driven R-Target Optimizer:
     Dynamically constrains targets strictly to the proven Sweet Spot [0.65R to 1.35R].
@@ -60,6 +61,7 @@ def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gam
     - Falling / Calm VIX Velocity (<= 0.5%): Macro volatility tailwind adds +0.05R
     - Oversold Laggard Catch-Up Alpha (< 0.0%): Mean-reversion bounce adds +0.04R
     - Bullish Options Call Accumulation (PCR <= 0.50): Call momentum fuels target expansion by +0.05R
+    - Flat VWAP Equilibrium (-0.05% to +0.05%): Horizontal accumulation adds +0.06R
     """
     import numpy as np
     base_r = 1.10  # Baseline high-expectancy sweet spot
@@ -127,8 +129,12 @@ def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gam
     # 16. Bullish Options Call Accumulation (PCR <= 0.50: 74.2% win rate)
     p_cr = float(pcr if pcr is not None else 0.70)
     pcr_boost = 0.05 if p_cr <= 0.50 else 0.0
+
+    # 17. Flat VWAP Equilibrium (-0.05% to +0.05%: 88.9% win rate, +2.27R avg)
+    v_slp = float(vwap_slope if vwap_slope is not None else 0.0)
+    vwap_slp_boost = 0.06 if (-0.05 <= v_slp <= 0.05) else 0.0
     
-    target_r = base_r + atr_boost + test_boost + gamma_boost + block_boost + cvd_boost + tod_boost + depth_boost + atr_mom_boost + clv_boost + sos_boost + vpoc_boost + mtf_boost + v_rev_boost + vix_boost + alpha_boost + pcr_boost
+    target_r = base_r + atr_boost + test_boost + gamma_boost + block_boost + cvd_boost + tod_boost + depth_boost + atr_mom_boost + clv_boost + sos_boost + vpoc_boost + mtf_boost + v_rev_boost + vix_boost + alpha_boost + pcr_boost + vwap_slp_boost
     
     # Strictly enforce the proven quantitative sweet spot [0.65R, 1.35R]
     return round(float(np.clip(target_r, 0.65, 1.35)), 2)
@@ -190,7 +196,8 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             'trend_exhaustion': 3.0,
             'vix_slope': 0.0,
             'rs_alpha': 0.0,
-            'pcr': 0.70
+            'pcr': 0.70,
+            'vwap_slope': 0.0
         }
         for c_name, def_val in col_defaults.items():
             if c_name not in df.columns:
@@ -205,6 +212,7 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             'effort_vs_result': 'Effort vs Result (Absorption)',
             'test_vol_ratio': 'Secondary Test Vol Ratio',
             'pcr': 'Put/Call Ratio (Options Skew)',
+            'vwap_slope': 'Intraday VWAP Slope (%)',
             'cvd_delta_ratio': 'CVD Delta Absorption Ratio',
             'rvol_tod': 'Time-of-Day Relative Volume (RVOL-TOD)',
             'penetration_depth_pct': 'Spring Penetration Depth (%)',
