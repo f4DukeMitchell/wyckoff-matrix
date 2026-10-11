@@ -1061,6 +1061,19 @@ def sync_alerts(payload: list[dict]):
     try:
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
+        
+        # Dynamic Schema Auto-Migration: Ensure all payload keys exist in alerts table
+        c.execute("PRAGMA table_info(alerts)")
+        existing_cols = set(r[1] for r in c.fetchall())
+        for item in payload:
+            for k in item.keys():
+                if k != 'id' and k not in existing_cols:
+                    try:
+                        c.execute(f"ALTER TABLE alerts ADD COLUMN {k} REAL")
+                        existing_cols.add(k)
+                    except Exception:
+                        pass
+
         inserted = 0
         for item in payload:
             ticker = item.get("ticker")
@@ -1069,7 +1082,7 @@ def sync_alerts(payload: list[dict]):
                 continue
             c.execute("SELECT id FROM alerts WHERE ticker = ? AND timestamp = ?", (ticker, ts))
             if c.fetchone() is None:
-                keys = [k for k in item.keys() if k != 'id']
+                keys = [k for k in item.keys() if k != 'id' and k in existing_cols]
                 placeholders = ', '.join(['?'] * len(keys))
                 cols = ', '.join(keys)
                 vals = [item[k] for k in keys]
