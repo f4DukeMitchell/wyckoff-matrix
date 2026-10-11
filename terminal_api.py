@@ -1057,7 +1057,7 @@ def get_ml_paper_trades():
 
 @app.post("/api/alerts/sync")
 def sync_alerts(payload: list[dict]):
-    """Receives alerts from another instance and inserts any missing records."""
+    """Receives alerts from another instance and inserts or updates records."""
     try:
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
@@ -1075,24 +1075,83 @@ def sync_alerts(payload: list[dict]):
                         pass
 
         inserted = 0
+        updated = 0
         for item in payload:
             ticker = item.get("ticker")
             ts = item.get("timestamp")
             if not ticker or not ts:
                 continue
             c.execute("SELECT id FROM alerts WHERE ticker = ? AND timestamp = ?", (ticker, ts))
-            if c.fetchone() is None:
-                keys = [k for k in item.keys() if k != 'id' and k in existing_cols]
+            row = c.fetchone()
+            keys = [k for k in item.keys() if k != 'id' and k in existing_cols]
+            if row is None:
                 placeholders = ', '.join(['?'] * len(keys))
                 cols = ', '.join(keys)
                 vals = [item[k] for k in keys]
                 c.execute(f"INSERT INTO alerts ({cols}) VALUES ({placeholders})", vals)
                 inserted += 1
+            else:
+                existing_id = row[0]
+                set_clause = ', '.join([f"{k} = ?" for k in keys])
+                vals = [item[k] for k in keys] + [existing_id]
+                c.execute(f"UPDATE alerts SET {set_clause} WHERE id = ?", vals)
+                updated += 1
         conn.commit()
         conn.close()
-        return {"success": True, "inserted": inserted}
+        return {"success": True, "inserted": inserted, "updated": updated}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/ml/sync_history")
+def sync_ml_history(payload: list[dict]):
+    """Receives ml_model_history records and inserts or updates them."""
+    try:
+        from wyckoff_ml_engine import init_history_table
+        init_history_table()
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("PRAGMA table_info(ml_model_history)")
+        existing_cols = set(r[1] for r in c.fetchall())
+        
+        synced = 0
+        for item in payload:
+            ver = item.get("version")
+            if not ver:
+                continue
+            c.execute("SELECT id FROM ml_model_history WHERE version = ?", (ver,))
+            row = c.fetchone()
+            keys = [k for k in item.keys() if k != 'id' and k in existing_cols]
+            if row is None:
+                placeholders = ', '.join(['?'] * len(keys))
+                cols = ', '.join(keys)
+                vals = [item[k] for k in keys]
+                c.execute(f"INSERT INTO ml_model_history ({cols}) VALUES ({placeholders})", vals)
+                synced += 1
+            else:
+                existing_id = row[0]
+                set_clause = ', '.join([f"{k} = ?" for k in keys])
+                vals = [item[k] for k in keys] + [existing_id]
+                c.execute(f"UPDATE ml_model_history SET {set_clause} WHERE id = ?", vals)
+                synced += 1
+        conn.commit()
+        conn.close()
+        return {"success": True, "synced": synced}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/ml/sync_model")
+async def sync_ml_model(request: Request):
+    """Receives raw bytes of wyckoff_model.pkl and updates active model artifact."""
+    try:
+        body = await request.body()
+        if not body:
+            raise HTTPException(status_code=400, detail="Empty model payload")
+        with open(MODEL_PATH, "wb") as f:
+            f.write(body)
+        return {"success": True, "bytes_written": len(body)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/system/update")
 def trigger_system_update():
