@@ -340,6 +340,25 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         except Exception:
             consumed_atr = 1.0
 
+        # Indicator 2.4 (Roadmap #9): Secondary Test / SOS Reclaim Volume Ratio
+        prev_v = vols[curr - 1]
+        st_volume_ratio = float(vols[curr] / prev_v) if prev_v > 0 else 1.0
+
+        # Indicator 1.4 (Roadmap #4): Intraday VPOC Distance (%)
+        try:
+            lookback_day = min(curr, 78)
+            sess_closes = closes[curr - lookback_day:curr + 1]
+            sess_vols = vols[curr - lookback_day:curr + 1]
+            if len(sess_closes) >= 5 and np.sum(sess_vols) > 0:
+                hist, bin_edges = np.histogram(sess_closes, bins=20, weights=sess_vols)
+                max_bin = np.argmax(hist)
+                vpoc_price = (bin_edges[max_bin] + bin_edges[max_bin + 1]) * 0.5
+                vpoc_distance_pct = float((closes[curr] - vpoc_price) / vpoc_price * 100.0) if vpoc_price > 0 else 0.0
+            else:
+                vpoc_distance_pct = 0.0
+        except Exception:
+            vpoc_distance_pct = 0.0
+
         c_below = (lows[curr] < range_low[curr]) or (lows[curr-1] < range_low[curr-1])
         vol_dry = rel_vol[curr] < VOL_LIMIT
         
@@ -433,7 +452,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     rvol_tod=rvol_tod,
                     penetration_depth_pct=penetration_depth_pct,
                     candle_clv=candle_clv,
-                    consumed_atr=consumed_atr
+                    consumed_atr=consumed_atr,
+                    st_volume_ratio=st_volume_ratio,
+                    vpoc_distance_pct=vpoc_distance_pct
                 )
             else:
                 opt_target_r = 1.15
@@ -462,7 +483,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               rvol_tod=rvol_tod,
                                               penetration_depth_pct=penetration_depth_pct,
                                               candle_clv=candle_clv,
-                                              consumed_atr=consumed_atr) if TRACKER_ENABLED else None
+                                              consumed_atr=consumed_atr,
+                                              st_volume_ratio=st_volume_ratio,
+                                              vpoc_distance_pct=vpoc_distance_pct) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} LONG - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
@@ -518,7 +541,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           rvol_tod=rvol_tod,
                           penetration_depth_pct=penetration_depth_pct,
                           candle_clv=candle_clv,
-                          consumed_atr=consumed_atr)
+                          consumed_atr=consumed_atr,
+                          st_volume_ratio=st_volume_ratio,
+                          vpoc_distance_pct=vpoc_distance_pct)
             
             auto_executed = False
             if trade_id:
@@ -596,7 +621,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     rvol_tod=rvol_tod,
                     penetration_depth_pct=0.0,
                     candle_clv=candle_clv,
-                    consumed_atr=consumed_atr
+                    consumed_atr=consumed_atr,
+                    st_volume_ratio=st_volume_ratio,
+                    vpoc_distance_pct=vpoc_distance_pct
                 )
             else:
                 opt_target_r = 1.15
@@ -625,7 +652,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               rvol_tod=rvol_tod,
                                               penetration_depth_pct=0.0,
                                               candle_clv=candle_clv,
-                                              consumed_atr=consumed_atr) if TRACKER_ENABLED else None
+                                              consumed_atr=consumed_atr,
+                                              st_volume_ratio=st_volume_ratio,
+                                              vpoc_distance_pct=vpoc_distance_pct) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} SHORT - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
@@ -660,7 +689,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           rvol_tod=rvol_tod,
                           penetration_depth_pct=0.0,
                           candle_clv=candle_clv,
-                          consumed_atr=consumed_atr)
+                          consumed_atr=consumed_atr,
+                          st_volume_ratio=st_volume_ratio,
+                          vpoc_distance_pct=vpoc_distance_pct)
             
             if TELEGRAM_ENABLED:
                 tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow, trade_id, ml_confidence=ml_conf)

@@ -101,13 +101,15 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
                             dealer_gamma_regime=0, gamma_wall_dist_pct=0.0,
                             moc_surge_score=0.0, institutional_block_ratio=1.0,
                             cvd_delta_ratio=0.0, rvol_tod=1.0,
-                            penetration_depth_pct=0.0, candle_clv=0.70, consumed_atr=1.0):
+                            penetration_depth_pct=0.0, candle_clv=0.70, consumed_atr=1.0,
+                            st_volume_ratio=1.0, vpoc_distance_pct=0.0):
     """
     Computes real machine learning win probability (0.0 to 100.0%)
     using the trained Random Forest model.
     Evaluates institutional factors including:
     - Wyckoff VSA, Cumulative Volume Delta (CVD Delta Ratio) & Time-of-Day RVOL (RVOL-TOD)
     - Microstructure: Spring Penetration Depth (%), Candle Close CLV, Consumed Daily ATR Ratio
+    - Order Flow: SOS Reclaim Volume Ratio, Intraday VPOC Distance (%)
     - Institutional Microstructure (Gamma Regimes, MOC Surges, Block Size, Rebalance Proximity)
     """
     model = get_ml_model()
@@ -129,6 +131,8 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
     p_depth = float(penetration_depth_pct if penetration_depth_pct is not None else 0.0)
     c_clv = float(candle_clv if candle_clv is not None else 0.70)
     c_atr = float(consumed_atr if consumed_atr is not None else 1.0)
+    s_vol = float(st_volume_ratio if st_volume_ratio is not None else 1.0)
+    vp_dist = float(vpoc_distance_pct if vpoc_distance_pct is not None else 0.0)
 
     if model is not None:
         try:
@@ -150,6 +154,8 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
                 'penetration_depth_pct': p_depth,
                 'candle_clv': c_clv,
                 'consumed_atr': c_atr,
+                'st_volume_ratio': s_vol,
+                'vpoc_distance_pct': vp_dist,
                 'hour_of_day': h_day,
                 'dir_num': dir_num
             }
@@ -186,7 +192,8 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
               days_to_rebalance=None, is_triple_witching=None, dealer_gamma_regime=None,
               gamma_wall_dist_pct=None, moc_surge_score=None, institutional_block_ratio=None,
               optimal_target_r=None, cvd_delta_ratio=None, rvol_tod=None,
-              penetration_depth_pct=None, candle_clv=None, consumed_atr=None):
+              penetration_depth_pct=None, candle_clv=None, consumed_atr=None,
+              st_volume_ratio=None, vpoc_distance_pct=None):
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -201,8 +208,9 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
                                 days_to_rebalance, is_triple_witching, dealer_gamma_regime,
                                 gamma_wall_dist_pct, moc_surge_score, institutional_block_ratio,
                                 optimal_target_r, cvd_delta_ratio, rvol_tod,
-                                penetration_depth_pct, candle_clv, consumed_atr)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                penetration_depth_pct, candle_clv, consumed_atr,
+                                st_volume_ratio, vpoc_distance_pct)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (ticker, direction, entry_price, stop_loss, take_profit, regime,
               timestamp, pcr, sentiment, timeframe, bars_in_regime,
               vwap_distance, hour_of_day, 1 if spy_bullish else 0 if spy_bullish is not None else None,
@@ -219,7 +227,9 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
               rvol_tod if rvol_tod is not None else 1.0,
               penetration_depth_pct if penetration_depth_pct is not None else 0.0,
               candle_clv if candle_clv is not None else 0.70,
-              consumed_atr if consumed_atr is not None else 1.0))
+              consumed_atr if consumed_atr is not None else 1.0,
+              st_volume_ratio if st_volume_ratio is not None else 1.0,
+              vpoc_distance_pct if vpoc_distance_pct is not None else 0.0))
         conn.commit()
         last_id = cursor.lastrowid
         return last_id

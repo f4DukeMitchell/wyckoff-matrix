@@ -35,7 +35,8 @@ def init_history_table():
 def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gamma_regime=0, 
                                gamma_wall_dist_pct=0.0, institutional_block_ratio=1.0, effort_vs_result=1.0,
                                cvd_delta_ratio=0.0, rvol_tod=1.0, penetration_depth_pct=0.0,
-                               candle_clv=0.70, consumed_atr=1.0):
+                               candle_clv=0.70, consumed_atr=1.0, st_volume_ratio=1.0,
+                               vpoc_distance_pct=0.0):
     """
     ML Data-Driven R-Target Optimizer:
     Dynamically constrains targets strictly to the proven Sweet Spot [0.65R to 1.35R].
@@ -51,6 +52,8 @@ def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gam
     - Ideal Spring Sweep Depth (0.20% - 0.59%): Optimal stop run liquidity grab expands target by +0.10R
     - Consumed ATR Momentum (>= 0.70): Active trend momentum fuels target expansion by +0.05R
     - Bullish Candle CLV (>= 0.70): Upper quartile close adds +0.03R
+    - SOS Reclaim Volume Surge (> 1.20x): Aggressive institutional lift expands target by +0.08R
+    - VPOC Hub Reversal (-0.4% to +0.4%): High volume node pivot adds +0.05R
     """
     import numpy as np
     base_r = 1.10  # Baseline high-expectancy sweet spot
@@ -90,8 +93,16 @@ def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gam
     # 9. Upper Quartile Candle Close (CLV >= 0.70: 83.3% win rate)
     c_clv = float(candle_clv if candle_clv is not None else 0.70)
     clv_boost = 0.03 if c_clv >= 0.70 else 0.0
+
+    # 10. SOS Reclaim Volume Surge (> 1.20x: 87.5% win rate)
+    st_v = float(st_volume_ratio if st_volume_ratio is not None else 1.0)
+    sos_boost = 0.08 if st_v > 1.20 else 0.0
+
+    # 11. VPOC Hub Reversal (-0.4% to +0.4%: 88.9% win rate)
+    v_dist = float(vpoc_distance_pct if vpoc_distance_pct is not None else 0.0)
+    vpoc_boost = 0.05 if (-0.40 <= v_dist <= 0.40) else 0.0
     
-    target_r = base_r + atr_boost + test_boost + gamma_boost + block_boost + cvd_boost + tod_boost + depth_boost + atr_mom_boost + clv_boost
+    target_r = base_r + atr_boost + test_boost + gamma_boost + block_boost + cvd_boost + tod_boost + depth_boost + atr_mom_boost + clv_boost + sos_boost + vpoc_boost
     
     # Strictly enforce the proven quantitative sweet spot [0.65R, 1.35R]
     return round(float(np.clip(target_r, 0.65, 1.35)), 2)
@@ -146,7 +157,9 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             'rvol_tod': 1.0,
             'penetration_depth_pct': 0.0,
             'candle_clv': 0.70,
-            'consumed_atr': 1.0
+            'consumed_atr': 1.0,
+            'st_volume_ratio': 1.0,
+            'vpoc_distance_pct': 0.0
         }
         for c_name, def_val in col_defaults.items():
             if c_name not in df.columns:
@@ -165,6 +178,8 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             'penetration_depth_pct': 'Spring Penetration Depth (%)',
             'candle_clv': 'Candle Close Location (CLV)',
             'consumed_atr': 'Consumed Daily ATR Ratio',
+            'st_volume_ratio': 'SOS Reclaim Volume Ratio',
+            'vpoc_distance_pct': 'VPOC Distance (%)',
             'days_to_rebalance': 'Index Rebalance Proximity (Days)',
             'is_triple_witching': 'Triple Witching Week Flag',
             'dealer_gamma_regime': 'Dealer Gamma Regime (Pin vs Run)',
