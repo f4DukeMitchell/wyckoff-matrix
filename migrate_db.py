@@ -46,6 +46,8 @@ def migrate():
         ("consumed_atr", "REAL DEFAULT 1.0"),
         ("st_volume_ratio", "REAL DEFAULT 1.0"),
         ("vpoc_distance_pct", "REAL DEFAULT 0.0"),
+        ("mtf_atr_ratio", "REAL DEFAULT 1.0"),
+        ("trend_exhaustion", "REAL DEFAULT 3.0"),
     ]:
         try:
             c.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")

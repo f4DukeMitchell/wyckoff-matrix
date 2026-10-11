@@ -241,11 +241,13 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
             return
             
         if isinstance(df.columns, pd.MultiIndex):
+            opens = df['Open'].iloc[:, 0].values.astype(float) if 'Open' in df else closes
             highs = df['High'].iloc[:, 0].values.astype(float)
             lows = df['Low'].iloc[:, 0].values.astype(float)
             closes = df['Close'].iloc[:, 0].values.astype(float)
             vols = df['Volume'].iloc[:, 0].values.astype(float)
         else:
+            opens = df['Open'].values.astype(float) if 'Open' in df else closes
             highs = df['High'].values.astype(float)
             lows = df['Low'].values.astype(float)
             closes = df['Close'].values.astype(float)
@@ -359,6 +361,27 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         except Exception:
             vpoc_distance_pct = 0.0
 
+        # Indicator 3.2 (Roadmap #12): Multi-Timeframe ATR Expansion Ratio
+        try:
+            start_36 = max(0, curr - 36)
+            tr_36 = np.maximum(highs[start_36:curr+1] - lows[start_36:curr+1],
+                               np.maximum(abs(highs[start_36:curr+1] - closes[start_36-1:curr]),
+                                          abs(lows[start_36:curr+1] - closes[start_36-1:curr]))) if start_36 > 0 else (highs[start_36:curr+1] - lows[start_36:curr+1])
+            short_atr = np.mean(tr_36[-6:]) if len(tr_36) >= 6 else 1.0
+            long_atr = np.mean(tr_36) if len(tr_36) > 0 else 1.0
+            mtf_atr_ratio = float(short_atr / long_atr) if long_atr > 0 else 1.0
+        except Exception:
+            mtf_atr_ratio = 1.0
+
+        # Indicator 2.5 (Roadmap #10): Pre-Spring Trend Exhaustion Score
+        try:
+            start_ex = max(0, curr - 8)
+            red_count = sum(1 for i in range(start_ex, curr) if closes[i] < opens[i])
+            lower_low_count = sum(1 for i in range(start_ex + 1, curr) if lows[i] < lows[i-1])
+            trend_exhaustion = float((red_count + lower_low_count) / 2.0)
+        except Exception:
+            trend_exhaustion = 3.0
+
         c_below = (lows[curr] < range_low[curr]) or (lows[curr-1] < range_low[curr-1])
         vol_dry = rel_vol[curr] < VOL_LIMIT
         
@@ -454,7 +477,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     candle_clv=candle_clv,
                     consumed_atr=consumed_atr,
                     st_volume_ratio=st_volume_ratio,
-                    vpoc_distance_pct=vpoc_distance_pct
+                    vpoc_distance_pct=vpoc_distance_pct,
+                    mtf_atr_ratio=mtf_atr_ratio,
+                    trend_exhaustion=trend_exhaustion
                 )
             else:
                 opt_target_r = 1.15
@@ -485,7 +510,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               candle_clv=candle_clv,
                                               consumed_atr=consumed_atr,
                                               st_volume_ratio=st_volume_ratio,
-                                              vpoc_distance_pct=vpoc_distance_pct) if TRACKER_ENABLED else None
+                                              vpoc_distance_pct=vpoc_distance_pct,
+                                              mtf_atr_ratio=mtf_atr_ratio,
+                                              trend_exhaustion=trend_exhaustion) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} LONG - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
@@ -543,7 +570,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           candle_clv=candle_clv,
                           consumed_atr=consumed_atr,
                           st_volume_ratio=st_volume_ratio,
-                          vpoc_distance_pct=vpoc_distance_pct)
+                          vpoc_distance_pct=vpoc_distance_pct,
+                          mtf_atr_ratio=mtf_atr_ratio,
+                          trend_exhaustion=trend_exhaustion)
             
             auto_executed = False
             if trade_id:
@@ -623,7 +652,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     candle_clv=candle_clv,
                     consumed_atr=consumed_atr,
                     st_volume_ratio=st_volume_ratio,
-                    vpoc_distance_pct=vpoc_distance_pct
+                    vpoc_distance_pct=vpoc_distance_pct,
+                    mtf_atr_ratio=mtf_atr_ratio,
+                    trend_exhaustion=trend_exhaustion
                 )
             else:
                 opt_target_r = 1.15
@@ -654,7 +685,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               candle_clv=candle_clv,
                                               consumed_atr=consumed_atr,
                                               st_volume_ratio=st_volume_ratio,
-                                              vpoc_distance_pct=vpoc_distance_pct) if TRACKER_ENABLED else None
+                                              vpoc_distance_pct=vpoc_distance_pct,
+                                              mtf_atr_ratio=mtf_atr_ratio,
+                                              trend_exhaustion=trend_exhaustion) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} SHORT - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
@@ -691,7 +724,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           candle_clv=candle_clv,
                           consumed_atr=consumed_atr,
                           st_volume_ratio=st_volume_ratio,
-                          vpoc_distance_pct=vpoc_distance_pct)
+                          vpoc_distance_pct=vpoc_distance_pct,
+                          mtf_atr_ratio=mtf_atr_ratio,
+                          trend_exhaustion=trend_exhaustion)
             
             if TELEGRAM_ENABLED:
                 tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow, trade_id, ml_confidence=ml_conf)
