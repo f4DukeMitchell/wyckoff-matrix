@@ -3,6 +3,6 @@
   "alloc_value": 1.0,
   "target_weighted_sizing": true,
   "min_r_units": 0.65,
-  "max_concurrent": 5,
+  "max_concurrent": 25,
   "auto_buy_enabled": true
 }

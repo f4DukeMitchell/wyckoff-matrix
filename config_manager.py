@@ -10,7 +10,7 @@ DEFAULT_CONFIG = {
     "alloc_value": 1.0,               # Default 1.0% of Buying Power or $20.00
     "target_weighted_sizing": True,   # ON by default: scales risk by expected target R
     "min_r_units": 0.65,              # 0.65R minimum target floor to capture tight rotations
-    "max_concurrent": 5,              # Max concurrent 5 active algo positions
+    "max_concurrent": 25,             # Max concurrent 25 active algo positions (25% of portfolio)
     "auto_buy_enabled": True          # Master engine switch
 }
 
@@ -83,10 +83,8 @@ def calculate_sizing_allocation(buying_power: float, target_r: float = 1.0) -> d
     if target_weighted:
         if target_r >= 1.20:
             multiplier = 1.25
-        elif target_r >= 0.80:
-            multiplier = 1.00
         elif target_r >= 0.65:
-            multiplier = 0.60
+            multiplier = 1.00  # Full 1.00x allocation across all valid setups >= 0.65R
         else:
             multiplier = 0.60
     else:

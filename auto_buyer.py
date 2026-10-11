@@ -24,13 +24,13 @@ import config_manager
 def get_config():
     return config_manager.load_config()
 
-AUTO_BUY_MIN_ML_CONF = float(os.getenv("AUTO_BUY_MIN_ML_CONF", "60.0"))
+AUTO_BUY_MIN_ML_CONF = float(os.getenv("AUTO_BUY_MIN_ML_CONF", "55.0"))
 
 # Allowed Auto-Buy Timeframes: Strictly 5m Day Trades Only (No swings or higher TF holds)
 AUTO_BUY_ALLOWED_TIMEFRAMES = ["5m"]
 
-# Optimal Statistical Window: 10:00 AM to 3:30 PM EST (Skip 9:30-10:00 AM opening whipsaw & 12:30-1:30 PM lunch chop)
-AUTO_BUY_START_TIME = datetime.time(10, 0)
+# Optimal Statistical Window: 9:40 AM to 3:30 PM EST (Skip 9:30-9:40 AM open order imbalance; capture 9:40+ morning expansion)
+AUTO_BUY_START_TIME = datetime.time(9, 40)
 AUTO_BUY_END_TIME = datetime.time(15, 30)
 LUNCH_START_TIME = datetime.time(12, 30)
 LUNCH_END_TIME = datetime.time(13, 30)
@@ -74,8 +74,8 @@ def get_open_trade_for_second_spring(ticker, current_price):
         init_risk = abs(entry - init_sl)
         target_r = (abs(tp - entry) / init_risk) if (init_risk > 0.001 and tp > 0) else 1.0
 
-        # Conditional Pyramiding Rule: Only pyramid 2nd Spring if Target R >= 0.80R
-        if target_r < 0.80:
+        # Conditional Pyramiding Rule: Pyramid 2nd Spring down to 0.65R target expectancy
+        if target_r < 0.65:
             return None
 
         if already_added == 0 and tier == 0 and current_price > init_sl:
@@ -101,9 +101,9 @@ def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     now = get_market_time()
     current_t = now.time()
 
-    # 1. Opening Whipsaw Gate (Must be >= 10:00 AM EST)
+    # 1. Opening Expansion Gate (Must be >= 9:40 AM EST)
     if current_t < AUTO_BUY_START_TIME:
-        return False, f"WAITING_FOR_10AM_CONFIRMATION (Current: {current_t.strftime('%H:%M:%S')})"
+        return False, f"WAITING_FOR_940AM_CONFIRMATION (Current: {current_t.strftime('%H:%M:%S')})"
 
     # 2. End-of-Day Cutoff (No entries after 3:30 PM EST ahead of 3:55 PM flatten)
     if current_t > AUTO_BUY_END_TIME:
@@ -112,15 +112,15 @@ def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     # 3. Time-of-day lunch block removed: empirical data shows Longs hold 66.7% win rate during lunch
     # All setups evaluated strictly by structural Wyckoff quality and ML confidence floor
 
-    # 4. ML Confidence Gate
+    # 4. ML Confidence Gate (55.0% statistical profitability floor)
     if ml_conf is not None and ml_conf < AUTO_BUY_MIN_ML_CONF:
         return False, f"ML_CONF_TOO_LOW ({ml_conf:.1f}% < {AUTO_BUY_MIN_ML_CONF}%)"
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
-    # 5. Max Concurrent Active Positions
-    max_concurrent = int(cfg.get("max_concurrent", 5))
+    # 5. Max Concurrent Active Positions (Up to 25 positions / 25% of portfolio)
+    max_concurrent = int(cfg.get("max_concurrent", 25))
     c.execute("SELECT COUNT(id) FROM alerts WHERE outcome = 'OPEN' AND user_active = 1")
     active_count = (c.fetchone() or (0,))[0]
     if active_count >= max_concurrent:
@@ -172,7 +172,7 @@ def execute_autonomous_second_spring_buy(parent_trade_id, ticker, price, ml_conf
     current_t = now.time()
 
     if current_t < AUTO_BUY_START_TIME:
-        return False, "WAITING_FOR_10AM_CONFIRMATION"
+        return False, "WAITING_FOR_940AM_CONFIRMATION"
 
     if current_t > AUTO_BUY_END_TIME:
         return False, "AFTER_3:30PM_CUTOFF"

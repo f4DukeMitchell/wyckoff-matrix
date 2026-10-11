@@ -407,8 +407,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
 
             # If this is a validated Second Spring / Secondary Test on an open position:
             if open_second_spring:
-                if r_units < 0.80:
-                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] 2nd Spring Pyramid Bypassed: {ticker} target too tight ({r_units:.2f}R < 0.80R)")
+                if r_units < 0.65:
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] 2nd Spring Pyramid Bypassed: {ticker} target too tight ({r_units:.2f}R < 0.65R)")
                     last_alerted[ticker] = current_time
                     return
 
