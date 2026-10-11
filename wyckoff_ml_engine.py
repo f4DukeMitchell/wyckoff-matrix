@@ -33,17 +33,19 @@ def init_history_table():
         print(f"Error initializing ml_model_history: {e}")
 
 def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gamma_regime=0, 
-                               gamma_wall_dist_pct=0.0, institutional_block_ratio=1.0, effort_vs_result=1.0):
+                               gamma_wall_dist_pct=0.0, institutional_block_ratio=1.0, effort_vs_result=1.0,
+                               cvd_delta_ratio=0.0):
     """
     ML Data-Driven R-Target Optimizer:
-    Dynamically constrains targets strictly to the proven Sweet Spot [1.05R to 1.35R].
-    Rejects inverted negative expectancy (< 1.0R) and avoids unachievable targets (> 1.4R on 5M).
+    Dynamically constrains targets strictly to the proven Sweet Spot [0.65R to 1.35R].
+    Rejects inverted negative expectancy (< 0.65R) and avoids unachievable targets (> 1.4R on 5M).
     
     Factors Evaluated:
     - ATR Expansion: Volatility breakout allows target expansion up to +0.10R
     - Secondary Test Volume: Dry-up (< 0.8) boosts target by +0.05R
     - Dealer Gamma: Short Gamma (-1) squeeze potential boosts target by +0.08R; Long Gamma (+1) pin lowers to +1.05R
     - Institutional Block Ratio: Heavy block buying/selling adds +0.04R
+    - CVD Delta Absorption: Strong positive buy delta (> +0.20) adds +0.05R
     """
     import numpy as np
     base_r = 1.10  # Baseline high-expectancy sweet spot
@@ -64,7 +66,11 @@ def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gam
     i_blk = float(institutional_block_ratio if institutional_block_ratio is not None else 1.0)
     block_boost = 0.04 if i_blk > 1.2 else 0.0
     
-    target_r = base_r + atr_boost + test_boost + gamma_boost + block_boost
+    # 5. CVD Volume Delta Absorption Boost
+    c_delta = float(cvd_delta_ratio if cvd_delta_ratio is not None else 0.0)
+    cvd_boost = 0.05 if c_delta > 0.20 else (-0.05 if c_delta < -0.30 else 0.0)
+    
+    target_r = base_r + atr_boost + test_boost + gamma_boost + block_boost + cvd_boost
     
     # Strictly enforce the proven quantitative sweet spot [0.65R, 1.35R]
     return round(float(np.clip(target_r, 0.65, 1.35)), 2)
@@ -114,7 +120,8 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             'dealer_gamma_regime': 0,
             'gamma_wall_dist_pct': 0.0,
             'moc_surge_score': 0.0,
-            'institutional_block_ratio': 1.0
+            'institutional_block_ratio': 1.0,
+            'cvd_delta_ratio': 0.0
         }
         for c_name, def_val in col_defaults.items():
             if c_name not in df.columns:
@@ -128,6 +135,7 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             'atr_expansion': 'ATR Expansion (Vol)',
             'effort_vs_result': 'Effort vs Result (Absorption)',
             'test_vol_ratio': 'Secondary Test Vol Ratio',
+            'cvd_delta_ratio': 'CVD Delta Absorption Ratio',
             'days_to_rebalance': 'Index Rebalance Proximity (Days)',
             'is_triple_witching': 'Triple Witching Week Flag',
             'dealer_gamma_regime': 'Dealer Gamma Regime (Pin vs Run)',

@@ -288,6 +288,17 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         prev_vol = vols[curr - 1] if curr > 0 and vols[curr - 1] > 0 else vols[curr]
         test_vol_ratio = float(vols[curr] / prev_vol) if prev_vol > 0 else 1.0
         
+        # Wyckoff Indicator 1.1: Cumulative Volume Delta (CVD) Absorption Divergence
+        curr_rng = abs(highs[curr] - lows[curr])
+        cvd_delta_ratio = float((2.0 * (closes[curr] - lows[curr]) - curr_rng) / curr_rng) if curr_rng > 1e-6 else 0.0
+        prior_start = max(0, curr - 10)
+        prior_low_idx = prior_start + int(np.argmin(lows[prior_start:curr])) if curr > prior_start else curr
+        sub_rng = np.where((highs[prior_start:curr+1] - lows[prior_start:curr+1]) == 0, 1e-6, (highs[prior_start:curr+1] - lows[prior_start:curr+1]))
+        sub_deltas = vols[prior_start:curr+1] * ((2.0 * (closes[prior_start:curr+1] - lows[prior_start:curr+1]) - sub_rng) / sub_rng)
+        sub_cvd = np.cumsum(sub_deltas)
+        cvd_higher = bool(sub_cvd[-1] >= sub_cvd[prior_low_idx - prior_start]) if prior_low_idx >= prior_start else True
+        cvd_absorption = bool(cvd_delta_ratio >= -0.20 or cvd_higher)
+        
         range_high = pd.Series(highs).rolling(lookback, min_periods=20).max().shift(1).values
         range_low = pd.Series(lows).rolling(lookback, min_periods=20).min().shift(1).values
         
@@ -341,8 +352,15 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                 else:
                     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] 🎯 SECOND SPRING DETECTED: {ticker} testing support above ${open_second_spring.get('initial_stop_loss', 0.0):.2f}")
 
-            if now.hour == 9 and 30 <= now.minute < 45 and interval == "5m":
-                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] OPENING SHIELD: {ticker} 5m Spring suppressed during 9:30-9:45 AM")
+            # Morning Opening Shield (9:30 - 9:40 AM open order imbalance)
+            if now.hour == 9 and 30 <= now.minute < 40 and interval == "5m":
+                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] OPENING SHIELD: {ticker} 5m Spring suppressed during 9:30-9:40 AM")
+                return
+
+            # Indicator 1.1: Cumulative Volume Delta (CVD) Absorption Gate
+            if not cvd_absorption:
+                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] BLOCKED BY CVD ABSORPTION: {ticker} LONG - heavy selling volume delta ({cvd_delta_ratio:.2f})")
+                last_alerted[ticker] = current_time
                 return
 
             flow = None
@@ -398,7 +416,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               dealer_gamma_regime=inst.get('dealer_gamma_regime', 0),
                                               gamma_wall_dist_pct=inst.get('gamma_wall_dist_pct', 0.0),
                                               moc_surge_score=inst.get('moc_surge_score', 0.0),
-                                              institutional_block_ratio=inst.get('institutional_block_ratio', 1.0)) if TRACKER_ENABLED else None
+                                              institutional_block_ratio=inst.get('institutional_block_ratio', 1.0),
+                                              cvd_delta_ratio=cvd_delta_ratio) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} LONG - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
@@ -449,7 +468,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           gamma_wall_dist_pct=inst.get('gamma_wall_dist_pct', 0.0),
                           moc_surge_score=inst.get('moc_surge_score', 0.0),
                           institutional_block_ratio=inst.get('institutional_block_ratio', 1.0),
-                          optimal_target_r=opt_target_r)
+                          optimal_target_r=opt_target_r,
+                          cvd_delta_ratio=cvd_delta_ratio)
             
             auto_executed = False
             if trade_id:

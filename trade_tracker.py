@@ -99,12 +99,13 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
                             effort_vs_result=1.0, test_vol_ratio=1.0,
                             days_to_rebalance=45, is_triple_witching=0,
                             dealer_gamma_regime=0, gamma_wall_dist_pct=0.0,
-                            moc_surge_score=0.0, institutional_block_ratio=1.0):
+                            moc_surge_score=0.0, institutional_block_ratio=1.0,
+                            cvd_delta_ratio=0.0):
     """
     Computes real machine learning win probability (0.0 to 100.0%)
     using the trained Random Forest model.
-    Evaluates 11 institutional factors including:
-    - Wyckoff VSA (Effort vs Result, Test Vol Ratio)
+    Evaluates institutional factors including:
+    - Wyckoff VSA & Cumulative Volume Delta (CVD Delta Ratio)
     - Institutional Microstructure (Gamma Regimes, MOC Surges, Block Size, Rebalance Proximity)
     """
     model = get_ml_model()
@@ -121,6 +122,7 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
     g_dist = float(gamma_wall_dist_pct if gamma_wall_dist_pct is not None else 0.0)
     m_moc = float(moc_surge_score if moc_surge_score is not None else 0.0)
     i_blk = float(institutional_block_ratio if institutional_block_ratio is not None else 1.0)
+    c_delta = float(cvd_delta_ratio if cvd_delta_ratio is not None else 0.0)
 
     if model is not None:
         try:
@@ -137,6 +139,7 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
                 'gamma_wall_dist_pct': g_dist,
                 'moc_surge_score': m_moc,
                 'institutional_block_ratio': i_blk,
+                'cvd_delta_ratio': c_delta,
                 'hour_of_day': h_day,
                 'dir_num': dir_num
             }
@@ -172,7 +175,7 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
               ml_confidence=None, effort_vs_result=None, test_vol_ratio=None,
               days_to_rebalance=None, is_triple_witching=None, dealer_gamma_regime=None,
               gamma_wall_dist_pct=None, moc_surge_score=None, institutional_block_ratio=None,
-              optimal_target_r=None):
+              optimal_target_r=None, cvd_delta_ratio=None):
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -186,8 +189,8 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
                                 initial_stop_loss, effort_vs_result, test_vol_ratio,
                                 days_to_rebalance, is_triple_witching, dealer_gamma_regime,
                                 gamma_wall_dist_pct, moc_surge_score, institutional_block_ratio,
-                                optimal_target_r)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                optimal_target_r, cvd_delta_ratio)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (ticker, direction, entry_price, stop_loss, take_profit, regime,
               timestamp, pcr, sentiment, timeframe, bars_in_regime,
               vwap_distance, hour_of_day, 1 if spy_bullish else 0 if spy_bullish is not None else None,
@@ -199,7 +202,8 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
               gamma_wall_dist_pct if gamma_wall_dist_pct is not None else 0.0,
               moc_surge_score if moc_surge_score is not None else 0.0,
               institutional_block_ratio if institutional_block_ratio is not None else 1.0,
-              optimal_target_r if optimal_target_r is not None else 1.15))
+              optimal_target_r if optimal_target_r is not None else 1.15,
+              cvd_delta_ratio if cvd_delta_ratio is not None else 0.0))
         conn.commit()
         last_id = cursor.lastrowid
         return last_id
