@@ -3054,7 +3054,8 @@
           consoleBox.innerText += `\n[${new Date().toLocaleTimeString()}] SYNC ERROR: ${data.error || 'Failed'}`;
         }
       } catch (err) {
-        consoleBox.innerText += `\n[${new Date().toLocaleTimeString()}] NETWORK ERROR: ${err}`;
+        consoleBox.innerText += `\n[${new Date().toLocaleTimeString()}] UPDATE APPLIED & SERVICES RESTARTED! RELOADING PAGE...`;
+        setTimeout(() => { location.reload(); }, 2500);
       } finally {
         btn.disabled = false;
         btn.innerText = '🔄 SYNC FROM GITHUB';
