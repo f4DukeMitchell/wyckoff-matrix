@@ -318,6 +318,28 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         
         if pd.isna(range_high[curr]): return
         
+        # Indicator 2.1: Spring Penetration Depth (%)
+        sweep_low = min(lows[curr], lows[curr-1])
+        rl = range_low[curr]
+        penetration_depth_pct = float(max(0.0, (rl - sweep_low) / rl * 100.0)) if (rl and rl > 0) else 0.0
+
+        # Indicator 2.3: Candle Close Location Value (CLV)
+        candle_rng = highs[curr] - lows[curr]
+        candle_clv = float(np.clip((closes[curr] - lows[curr]) / candle_rng, 0.0, 1.0)) if candle_rng > 0 else 0.5
+
+        # Indicator 3.1: Consumed Intraday ATR Ratio
+        try:
+            day_high = np.max(highs[max(0, curr-78):curr+1])
+            day_low = np.min(lows[max(0, curr-78):curr+1])
+            day_range = day_high - day_low
+            tr = np.maximum(highs[1:curr+1] - lows[1:curr+1],
+                            np.maximum(abs(highs[1:curr+1] - closes[:curr]),
+                                       abs(lows[1:curr+1] - closes[:curr])))
+            avg_tr = np.mean(tr[-78:]) * np.sqrt(78) if len(tr) >= 78 else np.mean(tr) * np.sqrt(len(tr))
+            consumed_atr = float(day_range / avg_tr) if avg_tr > 0 else 1.0
+        except Exception:
+            consumed_atr = 1.0
+
         c_below = (lows[curr] < range_low[curr]) or (lows[curr-1] < range_low[curr-1])
         vol_dry = rel_vol[curr] < VOL_LIMIT
         
@@ -408,7 +430,10 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     institutional_block_ratio=inst.get('institutional_block_ratio', 1.0),
                     effort_vs_result=effort_vs_result,
                     cvd_delta_ratio=cvd_delta_ratio,
-                    rvol_tod=rvol_tod
+                    rvol_tod=rvol_tod,
+                    penetration_depth_pct=penetration_depth_pct,
+                    candle_clv=candle_clv,
+                    consumed_atr=consumed_atr
                 )
             else:
                 opt_target_r = 1.15
@@ -434,7 +459,10 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               moc_surge_score=inst.get('moc_surge_score', 0.0),
                                               institutional_block_ratio=inst.get('institutional_block_ratio', 1.0),
                                               cvd_delta_ratio=cvd_delta_ratio,
-                                              rvol_tod=rvol_tod) if TRACKER_ENABLED else None
+                                              rvol_tod=rvol_tod,
+                                              penetration_depth_pct=penetration_depth_pct,
+                                              candle_clv=candle_clv,
+                                              consumed_atr=consumed_atr) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} LONG - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
@@ -487,7 +515,10 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           institutional_block_ratio=inst.get('institutional_block_ratio', 1.0),
                           optimal_target_r=opt_target_r,
                           cvd_delta_ratio=cvd_delta_ratio,
-                          rvol_tod=rvol_tod)
+                          rvol_tod=rvol_tod,
+                          penetration_depth_pct=penetration_depth_pct,
+                          candle_clv=candle_clv,
+                          consumed_atr=consumed_atr)
             
             auto_executed = False
             if trade_id:
@@ -560,7 +591,12 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     dealer_gamma_regime=inst.get('dealer_gamma_regime', 0),
                     gamma_wall_dist_pct=inst.get('gamma_wall_dist_pct', 0.0),
                     institutional_block_ratio=inst.get('institutional_block_ratio', 1.0),
-                    effort_vs_result=effort_vs_result
+                    effort_vs_result=effort_vs_result,
+                    cvd_delta_ratio=cvd_delta_ratio,
+                    rvol_tod=rvol_tod,
+                    penetration_depth_pct=0.0,
+                    candle_clv=candle_clv,
+                    consumed_atr=consumed_atr
                 )
             else:
                 opt_target_r = 1.15
@@ -584,7 +620,12 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               dealer_gamma_regime=inst.get('dealer_gamma_regime', 0),
                                               gamma_wall_dist_pct=inst.get('gamma_wall_dist_pct', 0.0),
                                               moc_surge_score=inst.get('moc_surge_score', 0.0),
-                                              institutional_block_ratio=inst.get('institutional_block_ratio', 1.0)) if TRACKER_ENABLED else None
+                                              institutional_block_ratio=inst.get('institutional_block_ratio', 1.0),
+                                              cvd_delta_ratio=cvd_delta_ratio,
+                                              rvol_tod=rvol_tod,
+                                              penetration_depth_pct=0.0,
+                                              candle_clv=candle_clv,
+                                              consumed_atr=consumed_atr) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} SHORT - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
@@ -614,7 +655,12 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           gamma_wall_dist_pct=inst.get('gamma_wall_dist_pct', 0.0),
                           moc_surge_score=inst.get('moc_surge_score', 0.0),
                           institutional_block_ratio=inst.get('institutional_block_ratio', 1.0),
-                          optimal_target_r=opt_target_r)
+                          optimal_target_r=opt_target_r,
+                          cvd_delta_ratio=cvd_delta_ratio,
+                          rvol_tod=rvol_tod,
+                          penetration_depth_pct=0.0,
+                          candle_clv=candle_clv,
+                          consumed_atr=consumed_atr)
             
             if TELEGRAM_ENABLED:
                 tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow, trade_id, ml_confidence=ml_conf)

@@ -41,6 +41,9 @@ def migrate():
         ("second_spring_added", "INTEGER DEFAULT 0"),
         ("cvd_delta_ratio", "REAL DEFAULT 0.0"),
         ("rvol_tod", "REAL DEFAULT 1.0"),
+        ("penetration_depth_pct", "REAL DEFAULT 0.0"),
+        ("candle_clv", "REAL DEFAULT 0.70"),
+        ("consumed_atr", "REAL DEFAULT 1.0"),
     ]:
         try:
             c.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")
