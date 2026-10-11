@@ -36,7 +36,8 @@ def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gam
                                gamma_wall_dist_pct=0.0, institutional_block_ratio=1.0, effort_vs_result=1.0,
                                cvd_delta_ratio=0.0, rvol_tod=1.0, penetration_depth_pct=0.0,
                                candle_clv=0.70, consumed_atr=1.0, st_volume_ratio=1.0,
-                               vpoc_distance_pct=0.0, mtf_atr_ratio=1.0, trend_exhaustion=3.0):
+                               vpoc_distance_pct=0.0, mtf_atr_ratio=1.0, trend_exhaustion=3.0,
+                               vix_slope=0.0, rs_alpha=0.0):
     """
     ML Data-Driven R-Target Optimizer:
     Dynamically constrains targets strictly to the proven Sweet Spot [0.65R to 1.35R].
@@ -56,6 +57,8 @@ def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gam
     - VPOC Hub Reversal (-0.4% to +0.4%): High volume node pivot adds +0.05R
     - MTF ATR Volatility Expansion (>= 1.25x): Multi-timeframe trend explosion expands target by +0.08R
     - Swift V-Reversal (< 2.5 bars capitulation): Crisp rejection pivot adds +0.05R
+    - Falling / Calm VIX Velocity (<= 0.5%): Macro volatility tailwind adds +0.05R
+    - Oversold Laggard Catch-Up Alpha (< 0.0%): Mean-reversion bounce adds +0.04R
     """
     import numpy as np
     base_r = 1.10  # Baseline high-expectancy sweet spot
@@ -111,8 +114,16 @@ def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gam
     # 13. Swift V-Reversal (< 2.5 bars capitulation: 87.5% win rate)
     t_ex = float(trend_exhaustion if trend_exhaustion is not None else 3.0)
     v_rev_boost = 0.05 if t_ex < 2.5 else 0.0
+
+    # 14. Falling / Calm VIX Velocity (<= 0.5%: 80.0% - 88.9% win rate)
+    v_slope = float(vix_slope if vix_slope is not None else 0.0)
+    vix_boost = 0.05 if v_slope <= 0.50 else 0.0
+
+    # 15. Oversold Laggard Catch-Up Alpha (< 0.0% alpha: 82.4% win rate)
+    r_alpha = float(rs_alpha if rs_alpha is not None else 0.0)
+    alpha_boost = 0.04 if r_alpha < 0.0 else 0.0
     
-    target_r = base_r + atr_boost + test_boost + gamma_boost + block_boost + cvd_boost + tod_boost + depth_boost + atr_mom_boost + clv_boost + sos_boost + vpoc_boost + mtf_boost + v_rev_boost
+    target_r = base_r + atr_boost + test_boost + gamma_boost + block_boost + cvd_boost + tod_boost + depth_boost + atr_mom_boost + clv_boost + sos_boost + vpoc_boost + mtf_boost + v_rev_boost + vix_boost + alpha_boost
     
     # Strictly enforce the proven quantitative sweet spot [0.65R, 1.35R]
     return round(float(np.clip(target_r, 0.65, 1.35)), 2)
@@ -171,7 +182,9 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             'st_volume_ratio': 1.0,
             'vpoc_distance_pct': 0.0,
             'mtf_atr_ratio': 1.0,
-            'trend_exhaustion': 3.0
+            'trend_exhaustion': 3.0,
+            'vix_slope': 0.0,
+            'rs_alpha': 0.0
         }
         for c_name, def_val in col_defaults.items():
             if c_name not in df.columns:
@@ -194,6 +207,8 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             'vpoc_distance_pct': 'VPOC Distance (%)',
             'mtf_atr_ratio': 'MTF ATR Expansion Ratio',
             'trend_exhaustion': 'Pre-Spring Trend Exhaustion',
+            'vix_slope': 'Intraday VIX Velocity Slope (%)',
+            'rs_alpha': 'Relative Strength vs SPY (Alpha %)',
             'days_to_rebalance': 'Index Rebalance Proximity (Days)',
             'is_triple_witching': 'Triple Witching Week Flag',
             'dealer_gamma_regime': 'Dealer Gamma Regime (Pin vs Run)',

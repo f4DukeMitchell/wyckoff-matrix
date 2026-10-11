@@ -185,6 +185,57 @@ def calc_atr_expansion(highs, lows, closes, period=14):
         expansion = np.where(atr_sma > 0, atr / atr_sma, 1.0)
     return expansion
 
+_MACRO_CACHE = {
+    'last_time': 0,
+    'spy_bullish': True,
+    'spy_30m_ret': 0.0,
+    'vix_slope': 0.0
+}
+
+def get_macro_context():
+    """Fetches and caches SPY 30m return, ^VIX 30m slope, and SPY macro trend (2-min TTL)."""
+    global _MACRO_CACHE
+    now_ts = time.time()
+    if now_ts - _MACRO_CACHE['last_time'] < 120 and _MACRO_CACHE['last_time'] > 0:
+        return _MACRO_CACHE['spy_bullish'], _MACRO_CACHE['spy_30m_ret'], _MACRO_CACHE['vix_slope']
+    
+    spy_ret = 0.0
+    vix_ret = 0.0
+    spy_bullish = True
+    
+    try:
+        spy = yf.download("SPY", period="5d", interval="5m", progress=False)
+        if not spy.empty and len(spy) >= 7:
+            if isinstance(spy.columns, pd.MultiIndex):
+                s_c = spy['Close'].iloc[:, 0].values.astype(float)
+            else:
+                s_c = spy['Close'].values.astype(float)
+            spy_ret = float((s_c[-1] - s_c[-7]) / s_c[-7] * 100.0) if s_c[-7] > 0 else 0.0
+    except Exception:
+        pass
+
+    try:
+        vix = yf.download("^VIX", period="5d", interval="5m", progress=False)
+        if not vix.empty and len(vix) >= 7:
+            if isinstance(vix.columns, pd.MultiIndex):
+                v_c = vix['Close'].iloc[:, 0].values.astype(float)
+            else:
+                v_c = vix['Close'].values.astype(float)
+            vix_ret = float((v_c[-1] - v_c[-7]) / v_c[-7] * 100.0) if v_c[-7] > 0 else 0.0
+    except Exception:
+        pass
+
+    try:
+        spy_bullish = get_spy_trend()
+    except Exception:
+        spy_bullish = True
+
+    _MACRO_CACHE['last_time'] = now_ts
+    _MACRO_CACHE['spy_bullish'] = spy_bullish
+    _MACRO_CACHE['spy_30m_ret'] = spy_ret
+    _MACRO_CACHE['vix_slope'] = vix_ret
+    return spy_bullish, spy_ret, vix_ret
+
 def get_spy_trend():
     """Get SPY macro trend using 9-period SuperTrend"""
     try:
@@ -231,7 +282,7 @@ def check_telegram_commands():
     except:
         pass
 
-def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_day, now):
+def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_day, now, spy_30m_ret=0.0, vix_slope=0.0):
     """
     Core Wyckoff detection and trade evaluation on a ticker DataFrame.
     Shared by both Public.com streaming scan and fallback bulk scans.
@@ -382,6 +433,14 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         except Exception:
             trend_exhaustion = 3.0
 
+        # Indicator 4.2 (#14): Relative Strength vs SPY (30m Alpha)
+        try:
+            curr_start_6 = max(0, curr - 6)
+            ticker_30m_ret = float((closes[curr] - closes[curr_start_6]) / closes[curr_start_6] * 100.0) if closes[curr_start_6] > 0 else 0.0
+            rs_alpha = float(ticker_30m_ret - spy_30m_ret)
+        except Exception:
+            rs_alpha = 0.0
+
         c_below = (lows[curr] < range_low[curr]) or (lows[curr-1] < range_low[curr-1])
         vol_dry = rel_vol[curr] < VOL_LIMIT
         
@@ -479,7 +538,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     st_volume_ratio=st_volume_ratio,
                     vpoc_distance_pct=vpoc_distance_pct,
                     mtf_atr_ratio=mtf_atr_ratio,
-                    trend_exhaustion=trend_exhaustion
+                    trend_exhaustion=trend_exhaustion,
+                    vix_slope=vix_slope,
+                    rs_alpha=rs_alpha
                 )
             else:
                 opt_target_r = 1.15
@@ -512,7 +573,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               st_volume_ratio=st_volume_ratio,
                                               vpoc_distance_pct=vpoc_distance_pct,
                                               mtf_atr_ratio=mtf_atr_ratio,
-                                              trend_exhaustion=trend_exhaustion) if TRACKER_ENABLED else None
+                                              trend_exhaustion=trend_exhaustion,
+                                              vix_slope=vix_slope,
+                                              rs_alpha=rs_alpha) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} LONG - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
@@ -572,7 +635,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           st_volume_ratio=st_volume_ratio,
                           vpoc_distance_pct=vpoc_distance_pct,
                           mtf_atr_ratio=mtf_atr_ratio,
-                          trend_exhaustion=trend_exhaustion)
+                          trend_exhaustion=trend_exhaustion,
+                          vix_slope=vix_slope,
+                          rs_alpha=rs_alpha)
             
             auto_executed = False
             if trade_id:
@@ -654,7 +719,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     st_volume_ratio=st_volume_ratio,
                     vpoc_distance_pct=vpoc_distance_pct,
                     mtf_atr_ratio=mtf_atr_ratio,
-                    trend_exhaustion=trend_exhaustion
+                    trend_exhaustion=trend_exhaustion,
+                    vix_slope=vix_slope,
+                    rs_alpha=rs_alpha
                 )
             else:
                 opt_target_r = 1.15
@@ -687,7 +754,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                                               st_volume_ratio=st_volume_ratio,
                                               vpoc_distance_pct=vpoc_distance_pct,
                                               mtf_atr_ratio=mtf_atr_ratio,
-                                              trend_exhaustion=trend_exhaustion) if TRACKER_ENABLED else None
+                                              trend_exhaustion=trend_exhaustion,
+                                              vix_slope=vix_slope,
+                                              rs_alpha=rs_alpha) if TRACKER_ENABLED else None
 
             if r_units < MIN_R_UNITS:
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] FILTERED: {ticker} SHORT - R-Units too low ({r_units:.2f}R < {MIN_R_UNITS}R)")
@@ -726,7 +795,9 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           st_volume_ratio=st_volume_ratio,
                           vpoc_distance_pct=vpoc_distance_pct,
                           mtf_atr_ratio=mtf_atr_ratio,
-                          trend_exhaustion=trend_exhaustion)
+                          trend_exhaustion=trend_exhaustion,
+                          vix_slope=vix_slope,
+                          rs_alpha=rs_alpha)
             
             if TELEGRAM_ENABLED:
                 tg_trade_alert(ticker, "SHORT (UTAD)", price, sl, tp, regime, interval, flow, trade_id, ml_confidence=ml_conf)
@@ -740,7 +811,12 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
 # ===================================================================
 async def scan_market_public(interval, lookback):
     print(f"\n[{get_market_now().strftime('%H:%M:%S')}] [PUBLIC.COM LIVE] Streaming {len(TICKERS)} tickers on {interval}...")
-    spy_bullish = await get_spy_trend_public()
+    try:
+        spy_bullish, spy_30m_ret, vix_slope = get_macro_context()
+    except Exception:
+        spy_bullish = await get_spy_trend_public()
+        spy_30m_ret = 0.0
+        vix_slope = 0.0
     now = get_market_now()
     hour_of_day = now.hour + now.minute / 60.0
     
@@ -748,7 +824,7 @@ async def scan_market_public(interval, lookback):
     stalker_candidates = []
     async for ticker, df in stream_ticker_bars(TICKERS, interval=interval, delay_ms=0.08):
         count += 1
-        evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_day, now)
+        evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_day, now, spy_30m_ret, vix_slope)
         if interval == '5m':
             try:
                 from stalker_radar import evaluate_ticker_for_stalker
@@ -775,14 +851,19 @@ def scan_market(interval, period, lookback):
         
     print(f"\n[{get_market_now().strftime('%H:%M:%S')}] [FALLBACK YFINANCE] Scanning {len(TICKERS)} tickers on {interval}...")
     data = yf.download(TICKERS, period=period, interval=interval, group_by='ticker', progress=False)
-    spy_bullish = get_spy_trend()
+    try:
+        spy_bullish, spy_30m_ret, vix_slope = get_macro_context()
+    except Exception:
+        spy_bullish = get_spy_trend()
+        spy_30m_ret = 0.0
+        vix_slope = 0.0
     now = get_market_now()
     hour_of_day = now.hour + now.minute / 60.0
     stalker_candidates = []
     for ticker in TICKERS:
         try:
             df = data[ticker].dropna() if len(TICKERS) > 1 else data.dropna()
-            evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_day, now)
+            evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_day, now, spy_30m_ret, vix_slope)
             if interval == '5m':
                 try:
                     from stalker_radar import evaluate_ticker_for_stalker
