@@ -1108,7 +1108,7 @@ def trigger_system_update():
 
         if os.name != 'nt':
             bash_bin = shutil.which("bash") or "/bin/bash" or "/usr/bin/bash"
-            cmd = f"cd {repo_dir} && sleep 2 && (echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (pkill -f wyckoff_alert_bot.py 2>/dev/null; sleep 1; pkill -9 -f 'terminal_api:app' 2>/dev/null; nohup {py_exe} wyckoff_alert_bot.py > bot.log 2>&1 &))"
+            cmd = f"cd {repo_dir} && sleep 2 && (sudo systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null) || (pkill -f wyckoff_alert_bot.py 2>/dev/null; sleep 1; pkill -9 -f 'terminal_api' 2>/dev/null; nohup {py_exe} wyckoff_alert_bot.py > bot.log 2>&1 & nohup {py_exe} -m uvicorn terminal_api:app --host 0.0.0.0 --port 8080 > terminal.log 2>&1 &))"
             try:
                 subprocess.Popen(
                     [bash_bin, "-c", cmd],
@@ -1142,7 +1142,8 @@ def trigger_system_restart():
     try:
         py_exe = sys.executable or shutil.which("python3") or "python3"
         bash_bin = shutil.which("bash") or "/bin/bash" or "/usr/bin/bash"
-        cmd = f"sleep 1 && (echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (pkill -f wyckoff_alert_bot.py 2>/dev/null; sleep 1; pkill -9 -f 'terminal_api:app' 2>/dev/null; nohup {py_exe} wyckoff_alert_bot.py > bot.log 2>&1 &))"
+        repo_dir = os.path.dirname(os.path.abspath(__file__))
+        cmd = f"cd {repo_dir} && sleep 1 && (sudo systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null) || (pkill -f wyckoff_alert_bot.py 2>/dev/null; sleep 1; pkill -9 -f 'terminal_api' 2>/dev/null; nohup {py_exe} wyckoff_alert_bot.py > bot.log 2>&1 & nohup {py_exe} -m uvicorn terminal_api:app --host 0.0.0.0 --port 8080 > terminal.log 2>&1 &))"
         env = dict(os.environ)
         env["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" + (f":{env['PATH']}" if 'PATH' in env else "")
         subprocess.Popen(
