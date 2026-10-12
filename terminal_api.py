@@ -1328,14 +1328,19 @@ def health_check():
 
 @app.get("/")
 def serve_index():
-    response = FileResponse("terminal_static/index.html")
+    index_file = os.path.join(BASE_DIR, "terminal_static", "index.html")
+    if not os.path.exists(index_file):
+        index_file = os.path.join(BASE_DIR, "cloud_index.html")
+    response = FileResponse(index_file)
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     return response
 
 # Mount static web assets
-app.mount("/", StaticFiles(directory="terminal_static", html=True), name="static")
+static_dir = os.path.join(BASE_DIR, "terminal_static")
+if os.path.exists(static_dir):
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
 if __name__ == "__main__":
     import uvicorn
