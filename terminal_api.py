@@ -233,12 +233,14 @@ def get_terminal_state():
         INNER JOIN (
             SELECT ticker, timeframe, MAX(id) as max_id
             FROM alerts
-            WHERE outcome = 'OPEN'
+            WHERE outcome = 'OPEN' AND ticker NOT LIKE 'TEST%'
             GROUP BY ticker, timeframe
         ) latest ON a.id = latest.max_id
+        WHERE a.ticker NOT LIKE 'TEST%'
         ORDER BY a.id DESC LIMIT 100
     """)
     scanner_results = [dict(r) for r in c.fetchall()]
+
     
     # Recent trade history
     c.execute("""
@@ -1173,10 +1175,11 @@ def trigger_system_update():
         env["PATH"] = current_path
         repo_dir = os.path.dirname(os.path.abspath(__file__))
 
-        subprocess.run([git_bin, "checkout", "--", "."], cwd=repo_dir, capture_output=True, text=True, timeout=10, env=env)
-        pull_res = subprocess.run([git_bin, "pull", "origin", "main"], cwd=repo_dir, capture_output=True, text=True, timeout=30, env=env)
+        subprocess.run([git_bin, "fetch", "origin", "main"], cwd=repo_dir, capture_output=True, text=True, timeout=25, env=env)
+        pull_res = subprocess.run([git_bin, "reset", "--hard", "origin/main"], cwd=repo_dir, capture_output=True, text=True, timeout=25, env=env)
         py_exe = sys.executable or shutil.which("python3") or "python3"
         mig_res = subprocess.run([py_exe, "migrate_db.py"], cwd=repo_dir, capture_output=True, text=True, timeout=30, env=env)
+
 
         if os.name != 'nt':
             bash_bin = shutil.which("bash") or "/bin/bash" or "/usr/bin/bash"

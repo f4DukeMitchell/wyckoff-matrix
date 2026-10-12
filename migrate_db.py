@@ -164,9 +164,11 @@ def migrate():
         SET pnl_r = -1.10
         WHERE outcome = 'LOSS' AND pnl_r < -1.10
     """)
-    capped_losses = c.rowcount
-    if capped_losses > 0:
-        print(f"Contained {capped_losses} polling-lag outlier losses to -1.10R bracket stop execution.")
+    # 8. Clean up any dummy test records from schema migration tests
+    c.execute("DELETE FROM alerts WHERE ticker LIKE 'TEST%'")
+    cleaned_tests = c.rowcount
+    if cleaned_tests > 0:
+        print(f"Purged {cleaned_tests} dummy test tickers from alerts table.")
 
     conn.commit()
 
@@ -183,17 +185,6 @@ def migrate():
 
     conn.close()
 
-    if os.name != 'nt':
-        try:
-            cmd = "echo 'M642423s$' | sudo -S systemctl restart wyckoff-terminal.service wyckoff-bot.service"
-            res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            print(f"Systemctl restart output: {res.stdout.strip()} {res.stderr.strip()}")
-            if res.returncode != 0:
-                print("Falling back to pkill python -m uvicorn...")
-                subprocess.run("pkill -9 -f 'terminal_api:app'", shell=True)
-                subprocess.run("pkill -9 -f 'wyckoff_alert_bot.py'", shell=True)
-        except Exception as e:
-            print(f"Service recycle notice: {e}")
-
 if __name__ == '__main__':
     migrate()
+
