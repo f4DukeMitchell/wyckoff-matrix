@@ -1176,6 +1176,8 @@ def trigger_system_update():
             if p not in current_path:
                 current_path = f"{p}:{current_path}"
         env["PATH"] = current_path
+        env["HOME"] = "/home/matt_smith"
+        env["GIT_TERMINAL_PROMPT"] = "0"
         repo_dir = os.path.dirname(os.path.abspath(__file__))
 
         subprocess.run([git_bin, "fetch", "origin", "main"], cwd=repo_dir, capture_output=True, text=True, timeout=25, env=env)
