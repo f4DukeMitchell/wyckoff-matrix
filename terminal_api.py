@@ -952,13 +952,13 @@ def get_ml_paper_trades():
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
         
-        # 1. Fetch all open paper trades (learning model)
+        # 1. Fetch all open trades for learning model & tracking (both live and paper)
         c.execute("""
             SELECT id, ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe, 
                    timestamp, outcome, pnl_r, breakeven_set, partial_exit_done, peak_high_r, 
-                   trailing_stop_price, ml_confidence, model_version, vwap_distance, dealer_gamma_regime
+                   trailing_stop_price, ml_confidence, model_version, vwap_distance, dealer_gamma_regime, user_active
             FROM alerts
-            WHERE outcome = 'OPEN' AND (user_active = 0 OR user_active IS NULL)
+            WHERE outcome = 'OPEN'
             ORDER BY id DESC
         """)
         raw_open = [dict(r) for r in c.fetchall()]
@@ -993,6 +993,7 @@ def get_ml_paper_trades():
             t['current_r'] = round(curr_r, 2)
             t['pnl_pct'] = round(pnl_pct, 2)
             t['risk_per_share'] = round(risk, 2)
+            t['is_live'] = bool(t.get('user_active') == 1)
             
             if t.get('breakeven_set'):
                 t['status_label'] = 'BREAKEVEN LOCKED'
@@ -1007,7 +1008,7 @@ def get_ml_paper_trades():
                 
             enriched_open.append(t)
             
-        # 3. KPI stats from closed paper dataset
+        # 3. KPI stats from closed learning dataset (all executed Wyckoff signals)
         c.execute("""
             SELECT 
                 COUNT(id) as total_closed,
@@ -1016,15 +1017,15 @@ def get_ml_paper_trades():
                 SUM(CASE WHEN outcome = 'BREAKEVEN' THEN 1 ELSE 0 END) as be,
                 COALESCE(SUM(pnl_r), 0.0) as net_r
             FROM alerts
-            WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN') AND (user_active = 0 OR user_active IS NULL)
+            WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN')
         """)
         stats_row = dict(c.fetchone() or {})
         
-        # 4. Recent closed ghost trades (for model audit)
+        # 4. Recent closed trades (for model audit and retraining corpus)
         c.execute("""
-            SELECT id, ticker, direction, entry_price, exit_price, outcome, pnl_r, timestamp, timeframe, regime, model_version
+            SELECT id, ticker, direction, entry_price, exit_price, outcome, pnl_r, timestamp, timeframe, regime, model_version, user_active
             FROM alerts
-            WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN') AND (user_active = 0 OR user_active IS NULL)
+            WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN')
             ORDER BY id DESC LIMIT 50
         """)
         recent_closed = [dict(r) for r in c.fetchall()]

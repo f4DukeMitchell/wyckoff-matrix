@@ -1665,18 +1665,42 @@
 
   </div>
 
+  <!-- HELP MODAL (F1) -->
+  <div id="help-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 99999; backdrop-filter: blur(4px);">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 560px; max-width: 90%; background: #0d0d0d; border: 1px solid var(--wsr-border); box-shadow: 0 10px 40px rgba(0,0,0,0.9); padding: 24px; font-family: 'Consolas', monospace; color: #eee;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 12px; margin-bottom: 16px;">
+        <span style="font-weight: 700; color: var(--wsr-yellow); font-size: 14px;">⌨️ WSR TERMINAL KEYBOARD REFERENCE</span>
+        <button onclick="toggleHelpModal()" style="background: transparent; border: none; color: #888; font-size: 16px; cursor: pointer;">✕</button>
+      </div>
+      <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+        <tr style="border-bottom: 1px solid #222;"><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700; width: 80px;">F1</td><td style="padding: 8px 4px;">Toggle This Help / Shortcut Reference</td></tr>
+        <tr style="border-bottom: 1px solid #222;"><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700;">F2</td><td style="padding: 8px 4px;">Trigger / Filter Scanner (All Timeframes)</td></tr>
+        <tr style="border-bottom: 1px solid #222;"><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700;">F3</td><td style="padding: 8px 4px;">Focus Command / Chart Search Input</td></tr>
+        <tr style="border-bottom: 1px solid #222;"><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700;">F4</td><td style="padding: 8px 4px;">Jump / Scroll to Live Portfolio Positions</td></tr>
+        <tr style="border-bottom: 1px solid #222;"><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700;">F5</td><td style="padding: 8px 4px;">Instant Data Refresh (Bypasses Browser Reload)</td></tr>
+        <tr style="border-bottom: 1px solid #222;"><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700;">F6</td><td style="padding: 8px 4px;">Toggle AI / ML Retraining Lab</td></tr>
+        <tr style="border-bottom: 1px solid #222;"><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700;">F7</td><td style="padding: 8px 4px;">Toggle Options Matrix View</td></tr>
+        <tr style="border-bottom: 1px solid #222;"><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700;">F8</td><td style="padding: 8px 4px;">Toggle ML Paper Lab (All Signals & Outcomes)</td></tr>
+        <tr><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700;">ESC</td><td style="padding: 8px 4px;">Clear Command Input / Close Modals</td></tr>
+      </table>
+      <div style="margin-top: 18px; text-align: right;">
+        <button onclick="toggleHelpModal()" style="background: #222; color: #fff; border: 1px solid #444; padding: 6px 14px; font-family: inherit; font-size: 11px; cursor: pointer;">CLOSE (ESC)</button>
+      </div>
+    </div>
+  </div>
+
   <!-- BOTTOM FUNCTION BAR -->
   <div id="function-bar">
     <div class="fn-keys">
-      <span class="fn-key"><b>F1</b> HELP</span>
-      <span class="fn-key"><b>F2</b> SCAN</span>
-      <span class="fn-key"><b>F3</b> CHART</span>
-      <span class="fn-key"><b>F4</b> POSITIONS</span>
+      <span class="fn-key" style="cursor:pointer;" onclick="toggleHelpModal()"><b>F1</b> HELP</span>
+      <span class="fn-key" style="cursor:pointer;" onclick="triggerScanView()"><b>F2</b> SCAN</span>
+      <span class="fn-key" style="cursor:pointer;" onclick="focusChartInput()"><b>F3</b> CHART</span>
+      <span class="fn-key" style="cursor:pointer;" onclick="triggerPositionsView()"><b>F4</b> POSITIONS</span>
       <span class="fn-key" style="cursor:pointer;" onclick="handleManualRefresh()"><b>F5</b> REFRESH</span>
       <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'terminal' ? 'mllab' : 'terminal')"><b>F6</b> ML LAB</span>
       <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'options' ? 'terminal' : 'options')"><b>F7</b> OPTIONS</span>
       <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'paper' ? 'terminal' : 'paper')"><b>F8</b> PAPER LAB</span>
-      <span class="fn-key"><b>ESC</b> CLEAR</span>
+      <span class="fn-key" style="cursor:pointer;" onclick="handleEscClear()"><b>ESC</b> CLEAR</span>
     </div>
     <div>
       <span>DATA: <b class="c-green">PUBLIC.COM DIRECT</b> | WS: <b id="ws-status" class="c-green">CONNECTED</b></span>
@@ -3605,8 +3629,11 @@
         const mlConf = rawConf > 0 ? `${confVal.toFixed(1)}%` : '--';
         const timeStr = t.timestamp ? t.timestamp.replace('T', ' ').substring(5, 16) : '--';
         
+        const isLiveTrade = t.user_active === 1 || t.is_live;
+        const liveBadge = isLiveTrade ? '<span style="color: #00ffcc; font-size: 8px; background: #003322; border: 1px solid #00ffcc; border-radius: 2px; padding: 0 3px; margin-left: 4px; font-weight: 700;">LIVE</span>' : '';
+        
         return `<tr>
-          <td style="font-weight: 700; color: #fff;">${t.ticker}</td>
+          <td style="font-weight: 700; color: #fff;">${t.ticker}${liveBadge}</td>
           <td>${dirBadge}</td>
           <td><span style="font-size: 9.5px; color: #00e5ff; font-weight: 700;">${(t.timeframe || '5m').toUpperCase()}</span></td>
           <td>$${parseFloat(t.entry_price || 0).toFixed(2)}</td>
@@ -3676,8 +3703,11 @@
         const rStr = `${rVal >= 0 ? '+' : ''}${rVal.toFixed(2)}R`;
         const timeStr = c.timestamp ? c.timestamp.replace('T', ' ').substring(5, 16) : '--';
         
+        const isLiveClosed = c.user_active === 1;
+        const liveBadge = isLiveClosed ? '<span style="color: #00ffcc; font-size: 8px; background: #003322; border: 1px solid #00ffcc; border-radius: 2px; padding: 0 3px; margin-left: 4px; font-weight: 700;">LIVE</span>' : '';
+        
         return `<tr>
-          <td style="font-weight: 700; color: #fff;">${c.ticker}</td>
+          <td style="font-weight: 700; color: #fff;">${c.ticker}${liveBadge}</td>
           <td>${dirBadge}</td>
           <td><span style="font-size: 9.5px; color: #00e5ff;">${(c.timeframe || '5m').toUpperCase()}</span></td>
           <td>$${parseFloat(c.entry_price || 0).toFixed(2)}</td>
@@ -3693,20 +3723,76 @@
       }).join('');
     }
 
+    // --- KEYBOARD SHORTCUT HELPER FUNCTIONS ---
+    function toggleHelpModal() {
+      const modal = document.getElementById('help-modal');
+      if (modal) {
+        modal.style.display = (modal.style.display === 'block') ? 'none' : 'block';
+      }
+    }
+
+    function triggerScanView() {
+      switchView('terminal');
+      filterByTF('ALL');
+    }
+
+    function focusChartInput() {
+      switchView('terminal');
+      const inp = document.getElementById('cmd-input');
+      if (inp) {
+        inp.focus();
+        inp.select();
+      }
+    }
+
+    function triggerPositionsView() {
+      switchView('terminal');
+      const posSection = document.getElementById('portfolio-container') || document.querySelector('.bottom-drawer') || document.getElementById('terminal-grid');
+      if (posSection) {
+        posSection.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+
+    function handleEscClear() {
+      const cmd = document.getElementById('cmd-input');
+      if (cmd) { cmd.value = ''; cmd.blur(); }
+      const modal = document.getElementById('help-modal');
+      if (modal) modal.style.display = 'none';
+    }
+
     // --- KEYBOARD SHORTCUTS ---
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'F8') {
+      // Don't intercept normal typing in text input unless it is ESC or a function key
+      if (e.key === 'Escape') {
         e.preventDefault();
-        switchView(currentView === 'paper' ? 'terminal' : 'paper');
-      } else if (e.key === 'F7') {
+        handleEscClear();
+        return;
+      }
+
+      if (e.key === 'F1') {
         e.preventDefault();
-        switchView(currentView === 'options' ? 'terminal' : 'options');
-      } else if (e.key === 'F6') {
+        toggleHelpModal();
+      } else if (e.key === 'F2') {
         e.preventDefault();
-        switchView(currentView === 'terminal' ? 'mllab' : 'terminal');
+        triggerScanView();
+      } else if (e.key === 'F3') {
+        e.preventDefault();
+        focusChartInput();
+      } else if (e.key === 'F4') {
+        e.preventDefault();
+        triggerPositionsView();
       } else if (e.key === 'F5') {
         e.preventDefault();
         handleManualRefresh();
+      } else if (e.key === 'F6') {
+        e.preventDefault();
+        switchView(currentView === 'mllab' ? 'terminal' : 'mllab');
+      } else if (e.key === 'F7') {
+        e.preventDefault();
+        switchView(currentView === 'options' ? 'terminal' : 'options');
+      } else if (e.key === 'F8') {
+        e.preventDefault();
+        switchView(currentView === 'paper' ? 'terminal' : 'paper');
       }
     });
 
