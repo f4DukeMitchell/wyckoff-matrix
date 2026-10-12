@@ -283,12 +283,15 @@ def execute_exit_position(ticker, quantity=None, direction=None):
             break
             
     if matched_pos:
-        q = Decimal(str(matched_pos.quantity))
-        if q < 0:
+        pos_qty = Decimal(str(matched_pos.quantity))
+        if pos_qty < 0:
             is_short = True
-            quantity = abs(q)
+            pos_qty = abs(pos_qty)
+        
+        if quantity is not None and float(quantity) > 0:
+            quantity = min(Decimal(str(quantity)), pos_qty)
         else:
-            quantity = q
+            quantity = pos_qty
             
     if not quantity or quantity <= 0:
         return {'status': 'NO_POSITION_FOUND', 'ticker': ticker}

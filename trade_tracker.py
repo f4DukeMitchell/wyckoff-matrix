@@ -322,7 +322,7 @@ def check_open_trades():
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM alerts WHERE outcome = 'OPEN'")
+        cursor.execute("SELECT * FROM alerts WHERE outcome = 'OPEN' AND (user_active = 0 OR user_active IS NULL)")
         open_trades = cursor.fetchall()
         if not open_trades:
             return closed_trades

@@ -1191,6 +1191,12 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Error launching Stalker Radar daemon: {e}")
 
+    try:
+        from exit_guardian import start_guardian_daemon
+        start_guardian_daemon()
+    except Exception as e:
+        print(f"Error launching Exit Guardian daemon: {e}")
+
     # Immediate start of live scanner without blocking boot
     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Entering live market scanning loop...")
     
@@ -1264,24 +1270,12 @@ if __name__ == "__main__":
                     msg = f"Trade Closed: {t.get('ticker', '?')} -> {t.get('outcome', '?')} ({t.get('pnl_r', 0):+.1f}R)"
                     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {msg}")
                     
-                    # Auto-execute broker exit if user was active in this trade
-                    broker_exit_info = ""
-                    if t.get('user_active') == 1:
-                        try:
-                            from public_executor import execute_exit_sell
-                            sym = t.get('ticker')
-                            direction = t.get('direction')
-                            sell_res = execute_exit_sell(sym, direction=direction)
-                            if sell_res.get('status') == 'SUBMITTED':
-                                action = "Covered" if direction == 'SHORT' else "Sold"
-                                broker_exit_info = f"\n🔄 Public.com Broker Exit Order Sent: {action} {sell_res.get('quantity', 'all')} shares."
-                        except Exception as e:
-                            broker_exit_info = f"\n⚠️ Broker Exit Error: {e}"
-
+                    # Note: Live broker trades (user_active=1) are handled exclusively by exit_guardian
+                    # which manages 5-tier scaling, breakeven stop, and the 15% uncapped runner into EOD flatten.
                     if (t.get('user_active') == 1 or t.get('telegram_alerted') == 1) and TELEGRAM_ENABLED:
                         from telegram_notifier import send_message
                         emoji = "🎉" if t.get('outcome') == 'WIN' else ("🛡️" if t.get('outcome') == 'BREAKEVEN' else "🚨")
-                        alert_msg = f"{emoji} EXIT ALERT: {t.get('ticker')} has hit its {t.get('outcome')} target!\nReturn: {t.get('pnl_r', 0):+.1f}R Units{broker_exit_info}"
+                        alert_msg = f"{emoji} PAPER EXIT ALERT: {t.get('ticker')} has hit its {t.get('outcome')} target!\nReturn: {t.get('pnl_r', 0):+.1f}R Units"
                         send_message(alert_msg)
             except: pass
         
