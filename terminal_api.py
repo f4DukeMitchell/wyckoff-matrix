@@ -69,7 +69,9 @@ async def basic_auth_middleware(request: Request, call_next):
         )
     return await call_next(request)
 
-DB_PATH = "wyckoff_trades.db"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "wyckoff_trades.db")
+MODEL_PATH = os.path.join(BASE_DIR, "wyckoff_model.pkl")
 
 # --- WEBSOCKET CLIENT MANAGER ---
 class ConnectionManager:
