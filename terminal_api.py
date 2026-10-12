@@ -1277,15 +1277,23 @@ def bot_health():
             time.sleep(1)
 
         bot_log_tail = ""
-        log_path = os.path.join(repo_dir, "bot.log")
-        if os.path.exists(log_path):
-            with open(log_path, "r", encoding="utf-8", errors="ignore") as lf:
-                bot_log_tail = "".join(lf.readlines()[-30:])
+        try:
+            j_res = subprocess.run("journalctl -u wyckoff-bot.service -n 30 --no-pager 2>/dev/null", shell=True, capture_output=True, text=True, timeout=4)
+            if j_res.stdout and j_res.stdout.strip():
+                bot_log_tail = j_res.stdout
+        except:
+            pass
+
+        if not bot_log_tail:
+            log_path = os.path.join(repo_dir, "bot.log")
+            if os.path.exists(log_path):
+                with open(log_path, "r", encoding="utf-8", errors="ignore") as lf:
+                    bot_log_tail = "".join(lf.readlines()[-30:])
 
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        c.execute("SELECT ticker, direction, timeframe, timestamp FROM alerts ORDER BY id DESC LIMIT 5")
-        recent_alerts = [dict(zip(['ticker', 'direction', 'timeframe', 'timestamp'], row)) for row in c.fetchall()]
+        c.execute("SELECT ticker, direction, timeframe, timestamp, outcome, user_active, pnl_r, exit_price FROM alerts ORDER BY id DESC LIMIT 5")
+        recent_alerts = [dict(zip(['ticker', 'direction', 'timeframe', 'timestamp', 'outcome', 'user_active', 'pnl_r', 'exit_price'], row)) for row in c.fetchall()]
         conn.close()
 
         # Check ps aux again after potential startup

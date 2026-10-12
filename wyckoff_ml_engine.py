@@ -153,8 +153,8 @@ def calculate_optimal_target_r(atr_expansion=1.0, test_vol_ratio=1.0, dealer_gam
     
     target_r = base_r + atr_boost + test_boost + gamma_boost + block_boost + cvd_boost + tod_boost + depth_boost + atr_mom_boost + clv_boost + sos_boost + vpoc_boost + mtf_boost + v_rev_boost + vix_boost + alpha_boost + pcr_boost + vwap_slp_boost + orb_boost + head_boost + sec_boost
     
-    # Strictly enforce the proven quantitative sweet spot [0.65R, 1.35R]
-    return round(float(np.clip(target_r, 0.65, 1.35)), 2)
+    # Strictly enforce the proven quantitative sweet spot [0.55R, 1.35R]
+    return round(float(np.clip(target_r, 0.55, 1.35)), 2)
 
 def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
     """

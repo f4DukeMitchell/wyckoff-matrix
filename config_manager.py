@@ -83,8 +83,8 @@ def calculate_sizing_allocation(buying_power: float, target_r: float = 1.0) -> d
     if target_weighted:
         if target_r >= 1.20:
             multiplier = 1.25
-        elif target_r >= 0.65:
-            multiplier = 1.00  # Full 1.00x allocation across all valid setups >= 0.65R
+        elif target_r >= 0.55:
+            multiplier = 1.00  # Full 1.00x allocation across all valid setups >= 0.55R
         else:
             multiplier = 0.60
     else:

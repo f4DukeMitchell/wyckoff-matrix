@@ -87,7 +87,7 @@ TIMEFRAMES = [
     {"interval": "1d", "period": "2y", "lookback": 100}
 ]
 SL_BUFFER = 0.01
-MIN_R_UNITS = 0.65  # Proven Sweet-Spot Floor: Rejects sub-0.65R noise while capturing textbook 0.70R-0.85R setups
+MIN_R_UNITS = 0.55  # Dynamic Sweet-Spot Floor: Captures valid 0.55R+ setups across expanded ticker universe
 VOL_LIMIT = 1.2
 
 last_alerted = {ticker: 0 for ticker in TICKERS}
@@ -695,8 +695,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
 
             # If this is a validated Second Spring / Secondary Test on an open position:
             if open_second_spring:
-                if r_units < 0.65:
-                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] 2nd Spring Pyramid Bypassed: {ticker} target too tight ({r_units:.2f}R < 0.65R)")
+                if r_units < 0.55:
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] 2nd Spring Pyramid Bypassed: {ticker} target too tight ({r_units:.2f}R < 0.55R)")
                     last_alerted[ticker] = current_time
                     return
 

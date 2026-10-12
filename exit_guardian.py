@@ -283,7 +283,7 @@ def run_guardian_cycle():
         tp = float(t.get('take_profit') or 0.0)
         target_gain = abs(tp - entry) if (tp > 0 and entry > 0) else 0.0
         setup_target_r = float(t.get('optimal_target_r') or (target_gain / init_risk if init_risk > 0.001 and target_gain > 0 else 1.15))
-        setup_target_r = max(0.65, setup_target_r)
+        setup_target_r = max(0.55, setup_target_r)
 
         # Dynamic Thresholds based on Expected Target R:
         t1_thresh_r = round(setup_target_r * 0.20, 2)  # 20% of Target
