@@ -207,8 +207,13 @@ def migrate():
     # Recycle services
     if os.name != 'nt':
         try:
+            p_out = subprocess.run(["ps", "-eo", "pid,user,cmd"], capture_output=True, text=True).stdout
+            term_procs = [l for l in p_out.splitlines() if any(k in l for k in ['terminal', 'uvicorn', 'wyckoff'])]
+            print("RUNNING PROCESSES:\n" + "\n".join(term_procs[:10]))
+            
             repo_dir = os.path.dirname(os.path.abspath(__file__))
-            cycle_cmd = f"sleep 2 && pkill -9 -f wyckoff_alert_bot; (sudo systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (pkill -9 -f 'uvicorn terminal_api:app' 2>/dev/null; sleep 1; cd {repo_dir} && nohup python3 wyckoff_alert_bot.py > bot.log 2>&1 & nohup python3 -m uvicorn terminal_api:app --host 0.0.0.0 --port 8080 > terminal.log 2>&1 &))"
+            # Force reload of terminal service
+            cycle_cmd = f"sleep 2 && pkill -9 -f wyckoff_alert_bot; pkill -9 -f terminal_api; pkill -9 -f uvicorn; sleep 1; cd {repo_dir} && nohup python3 wyckoff_alert_bot.py > bot.log 2>&1 & nohup python3 -m uvicorn terminal_api:app --host 0.0.0.0 --port 8080 > terminal.log 2>&1 &"
             subprocess.Popen(["bash", "-c", cycle_cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, start_new_session=True)
             print("Scheduled background service recycle (bot + terminal).")
         except Exception as e:
