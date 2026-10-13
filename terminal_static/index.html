@@ -1010,6 +1010,7 @@
           <button class="term-btn" onclick="setScannerPaneWidth('480px')" style="padding: 1px 4px; font-size: 9px;">480</button>
         </div>
         <div style="display: flex; gap: 4px;">
+          <button class="term-btn tf-filter-btn" data-tf="QUEUE" onclick="filterByTF('QUEUE')" style="border: 1px solid var(--wsr-orange); color: var(--wsr-orange); font-weight: bold;">⚡ 5M QUEUE</button>
           <button class="term-btn tf-filter-btn active-tf" data-tf="ALL" onclick="filterByTF('ALL')">ALL</button>
           <button class="term-btn tf-filter-btn" data-tf="5m" onclick="filterByTF('5m')">5M</button>
           <button class="term-btn tf-filter-btn" data-tf="15m" onclick="filterByTF('15m')">15M</button>
@@ -1019,7 +1020,7 @@
       </div>
       <div class="pane-content">
         <table id="tbl-scanner">
-          <thead>
+          <thead id="tbl-scanner-thead">
             <tr>
               <th onclick="sortScanner('ticker')">SYM &#x25B4;&#x25BE;</th>
               <th onclick="sortScanner('direction')">SETUP &#x25B4;&#x25BE;</th>
@@ -1731,6 +1732,8 @@
     let chart, candleSeries, volumeSeries, stSeries, rhSeries, rlSeries, vwapSeries;
     let rawScannerData = [];
     let rawStalkerData = [];
+    let rawPriorityQueueData = [];
+    let rawPriorityStats = {};
     let rawPositionsData = [];
     let activeTradePriceLines = [];
     let activeTFFilter = 'ALL';
@@ -2020,6 +2023,96 @@
       if (!scanTbody) return;
       scanTbody.innerHTML = '';
 
+      const theadEl = document.getElementById('tbl-scanner-thead');
+
+      // --- DYNAMIC 5M QUEUE / CHOPPING BLOCK VIEW ---
+      if (activeTFFilter === 'QUEUE') {
+        if (theadEl) {
+          theadEl.innerHTML = `
+            <tr>
+              <th>SYM</th>
+              <th>5M RADAR STATUS</th>
+              <th>PRICE</th>
+              <th>BOUNDARY PROXIMITY</th>
+              <th>REGIME / CHOP</th>
+              <th>VIEW</th>
+            </tr>
+          `;
+        }
+
+        if (rawPriorityQueueData && rawPriorityQueueData.length > 0) {
+          rawPriorityQueueData.forEach(item => {
+            let statusBadge = '';
+            let rowStyle = '';
+            if (item.status === 'HOT_SPRING') {
+              statusBadge = `<span style="background: rgba(0,255,136,0.18); color: #00ff88; border: 1px solid #00ff88; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 10px;">🔥 HOT SPRING</span>`;
+            } else if (item.status === 'HOT_UTAD') {
+              statusBadge = `<span style="background: rgba(255,51,51,0.18); color: #ff3333; border: 1px solid #ff3333; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 10px;">⚡ UTAD CEIL</span>`;
+            } else if (item.status === 'TEST_SUPPORT') {
+              statusBadge = `<span style="background: rgba(0,255,136,0.08); color: #00ff88; padding: 2px 6px; border-radius: 3px; font-size: 10px;">🛡️ TEST SUPPORT</span>`;
+            } else if (item.status === 'TEST_RESIST') {
+              statusBadge = `<span style="background: rgba(255,51,51,0.08); color: #ff5555; padding: 2px 6px; border-radius: 3px; font-size: 10px;">🧱 TEST RESIST</span>`;
+            } else if (item.status === 'ANCHOR_MONITOR') {
+              statusBadge = `<span style="background: rgba(0,180,255,0.12); color: #00d2ff; border: 1px solid rgba(0,180,255,0.4); padding: 2px 6px; border-radius: 3px; font-size: 10px;">💎 CORE ANCHOR</span>`;
+            } else if (item.status === 'MONITORING') {
+              statusBadge = `<span style="background: rgba(255,200,0,0.1); color: #ffd700; padding: 2px 6px; border-radius: 3px; font-size: 10px;">👀 RADAR</span>`;
+            } else if (item.status === 'CHOPPING_BLOCK') {
+              statusBadge = `<span style="background: rgba(255,50,50,0.25); color: #ff4444; border: 1px solid #ff4444; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 10px;">⚠️ CHOPPING BLOCK</span>`;
+              rowStyle = 'background: rgba(255,0,0,0.07);';
+            } else {
+              statusBadge = `<span class="c-muted" style="font-size: 10px;">${item.status}</span>`;
+            }
+
+            let distText = '--';
+            if (item.boundary_type === 'TR_LOW') {
+              distText = `<span class="c-green">+${item.dist_boundary_pct}% (LOW $${item.tr_low ? item.tr_low.toFixed(2) : '--'})</span>`;
+            } else if (item.boundary_type === 'TR_HIGH') {
+              distText = `<span class="c-red">-${item.dist_boundary_pct}% (HIGH $${item.tr_high ? item.tr_high.toFixed(2) : '--'})</span>`;
+            } else if (item.boundary_type === 'MID_RANGE') {
+              distText = `<span class="c-red">MID-RANGE (${item.dist_boundary_pct}%)</span>`;
+            } else {
+              distText = `<span class="c-muted">${item.dist_boundary_pct}%</span>`;
+            }
+
+            let regimeText = '';
+            if (item.status === 'CHOPPING_BLOCK') {
+              const cycles = item.chop_cycles || 1;
+              regimeText = `<b class="c-red">CHOP x${cycles}</b> <span class="c-muted" style="font-size:9px;">${cycles >= 2 ? '(PRUNE READY)' : '(WARNING)'}</span>`;
+            } else {
+              regimeText = `<b class="c-yellow">${item.bars_in_regime || 0}</b> <span class="c-muted" style="font-size:9px;">BARS</span>`;
+            }
+
+            const tr = document.createElement('tr');
+            if (rowStyle) tr.style.cssText = rowStyle;
+            tr.innerHTML = `
+              <td class="c-cyan" style="cursor:pointer;" onclick="selectTicker('${item.ticker}', '5m')"><b>${item.ticker}</b></td>
+              <td>${statusBadge}</td>
+              <td>$${item.price ? item.price.toFixed(2) : '--'}</td>
+              <td style="font-size: 11px;">${distText}</td>
+              <td>${regimeText}</td>
+              <td><button class="term-btn" onclick="selectTicker('${item.ticker}', '5m')" style="padding: 1px 6px; font-size: 10px;">CHART</button></td>
+            `;
+            scanTbody.appendChild(tr);
+          });
+        } else {
+          scanTbody.innerHTML = `<tr><td colspan="6" class="c-muted" style="text-align: center; padding: 14px;">⚡ 5M Priority Queue initializing... (~120-150 tickers stream on 5M close)</td></tr>`;
+        }
+        return;
+      }
+
+      // --- STANDARD SCANNER RADAR VIEW ---
+      if (theadEl) {
+        theadEl.innerHTML = `
+          <tr>
+            <th onclick="sortScanner('ticker')">SYM &#x25B4;&#x25BE;</th>
+            <th onclick="sortScanner('direction')">SETUP &#x25B4;&#x25BE;</th>
+            <th onclick="sortScanner('entry_price')">ENTRY &#x25B4;&#x25BE;</th>
+            <th onclick="sortScanner('timeframe')">TF &#x25B4;&#x25BE;</th>
+            <th onclick="sortScanner('timestamp')">SIGNAL TIME (EST) &#x25B4;&#x25BE;</th>
+            <th>TRADE</th>
+          </tr>
+        `;
+      }
 
       let filtered = rawScannerData.filter(s => {
         if (activeTFFilter === 'ALL') return true;
@@ -2642,6 +2735,8 @@
         // Cache scanner data for filtering & sorting
         rawScannerData = data.scanner || [];
         rawStalkerData = data.stalker_radar || [];
+        rawPriorityQueueData = data.priority_queue || [];
+        rawPriorityStats = data.priority_stats || {};
         renderScannerTable();
 
         // Audit History Table
@@ -3800,6 +3895,8 @@
           switchView('terminal');
         } else if (val === 'SCAN') {
           filterByTF('ALL');
+        } else if (val === 'QUEUE' || val === '/QUEUE' || val === '5MQ' || val === 'CHOP') {
+          filterByTF('QUEUE');
         } else if (val === '/RESTART' || val === 'RESTART') {
           triggerServiceRestart();
         } else if (val === '/SYNC' || val === 'SYNC') {

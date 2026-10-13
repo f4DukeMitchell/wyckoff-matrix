@@ -438,6 +438,20 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         range_low = pd.Series(lows).rolling(lookback, min_periods=20).min().shift(1).values
         
         if pd.isna(range_high[curr]): return
+
+        if interval in ['5m', '15m']:
+            try:
+                from priority_queue import update_ticker_in_queue
+                update_ticker_in_queue(
+                    ticker=ticker,
+                    price=float(closes[curr]),
+                    tr_low=float(range_low[curr]),
+                    tr_high=float(range_high[curr]),
+                    bars_in_regime=bars_in_regime,
+                    is_bull=bool(curr_u9)
+                )
+            except Exception:
+                pass
         
         # Indicator 2.1: Spring Penetration Depth (%)
         sweep_low = min(lows[curr], lows[curr-1])
@@ -943,7 +957,15 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
 # PUBLIC.COM LIVE MARKET SCANNER (Primary Data Feed)
 # ===================================================================
 async def scan_market_public(interval, lookback):
-    print(f"\n[{get_market_now().strftime('%H:%M:%S')}] [PUBLIC.COM LIVE] Streaming {len(TICKERS)} tickers on {interval}...")
+    if interval == '5m':
+        from priority_queue import get_active_5m_tickers
+        scan_tickers = get_active_5m_tickers(TICKERS)
+        tier_label = f"Dynamic Fast Queue ({len(scan_tickers)} tickers)"
+    else:
+        scan_tickers = TICKERS
+        tier_label = f"Full Universe ({len(scan_tickers)} tickers)"
+
+    print(f"\n[{get_market_now().strftime('%H:%M:%S')}] [PUBLIC.COM LIVE] Streaming {tier_label} on {interval}...")
     try:
         spy_bullish, spy_30m_ret, vix_slope = get_macro_context()
     except Exception:
@@ -954,9 +976,16 @@ async def scan_market_public(interval, lookback):
     hour_of_day = now.hour + now.minute / 60.0
     
     count = 0
-    async for ticker, df in stream_ticker_bars(TICKERS, interval=interval, delay_ms=0.08):
+    async for ticker, df in stream_ticker_bars(scan_tickers, interval=interval, delay_ms=0.08):
         count += 1
         evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_day, now, spy_30m_ret, vix_slope)
+
+    try:
+        from priority_queue import flush_priority_queue
+        flush_priority_queue()
+    except Exception:
+        pass
+
     print(f"[{get_market_now().strftime('%H:%M:%S')}] [PUBLIC.COM LIVE] Finished {count} tickers on {interval}.")
 
 # Fallback bulk scanner (yfinance)
@@ -965,9 +994,15 @@ def scan_market(interval, period, lookback):
         import asyncio
         asyncio.run(scan_market_public(interval, lookback))
         return
+
+    if interval == '5m':
+        from priority_queue import get_active_5m_tickers
+        scan_tickers = get_active_5m_tickers(TICKERS)
+    else:
+        scan_tickers = TICKERS
         
-    print(f"\n[{get_market_now().strftime('%H:%M:%S')}] [FALLBACK YFINANCE] Scanning {len(TICKERS)} tickers on {interval}...")
-    data = yf.download(TICKERS, period=period, interval=interval, group_by='ticker', progress=False)
+    print(f"\n[{get_market_now().strftime('%H:%M:%S')}] [FALLBACK YFINANCE] Scanning {len(scan_tickers)} tickers on {interval}...")
+    data = yf.download(scan_tickers, period=period, interval=interval, group_by='ticker', progress=False)
     try:
         spy_bullish, spy_30m_ret, vix_slope = get_macro_context()
     except Exception:
@@ -976,11 +1011,17 @@ def scan_market(interval, period, lookback):
         vix_slope = 0.0
     now = get_market_now()
     hour_of_day = now.hour + now.minute / 60.0
-    for ticker in TICKERS:
+    for ticker in scan_tickers:
         try:
-            df = data[ticker].dropna() if len(TICKERS) > 1 else data.dropna()
+            df = data[ticker].dropna() if len(scan_tickers) > 1 else data.dropna()
             evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_day, now, spy_30m_ret, vix_slope)
         except: pass
+
+    try:
+        from priority_queue import flush_priority_queue
+        flush_priority_queue()
+    except Exception:
+        pass
 
 
 last_report_date = None
@@ -1173,9 +1214,20 @@ if __name__ == "__main__":
         is_market_hours = is_weekday and market_open
 
         if is_market_hours:
-            # 1. 5m and 15m scanned EVERY cycle (real-time broker stream)
+            # 1. 5m Fast Queue scanned EVERY cycle (~120-150 tickers in ~25s)
             scan_market('5m', '5d', 200)
-            scan_market('15m', '20d', 150)
+
+            # 2. 15m wide-net sweep (full 612 tickers) on 15m candle closes (:00, :15, :30, :45)
+            # or on initial boot to discover boundary testers
+            current_quarter = (now.minute // 15) * 15
+            is_15m_due = (now.minute % 15 == 0 and not reports_sent.get(f"m15_{current_quarter}", False)) or not reports_sent.get("m15_init", False)
+            if is_15m_due:
+                scan_market('15m', '20d', 150)
+                reports_sent[f"m15_{current_quarter}"] = True
+                reports_sent["m15_init"] = True
+                for m in [0, 15, 30, 45]:
+                    if m != current_quarter:
+                        reports_sent[f"m15_{m}"] = False
 
             # 2. 1h scanned at the top of each hour (between :00 and :10)
             if now.minute < 10 and not reports_sent.get("hourly_1h_scanned", False):

@@ -251,6 +251,14 @@ def get_terminal_state():
 
     stalker_list = []
     
+    try:
+        from priority_queue import get_priority_queue, get_priority_queue_stats
+        p_queue = get_priority_queue()
+        p_stats = get_priority_queue_stats()
+    except Exception:
+        p_queue = []
+        p_stats = {"total": 0, "hot": 0, "anchors": 0, "monitoring": 0, "chopping_block": 0}
+
     import config_manager
     cfg = config_manager.load_config()
     bp_val = float(cap.get('buying_power') or 0.0)
@@ -267,8 +275,21 @@ def get_terminal_state():
         "positions": active_positions,
         "scanner": scanner_results,
         "stalker_radar": stalker_list,
+        "priority_queue": p_queue,
+        "priority_stats": p_stats,
         "history": history
     }
+
+@app.get("/api/terminal/priority-queue")
+def get_priority_queue_endpoint():
+    try:
+        from priority_queue import get_priority_queue, get_priority_queue_stats
+        return {
+            "queue": get_priority_queue(),
+            "stats": get_priority_queue_stats()
+        }
+    except Exception as e:
+        return {"queue": [], "stats": {}, "error": str(e)}
 
 class ConfigUpdateRequest(BaseModel):
     alloc_mode: Optional[str] = None
