@@ -250,11 +250,6 @@ def get_terminal_state():
     conn.close()
 
     stalker_list = []
-    try:
-        from stalker_radar import get_active_stalker_radar
-        stalker_list = get_active_stalker_radar()
-    except Exception:
-        pass
     
     import config_manager
     cfg = config_manager.load_config()

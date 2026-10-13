@@ -179,6 +179,15 @@ def migrate():
 
     conn.commit()
 
+    # Clear stalker cache on disk
+    stalker_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stalker_radar.json")
+    try:
+        with open(stalker_file, "w") as f:
+            f.write("[]\n")
+        print("Emptied stalker_radar.json cache on disk.")
+    except Exception as e:
+        print(f"Error emptying stalker_radar.json: {e}")
+
     # Log summary
     c.execute("""
         SELECT outcome, COUNT(*), COALESCE(SUM(pnl_r), 0)
