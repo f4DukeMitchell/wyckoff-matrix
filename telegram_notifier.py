@@ -14,10 +14,27 @@ def is_configured():
     """Returns True if both token and chat_id are configured."""
     return bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
 
-def send_message(text, reply_markup=None, chat_id=None):
-    """Sends a text message to the configured Telegram chat."""
+def is_quiet_hours():
+    """
+    Returns True if current time is between 6:00 PM and 7:00 AM EST (quiet hours).
+    Alerts during this window are suppressed to prevent evening and overnight notifications.
+    """
+    try:
+        import zoneinfo
+        now_et = datetime.datetime.now(zoneinfo.ZoneInfo("America/New_York"))
+    except Exception:
+        now_et = datetime.datetime.now()
+    # 6:00 PM (18:00) to 7:00 AM (07:00) EST
+    return now_et.hour >= 18 or now_et.hour < 7
+
+def send_message(text, reply_markup=None, chat_id=None, force=False):
+    """Sends a text message to the configured Telegram chat (blocked during 6:00 PM - 7:00 AM EST quiet hours unless force=True)."""
     if not is_configured():
         print("Telegram not configured. Skipping message send.")
+        return False
+
+    if is_quiet_hours() and not force:
+        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [Telegram Quiet Hours] Alert blocked between 6:00 PM and 7:00 AM EST.")
         return False
 
     target_chat = chat_id if chat_id else TELEGRAM_CHAT_ID
@@ -215,11 +232,11 @@ def check_callbacks():
                             f"Order UUID: {order_res.get('order_id')}\n\n"
                             f"🛡️ Stop Loss & Breakeven Ratchet (+0.75R) are now active in the Wyckoff engine."
                         )
-                        send_message(exec_msg, chat_id=from_chat_id)
+                        send_message(exec_msg, chat_id=from_chat_id, force=True)
                         print(f"Executed 1% test BUY for {ticker} (${alloc:.2f}) on Public.com.")
                     except Exception as e:
                         err_msg = f"❌ Order Execution Failed for {ticker}: {str(e)}"
-                        send_message(err_msg, chat_id=from_chat_id)
+                        send_message(err_msg, chat_id=from_chat_id, force=True)
                         print(f"Order error: {e}")
                         
                 elif data.startswith("short_1pct_"):
@@ -253,11 +270,11 @@ def check_callbacks():
                             f"Order UUID: {order_res.get('order_id')}\n\n"
                             f"🛡️ Take Profit (Buy to Cover), Stop Loss, and Ratchet (+0.75R) are now active in the Wyckoff engine."
                         )
-                        send_message(exec_msg, chat_id=from_chat_id)
+                        send_message(exec_msg, chat_id=from_chat_id, force=True)
                         print(f"Executed SHORT test for {ticker} ({order_res.get('shares')} shares) on Public.com.")
                     except Exception as e:
                         err_msg = f"❌ Short Order Execution Failed for {ticker}: {str(e)}"
-                        send_message(err_msg, chat_id=from_chat_id)
+                        send_message(err_msg, chat_id=from_chat_id, force=True)
                         print(f"Short order error: {e}")
                         
                 elif data.startswith("in_trade_"):
