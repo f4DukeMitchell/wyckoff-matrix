@@ -195,9 +195,24 @@ def migrate():
         WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN')
         GROUP BY outcome
     """)
-    print("Database Outcome Distribution:")
-    for row in c.fetchall():
-        print(f"  {row[0]}: {row[1]} trades, Net R: {row[2]:.2f}R")
+    # Initialize priority queue on disk if missing or empty
+    try:
+        import priority_queue
+        priority_queue.flush_priority_queue()
+        stats = priority_queue.get_priority_queue_stats()
+        print(f"Initialized priority_queue.json on disk: {stats}")
+    except Exception as e:
+        print(f"Error initializing priority queue: {e}")
+
+    # Recycle services
+    if os.name != 'nt':
+        try:
+            repo_dir = os.path.dirname(os.path.abspath(__file__))
+            cycle_cmd = f"sleep 2 && pkill -9 -f wyckoff_alert_bot; (sudo systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (pkill -9 -f 'uvicorn terminal_api:app' 2>/dev/null; sleep 1; cd {repo_dir} && nohup python3 wyckoff_alert_bot.py > bot.log 2>&1 & nohup python3 -m uvicorn terminal_api:app --host 0.0.0.0 --port 8080 > terminal.log 2>&1 &))"
+            subprocess.Popen(["bash", "-c", cycle_cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, start_new_session=True)
+            print("Scheduled background service recycle (bot + terminal).")
+        except Exception as e:
+            print(f"Error scheduling recycle: {e}")
 
     conn.close()
 
