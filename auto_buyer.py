@@ -24,7 +24,9 @@ import config_manager
 def get_config():
     return config_manager.load_config()
 
-AUTO_BUY_MIN_ML_CONF = float(os.getenv("AUTO_BUY_MIN_ML_CONF", "46.5"))
+# 55.0% statistical profitability floor. A trial value of 46.5% (fit to a single day's replay) was reverted:
+# it sits near the 45.9% base win rate and filtered almost nothing. Override with the env var only on evidence.
+AUTO_BUY_MIN_ML_CONF = float(os.getenv("AUTO_BUY_MIN_ML_CONF", "55.0"))
 
 # Allowed Auto-Buy Timeframes: 5m Day Trades & 1m Stalker Radar Micro-Sparks (No higher TF swings)
 AUTO_BUY_ALLOWED_TIMEFRAMES = ["5m", "1m"]
