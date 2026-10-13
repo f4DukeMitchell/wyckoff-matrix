@@ -106,7 +106,7 @@
     #main-grid {
       flex: 1;
       display: grid;
-      grid-template-columns: 590px 1fr 280px;
+      grid-template-columns: 480px 1fr 380px;
       grid-template-rows: 1fr 180px;
       gap: 1px;
       background: var(--wsr-border);
@@ -990,7 +990,13 @@
     <!-- PANE 3: SCANNER RADAR (Top Right) -->
     <div class="pane" id="pane-scanner">
       <div class="pane-header">
-        <span>WYCKOFF SCANNER RADAR</span>
+        <div style="display: flex; gap: 4px; align-items: center;">
+          <span>WYCKOFF SCANNER RADAR</span>
+          <span style="font-size: 8px; color: #777; margin-left: 4px;">WIDTH:</span>
+          <button class="term-btn" onclick="setScannerPaneWidth('300px')" style="padding: 1px 4px; font-size: 9px;">300</button>
+          <button class="term-btn" onclick="setScannerPaneWidth('380px')" style="padding: 1px 4px; font-size: 9px;">380</button>
+          <button class="term-btn" onclick="setScannerPaneWidth('480px')" style="padding: 1px 4px; font-size: 9px;">480</button>
+        </div>
         <div style="display: flex; gap: 4px;">
           <button class="term-btn tf-filter-btn active-tf" data-tf="ALL" onclick="filterByTF('ALL')">ALL</button>
           <button class="term-btn tf-filter-btn" data-tf="1m" onclick="filterByTF('1m')">⚡ 1M STALKER</button>
@@ -1762,11 +1768,28 @@
       setTimeout(resizeChart, 250);
     }
 
-    function setActivePaneWidth(w) {
+    let currentLeftWidth = localStorage.getItem('wsr_left_width') || '480px';
+    let currentRightWidth = localStorage.getItem('wsr_right_width') || '380px';
+
+    function applyGridColumns() {
       const grid = document.getElementById('main-grid');
-      grid.style.gridTemplateColumns = `${w} 1fr 280px`;
-      setTimeout(resizeChart, 50);
-      setTimeout(resizeChart, 250);
+      if (grid && !grid.classList.contains('chart-maximized')) {
+        grid.style.gridTemplateColumns = `${currentLeftWidth} 1fr ${currentRightWidth}`;
+        setTimeout(resizeChart, 50);
+        setTimeout(resizeChart, 250);
+      }
+    }
+
+    function setActivePaneWidth(w) {
+      currentLeftWidth = w;
+      localStorage.setItem('wsr_left_width', w);
+      applyGridColumns();
+    }
+
+    function setScannerPaneWidth(w) {
+      currentRightWidth = w;
+      localStorage.setItem('wsr_right_width', w);
+      applyGridColumns();
     }
 
     function toggleMaximizeChart() {
@@ -1996,12 +2019,12 @@
             const btnAction = isLong ? `executeBuy('${st.ticker}', null)` : `executeShort('${st.ticker}', null)`;
             const tr = document.createElement('tr');
             tr.innerHTML = `
-              <td class="c-cyan" style="cursor:pointer;" onclick="selectTicker('${st.ticker}', '5m')"><b>${st.ticker}</b></td>
-              <td class="${isLong ? 'c-green' : 'c-red'}">⚡ ${st.setup}</td>
-              <td>$${st.current_price ? st.current_price.toFixed(2) : '--'} <span class="c-muted" style="font-size:10px;">(Test: $${st.target_test_level})</span></td>
-              <td><b style="color:#00ffcc;">1M STALKER</b></td>
-              <td class="c-muted" style="font-size: 10px;">${st.status} (${st.dist_to_test_pct > 0 ? '+' : ''}${st.dist_to_test_pct}%)</td>
-              <td><button class="${btnClass}" onclick="${btnAction}">${btnText}</button></td>
+              <td class="c-cyan" style="cursor:pointer; padding: 2px 4px;" onclick="selectTicker('${st.ticker}', '5m')"><b>${st.ticker}</b></td>
+              <td class="${isLong ? 'c-green' : 'c-red'}" style="padding: 2px 4px; font-size: 10px;">⚡ ${st.setup}</td>
+              <td style="padding: 2px 4px;">$${st.current_price ? st.current_price.toFixed(2) : '--'}</td>
+              <td style="padding: 2px 4px;"><b style="color:#00ffcc; font-size: 9px;">1M</b></td>
+              <td class="c-muted" style="padding: 2px 4px; font-size: 9px;">${st.status} (${st.dist_to_test_pct > 0 ? '+' : ''}${st.dist_to_test_pct}%)</td>
+              <td style="padding: 2px 4px;"><button class="${btnClass}" style="padding: 2px 5px; font-size: 9px;" onclick="${btnAction}">${btnText}</button></td>
             `;
             scanTbody.appendChild(tr);
           });
@@ -3839,6 +3862,7 @@
 
     // --- BOOTSTRAP ---
     window.onload = () => {
+      applyGridColumns();
       initChart();
       loadChartData("NVDA", "5m");
       fetchState();
