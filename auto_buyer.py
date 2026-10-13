@@ -24,7 +24,7 @@ import config_manager
 def get_config():
     return config_manager.load_config()
 
-AUTO_BUY_MIN_ML_CONF = float(os.getenv("AUTO_BUY_MIN_ML_CONF", "55.0"))
+AUTO_BUY_MIN_ML_CONF = float(os.getenv("AUTO_BUY_MIN_ML_CONF", "46.5"))
 
 # Allowed Auto-Buy Timeframes: 5m Day Trades & 1m Stalker Radar Micro-Sparks (No higher TF swings)
 AUTO_BUY_ALLOWED_TIMEFRAMES = ["5m", "1m"]
