@@ -212,10 +212,10 @@ def migrate():
             print("RUNNING PROCESSES:\n" + "\n".join(term_procs[:10]))
             
             repo_dir = os.path.dirname(os.path.abspath(__file__))
-            # Force reload of terminal service
-            cycle_cmd = f"sleep 2 && pkill -9 -f wyckoff_alert_bot; pkill -9 -f terminal_api; pkill -9 -f uvicorn; sleep 1; cd {repo_dir} && nohup python3 wyckoff_alert_bot.py > bot.log 2>&1 & nohup python3 -m uvicorn terminal_api:app --host 0.0.0.0 --port 8080 > terminal.log 2>&1 &"
+            # Force reload of services via systemctl
+            cycle_cmd = "sleep 1 && (echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service wyckoff-terminal.service)"
             subprocess.Popen(["bash", "-c", cycle_cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, start_new_session=True)
-            print("Scheduled background service recycle (bot + terminal).")
+            print("Scheduled background systemctl service restart (bot + terminal).")
         except Exception as e:
             print(f"Error scheduling recycle: {e}")
 
