@@ -55,7 +55,9 @@
       display: flex;
       align-items: center;
       padding: 0 8px;
-      gap: 12px;
+      gap: 10px;
+      overflow-x: auto;
+      overflow-y: hidden;
     }
 
     .brand {
@@ -64,21 +66,29 @@
       font-size: 12px;
       letter-spacing: 0.5px;
       white-space: nowrap;
+      flex-shrink: 0;
     }
 
     #command-container {
-      flex: 1;
+      flex: 0 0 240px;
+      min-width: 220px;
+      max-width: 280px;
       display: flex;
       align-items: center;
       background: var(--wsr-black);
       border: 1px solid var(--wsr-border-active);
-      padding: 2px 6px;
+      padding: 2px 8px;
+      box-sizing: border-box;
+      cursor: text;
     }
 
     .prompt-label {
       color: var(--wsr-yellow);
       margin-right: 6px;
-      font-weight: 600;
+      font-weight: 700;
+      white-space: nowrap;
+      user-select: none;
+      flex-shrink: 0;
     }
 
     #cmd-input {
@@ -88,7 +98,9 @@
       color: var(--wsr-white);
       font-family: inherit;
       font-size: 12px;
+      font-weight: 600;
       width: 100%;
+      min-width: 120px;
     }
 
     .top-meta {
@@ -902,9 +914,9 @@
       <button id="tab-restart" class="view-tab" onclick="triggerServiceRestart()" style="border-color: var(--wsr-orange); color: var(--wsr-orange);" title="Restart Wyckoff Bot & Terminal Services on Cloud VM">⚡ RESTART</button>
       <button id="tab-flatten" class="view-tab" onclick="executeFlattenAll()" style="border-color: #e63946; color: #ff4d4d;" title="Emergency: Flatten all open algo positions immediately">🚨 FLATTEN</button>
     </div>
-    <div id="command-container">
+    <div id="command-container" onclick="document.getElementById('cmd-input').focus()">
       <span class="prompt-label">COMMAND &gt;</span>
-      <input type="text" id="cmd-input" placeholder="TYPE TICKER OR COMMAND (e.g. NVDA, SCAN, ML, /FLATTEN)" autofocus autocomplete="off" />
+      <input type="text" id="cmd-input" placeholder="TICKER (e.g. NVDA, AMD)" autofocus autocomplete="off" />
     </div>
     <div class="top-meta">
       <span>BUYING POWER: <b class="meta-val c-green" id="bp-val">$--</b></span>
