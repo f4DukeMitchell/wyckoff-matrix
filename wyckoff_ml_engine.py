@@ -169,7 +169,8 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
     
     try:
         conn = sqlite3.connect(DB_PATH)
-        df = pd.read_sql_query("SELECT * FROM alerts WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN')", conn)
+        # 1m stalker trades are quarantined from training until they are validated against the 5m baseline
+        df = pd.read_sql_query("SELECT * FROM alerts WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN') AND (timeframe IS NULL OR timeframe != '1m')", conn)
         
         if len(df) < 10:
             conn.close()

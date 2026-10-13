@@ -213,7 +213,7 @@ def stalker_daemon_loop():
                     continue
                 triggered, note = check_1m_micro_spark(ticker, setup)
                 cand['micro_status'] = note
-                if triggered and cand.get('status') not in ['MICRO_SPARK_TRIGGERED', 'ORDER_EXECUTED']:
+                if triggered and cand.get('status') not in ['MICRO_SPARK_TRIGGERED', 'ORDER_EXECUTED', 'PAPER_LOGGED']:
                     cand['status'] = 'MICRO_SPARK_TRIGGERED'
                     changed = True
                     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [Stalker Radar] 1m spark triggered on {ticker} ({setup}): {note}")
@@ -256,20 +256,28 @@ def stalker_daemon_loop():
                                     initial_stop_loss=sl
                                 )
 
-                                auto_executed, auto_reason = execute_autonomous_spring_buy(
-                                    trade_id=trade_id,
-                                    ticker=ticker,
-                                    price=price,
-                                    sl=sl,
-                                    tp=tp,
-                                    ml_conf=ml_conf,
-                                    timeframe="1m",
-                                    target_r=target_r
-                                )
-                                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [Stalker Radar] 1m Auto-buy execution for {ticker}: success={auto_executed}, reason={auto_reason}")
-                                if auto_executed:
-                                    cand['status'] = 'ORDER_EXECUTED'
-                                    mark_trade_alerted(trade_id)
+                                import config_manager
+                                live_buy = bool(config_manager.load_config().get("stalker_auto_buy", False))
+                                if live_buy:
+                                    auto_executed, auto_reason = execute_autonomous_spring_buy(
+                                        trade_id=trade_id,
+                                        ticker=ticker,
+                                        price=price,
+                                        sl=sl,
+                                        tp=tp,
+                                        ml_conf=ml_conf,
+                                        timeframe="1m",
+                                        target_r=target_r
+                                    )
+                                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [Stalker Radar] 1m Auto-buy execution for {ticker}: success={auto_executed}, reason={auto_reason}")
+                                    if auto_executed:
+                                        cand['status'] = 'ORDER_EXECUTED'
+                                        mark_trade_alerted(trade_id)
+                                else:
+                                    # Paper-track only: the alert row stays user_active=0 and is resolved by the
+                                    # tracker, but no broker order is placed and it is excluded from ML retraining.
+                                    cand['status'] = 'PAPER_LOGGED'
+                                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [Stalker Radar] 1m PAPER trade logged for {ticker} (stalker_auto_buy=OFF): entry={price} sl={sl} tp={tp}")
                         except Exception as auto_buy_err:
                             print(f"[Stalker Radar] Auto-buy error for {ticker}: {auto_buy_err}")
             if changed:
