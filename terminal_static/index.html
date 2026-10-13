@@ -999,7 +999,6 @@
         </div>
         <div style="display: flex; gap: 4px;">
           <button class="term-btn tf-filter-btn active-tf" data-tf="ALL" onclick="filterByTF('ALL')">ALL</button>
-          <button class="term-btn tf-filter-btn" data-tf="1m" onclick="filterByTF('1m')">⚡ 1M STALKER</button>
           <button class="term-btn tf-filter-btn" data-tf="5m" onclick="filterByTF('5m')">5M</button>
           <button class="term-btn tf-filter-btn" data-tf="15m" onclick="filterByTF('15m')">15M</button>
           <button class="term-btn tf-filter-btn" data-tf="1h" onclick="filterByTF('1h')">1H</button>
@@ -2009,52 +2008,6 @@
       if (!scanTbody) return;
       scanTbody.innerHTML = '';
 
-      if (activeTFFilter === '1m') {
-        if (rawStalkerData.length > 0) {
-          rawStalkerData.forEach(st => {
-            const isLong = st.direction === 'LONG';
-            const btnClass = isLong ? 'term-btn term-btn-buy' : 'term-btn term-btn-short';
-            const sizing = getSelectedRiskSizing();
-            const btnText = `${sizing.label} ${isLong ? 'BUY' : 'SHORT'}`;
-            const btnAction = isLong ? `executeBuy('${st.ticker}', null)` : `executeShort('${st.ticker}', null)`;
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-              <td class="c-cyan" style="cursor:pointer; padding: 2px 4px;" onclick="selectTicker('${st.ticker}', '5m')"><b>${st.ticker}</b></td>
-              <td class="${isLong ? 'c-green' : 'c-red'}" style="padding: 2px 4px; font-size: 10px;">⚡ ${st.setup}</td>
-              <td style="padding: 2px 4px;">$${st.current_price ? st.current_price.toFixed(2) : '--'}</td>
-              <td style="padding: 2px 4px;"><b style="color:#00ffcc; font-size: 9px;">1M</b></td>
-              <td class="c-muted" style="padding: 2px 4px; font-size: 9px;">${st.status} (${st.dist_to_test_pct > 0 ? '+' : ''}${st.dist_to_test_pct}%)</td>
-              <td style="padding: 2px 4px;"><button class="${btnClass}" style="padding: 2px 5px; font-size: 9px;" onclick="${btnAction}">${btnText}</button></td>
-            `;
-            scanTbody.appendChild(tr);
-          });
-        } else {
-          scanTbody.innerHTML = `<tr><td colspan="6" class="c-muted">Scanning 5m TR boundaries for 1m test candidates...</td></tr>`;
-        }
-        return;
-      }
-
-      // Prepend stalker candidates in ALL view
-      if (activeTFFilter === 'ALL' && rawStalkerData.length > 0) {
-        rawStalkerData.forEach(st => {
-          const isLong = st.direction === 'LONG';
-          const btnClass = isLong ? 'term-btn term-btn-buy' : 'term-btn term-btn-short';
-          const sizing = getSelectedRiskSizing();
-          const btnText = `${sizing.label} ${isLong ? 'BUY' : 'SHORT'}`;
-          const btnAction = isLong ? `executeBuy('${st.ticker}', null)` : `executeShort('${st.ticker}', null)`;
-          const tr = document.createElement('tr');
-          tr.style.background = 'rgba(0, 255, 204, 0.08)';
-          tr.innerHTML = `
-            <td class="c-cyan" style="cursor:pointer;" onclick="selectTicker('${st.ticker}', '5m')"><b>${st.ticker}</b> <span style="font-size:9px; color:#00ffcc;">[STALK]</span></td>
-            <td class="${isLong ? 'c-green' : 'c-red'}">⚡ ${st.setup}</td>
-            <td>$${st.current_price ? st.current_price.toFixed(2) : '--'}</td>
-            <td><b style="color:#00ffcc;">1M</b></td>
-            <td class="c-muted" style="font-size: 10px;">${st.status}</td>
-            <td><button class="${btnClass}" onclick="${btnAction}">${btnText}</button></td>
-          `;
-          scanTbody.appendChild(tr);
-        });
-      }
 
       let filtered = rawScannerData.filter(s => {
         if (activeTFFilter === 'ALL') return true;

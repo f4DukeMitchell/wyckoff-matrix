@@ -954,25 +954,9 @@ async def scan_market_public(interval, lookback):
     hour_of_day = now.hour + now.minute / 60.0
     
     count = 0
-    stalker_candidates = []
     async for ticker, df in stream_ticker_bars(TICKERS, interval=interval, delay_ms=0.08):
         count += 1
         evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_day, now, spy_30m_ret, vix_slope)
-        if interval == '5m':
-            try:
-                from stalker_radar import evaluate_ticker_for_stalker
-                sc = evaluate_ticker_for_stalker(ticker, df)
-                if sc:
-                    stalker_candidates.append(sc)
-            except Exception:
-                pass
-    if interval == '5m' and stalker_candidates:
-        try:
-            from stalker_radar import update_stalker_candidates
-            update_stalker_candidates(stalker_candidates)
-            print(f"[{get_market_now().strftime('%H:%M:%S')}] [STALKER RADAR] Promoted {len(stalker_candidates)} candidates approaching TR boundaries.")
-        except Exception:
-            pass
     print(f"[{get_market_now().strftime('%H:%M:%S')}] [PUBLIC.COM LIVE] Finished {count} tickers on {interval}.")
 
 # Fallback bulk scanner (yfinance)
@@ -992,27 +976,11 @@ def scan_market(interval, period, lookback):
         vix_slope = 0.0
     now = get_market_now()
     hour_of_day = now.hour + now.minute / 60.0
-    stalker_candidates = []
     for ticker in TICKERS:
         try:
             df = data[ticker].dropna() if len(TICKERS) > 1 else data.dropna()
             evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_day, now, spy_30m_ret, vix_slope)
-            if interval == '5m':
-                try:
-                    from stalker_radar import evaluate_ticker_for_stalker
-                    sc = evaluate_ticker_for_stalker(ticker, df)
-                    if sc:
-                        stalker_candidates.append(sc)
-                except Exception:
-                    pass
         except: pass
-    if interval == '5m' and stalker_candidates:
-        try:
-            from stalker_radar import update_stalker_candidates
-            update_stalker_candidates(stalker_candidates)
-            print(f"[{get_market_now().strftime('%H:%M:%S')}] [STALKER RADAR] Promoted {len(stalker_candidates)} candidates approaching TR boundaries.")
-        except Exception:
-            pass
 
 
 last_report_date = None
@@ -1185,11 +1153,6 @@ if __name__ == "__main__":
         from telegram_notifier import send_message
         send_message("Wyckoff Bot v11.0 (Hybrid) initialized. Scanning all timeframes.")
     
-    try:
-        from stalker_radar import start_stalker_daemon
-        start_stalker_daemon()
-    except Exception as e:
-        print(f"Error launching Stalker Radar daemon: {e}")
 
     try:
         from exit_guardian import start_guardian_daemon

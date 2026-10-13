@@ -102,11 +102,6 @@ def startup_event():
         start_guardian_daemon()
     except Exception as e:
         print(f"Error launching Exit Guardian daemon: {e}")
-    try:
-        from stalker_radar import start_stalker_daemon
-        start_stalker_daemon()
-    except Exception as e:
-        print(f"Error launching Stalker Radar daemon: {e}")
 
 # --- REST ENDPOINTS ---
 

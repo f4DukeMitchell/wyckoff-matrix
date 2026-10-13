@@ -73,225 +73,38 @@ def compute_trading_range_and_exhaustion(df):
 
 def evaluate_ticker_for_stalker(ticker, df_5m):
     """
-    Checks if a 5m bar structure qualifies for fast 1m stalking.
-    Spring Stalk: Bearish exhaustion >= 12 bars AND price within 0.75% of TR Low.
-    UTAD Stalk:   Bullish exhaustion >= 12 bars AND price within 0.75% of TR High.
+    Deactivated: Stalker program removed to preserve clean 5M Wyckoff execution
+    and prevent Yahoo Finance rate-limiting.
     """
-    metrics = compute_trading_range_and_exhaustion(df_5m)
-    if not metrics:
-        return None
-        
-    curr = metrics['current_price']
-    tr_low = metrics['tr_low']
-    tr_high = metrics['tr_high']
-    bars = metrics['exhaustion_bars']
-    is_bull = metrics['is_bull']
-    
-    # 1. Spring Stalk (Approaching TR Low Support)
-    if not is_bull and bars >= 12 and tr_low > 0:
-        dist_pct = ((curr - tr_low) / curr) * 100.0
-        # Within -0.5% (slight breach) to +0.80% above support
-        if -0.5 <= dist_pct <= 0.80:
-            return {
-                'ticker': ticker.upper(),
-                'setup': 'SPRING_STALK',
-                'direction': 'LONG',
-                'current_price': round(curr, 2),
-                'target_test_level': round(tr_low, 2),
-                'dist_to_test_pct': round(dist_pct, 2),
-                'exhaustion_bars': bars,
-                'status': 'POLLING_1M',
-                'timestamp': datetime.datetime.now().strftime("%H:%M:%S")
-            }
-            
-    # 2. UTAD Stalk (Approaching TR High Resistance)
-    if is_bull and bars >= 12 and tr_high > 0:
-        dist_pct = ((tr_high - curr) / curr) * 100.0
-        # Within -0.5% (slight breach) to +0.80% below resistance
-        if -0.5 <= dist_pct <= 0.80:
-            return {
-                'ticker': ticker.upper(),
-                'setup': 'UTAD_STALK',
-                'direction': 'SHORT',
-                'current_price': round(curr, 2),
-                'target_test_level': round(tr_high, 2),
-                'dist_to_test_pct': round(dist_pct, 2),
-                'exhaustion_bars': bars,
-                'status': 'POLLING_1M',
-                'timestamp': datetime.datetime.now().strftime("%H:%M:%S")
-            }
-            
     return None
 
 def check_1m_micro_spark(ticker, setup_type):
-    """
-    Polls 1-minute bars for a stalked candidate to detect the micro-spark trigger:
-    1. Volume dry-up (current 1m volume < 0.75x 20-bar avg 1m volume).
-    2. Bullish rejection wick or 1m green turn above test level.
-    """
-    try:
-        df_1m = yf.download(ticker, period="1d", interval="1m", progress=False)
-        if df_1m.empty or len(df_1m) < 10:
-            return False, "INSUFFICIENT_1M_DATA"
-            
-        if isinstance(df_1m.columns, pd.MultiIndex):
-            closes = df_1m['Close'].iloc[:, 0].values.astype(float)
-            highs = df_1m['High'].iloc[:, 0].values.astype(float)
-            lows = df_1m['Low'].iloc[:, 0].values.astype(float)
-            opens = df_1m['Open'].iloc[:, 0].values.astype(float)
-            vols = df_1m['Volume'].iloc[:, 0].values.astype(float)
-        else:
-            closes = df_1m['Close'].values.astype(float)
-            highs = df_1m['High'].values.astype(float)
-            lows = df_1m['Low'].values.astype(float)
-            opens = df_1m['Open'].values.astype(float)
-            vols = df_1m['Volume'].values.astype(float)
-            
-        last_c = closes[-1]
-        last_o = opens[-1]
-        last_l = lows[-1]
-        last_v = vols[-1]
-        avg_v = np.mean(vols[-15:-1]) if len(vols) >= 15 else last_v
-        
-        vol_ratio = (last_v / avg_v) if avg_v > 0 else 1.0
-        
-        # Spring Trigger: Bullish close on 1m + Volume dry-up (< 1.2x) or lower wick rejection
-        if setup_type == 'SPRING_STALK':
-            is_green_bar = last_c >= last_o
-            has_lower_wick = (min(last_o, last_c) - last_l) > (abs(last_c - last_o) * 0.5)
-            if is_green_bar and (vol_ratio < 1.25 or has_lower_wick):
-                return True, f"1M_MICRO_SPARK_CONFIRMED (Vol: {vol_ratio:.2f}x, Wick: {has_lower_wick})"
-                
-        # UTAD Trigger: Bearish close on 1m + upper wick rejection
-        elif setup_type == 'UTAD_STALK':
-            is_red_bar = last_c <= last_o
-            has_upper_wick = (highs[-1] - max(last_o, last_c)) > (abs(last_c - last_o) * 0.5)
-            if is_red_bar and (vol_ratio < 1.25 or has_upper_wick):
-                return True, f"1M_MICRO_SPARK_CONFIRMED (Vol: {vol_ratio:.2f}x, Wick: {has_upper_wick})"
-                
-        return False, f"MONITORING_1M (Vol: {vol_ratio:.2f}x)"
-    except Exception as e:
-        return False, f"1M_ERROR: {str(e)}"
+    return False, "DEACTIVATED"
 
 STALKER_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stalker_radar.json")
 
 def get_active_stalker_radar():
-    """Returns the current list of stalked candidates for API and UI display from shared cache."""
-    try:
-        if os.path.exists(STALKER_CACHE_FILE):
-            with open(STALKER_CACHE_FILE, "r") as f:
-                return json.load(f)
-    except Exception:
-        pass
-    global _STALKER_CANDIDATES
-    return _STALKER_CANDIDATES
+    """Returns empty list: Stalker radar deactivated."""
+    return []
 
 def update_stalker_candidates(candidates_list):
-    """Updates the shared stalker list on disk and in memory."""
-    global _STALKER_CANDIDATES, _LAST_STALKER_SCAN
-    _STALKER_CANDIDATES = candidates_list
-    _LAST_STALKER_SCAN = time.time()
+    """No-op: Stalker radar deactivated."""
+    global _STALKER_CANDIDATES
+    _STALKER_CANDIDATES = []
     try:
-        tmp_file = STALKER_CACHE_FILE + ".tmp"
-        with open(tmp_file, "w") as f:
-            json.dump(candidates_list, f, indent=2)
-        os.replace(tmp_file, STALKER_CACHE_FILE)
+        if os.path.exists(STALKER_CACHE_FILE):
+            with open(STALKER_CACHE_FILE, "w") as f:
+                json.dump([], f)
     except Exception:
         pass
 
 def stalker_daemon_loop():
-    """Periodically checks 1-minute micro-spark for all actively stalked candidates and executes autonomous buys on confirmation."""
-    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [Stalker Radar] Fast 1m Micro-Scanner Daemon active.")
-    while True:
-        try:
-            candidates = get_active_stalker_radar()
-            changed = False
-            for cand in candidates:
-                ticker = cand.get('ticker')
-                setup = cand.get('setup')
-                if not ticker or not setup:
-                    continue
-                triggered, note = check_1m_micro_spark(ticker, setup)
-                cand['micro_status'] = note
-                if triggered and cand.get('status') not in ['MICRO_SPARK_TRIGGERED', 'ORDER_EXECUTED', 'PAPER_LOGGED']:
-                    cand['status'] = 'MICRO_SPARK_TRIGGERED'
-                    changed = True
-                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [Stalker Radar] 1m spark triggered on {ticker} ({setup}): {note}")
-
-                    # Autonomous Auto-Buy Execution for 1m Micro-Sparks
-                    if setup == 'SPRING_STALK':
-                        try:
-                            from trade_tracker import log_alert, has_open_alerted_trade, has_open_trade, calculate_ml_confidence, mark_trade_alerted
-                            from auto_buyer import execute_autonomous_spring_buy
-
-                            # Prevent duplicate entries if already active on 1m
-                            if not (has_open_alerted_trade(ticker, "1m") or has_open_trade(ticker, "1m")):
-                                price = float(cand.get('current_price') or 0.0)
-                                test_lvl = float(cand.get('target_test_level') or price)
-                                sl = round(test_lvl * 0.998, 2)
-                                risk = price - sl
-                                if risk <= 0:
-                                    risk = max(0.20, price * 0.005)
-                                    sl = round(price - risk, 2)
-                                tp = round(price + (risk * 1.5), 2)
-                                target_r = 1.5
-
-                                ml_conf = calculate_ml_confidence(
-                                    bars_in_regime=cand.get('exhaustion_bars', 15),
-                                    vwap_distance=0.01,
-                                    atr_expansion=1.0,
-                                    hour_of_day=datetime.datetime.now().hour,
-                                    direction='LONG'
-                                )
-
-                                trade_id = log_alert(
-                                    ticker=ticker,
-                                    direction="LONG",
-                                    entry_price=price,
-                                    stop_loss=sl,
-                                    take_profit=tp,
-                                    regime="SPRING_1M",
-                                    timeframe="1m",
-                                    ml_confidence=ml_conf,
-                                    initial_stop_loss=sl
-                                )
-
-                                import config_manager
-                                live_buy = bool(config_manager.load_config().get("stalker_auto_buy", False))
-                                if live_buy:
-                                    auto_executed, auto_reason = execute_autonomous_spring_buy(
-                                        trade_id=trade_id,
-                                        ticker=ticker,
-                                        price=price,
-                                        sl=sl,
-                                        tp=tp,
-                                        ml_conf=ml_conf,
-                                        timeframe="1m",
-                                        target_r=target_r
-                                    )
-                                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [Stalker Radar] 1m Auto-buy execution for {ticker}: success={auto_executed}, reason={auto_reason}")
-                                    if auto_executed:
-                                        cand['status'] = 'ORDER_EXECUTED'
-                                        mark_trade_alerted(trade_id)
-                                else:
-                                    # Paper-track only: the alert row stays user_active=0 and is resolved by the
-                                    # tracker, but no broker order is placed and it is excluded from ML retraining.
-                                    cand['status'] = 'PAPER_LOGGED'
-                                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [Stalker Radar] 1m PAPER trade logged for {ticker} (stalker_auto_buy=OFF): entry={price} sl={sl} tp={tp}")
-                        except Exception as auto_buy_err:
-                            print(f"[Stalker Radar] Auto-buy error for {ticker}: {auto_buy_err}")
-            if changed:
-                update_stalker_candidates(candidates)
-        except Exception:
-            pass
-        time.sleep(20)
+    """Deactivated."""
+    return
 
 _STALKER_THREAD = None
 
 def start_stalker_daemon():
-    """Starts the stalker monitoring loop in a background thread."""
-    global _STALKER_THREAD
-    if _STALKER_THREAD is None or not _STALKER_THREAD.is_alive():
-        import threading
-        _STALKER_THREAD = threading.Thread(target=stalker_daemon_loop, daemon=True)
-        _STALKER_THREAD.start()
+    """Deactivated: Stalker program removed in favor of core 5M Wyckoff execution."""
+    print("[Stalker Radar] 1M Stalker daemon is DEACTIVATED (core 5M Wyckoff engine active).")
+    return
