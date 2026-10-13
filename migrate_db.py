@@ -165,10 +165,17 @@ def migrate():
         WHERE outcome = 'LOSS' AND pnl_r < -1.10
     """)
     # 8. Clean up any dummy test records from schema migration tests
-    c.execute("DELETE FROM alerts WHERE ticker LIKE 'TEST%'")
-    cleaned_tests = c.rowcount
-    if cleaned_tests > 0:
-        print(f"Purged {cleaned_tests} dummy test tickers from alerts table.")
+    # 9. Expire stale paper alerts from prior test runs (unblocking all duplicate-locked tickers)
+    c.execute("""
+        UPDATE alerts
+        SET outcome = 'EXPIRED_STALE',
+            user_active = 0
+        WHERE outcome = 'OPEN' 
+          AND (user_active = 0 OR user_active IS NULL)
+    """)
+    stale_cleaned = c.rowcount
+    if stale_cleaned > 0:
+        print(f"Expired {stale_cleaned} stale open paper alerts from prior test runs.")
 
     conn.commit()
 

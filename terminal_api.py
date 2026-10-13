@@ -965,8 +965,8 @@ def get_ml_paper_trades():
         """)
         raw_open = [dict(r) for r in c.fetchall()]
         
-        # 2. Get live prices for open tickers
-        tickers = list(set([r['ticker'] for r in raw_open if r.get('ticker')]))
+        # 2. Get live prices for open tickers (cap to 10 to ensure instant response)
+        tickers = list(set([r['ticker'] for r in raw_open if r.get('ticker')]))[:10]
         live_prices = get_live_prices(tickers) if tickers else {}
         
         enriched_open = []
@@ -1188,7 +1188,7 @@ def trigger_system_update():
 
         if os.name != 'nt':
             bash_bin = shutil.which("bash") or "/bin/bash" or "/usr/bin/bash"
-            cmd = f"cd {repo_dir} && sleep 2 && (sudo systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null) || (pkill -f wyckoff_alert_bot.py 2>/dev/null; sleep 1; pkill -9 -f 'terminal_api' 2>/dev/null; nohup {py_exe} wyckoff_alert_bot.py > bot.log 2>&1 & nohup {py_exe} -m uvicorn terminal_api:app --host 0.0.0.0 --port 8080 > terminal.log 2>&1 &))"
+            cmd = f"cd {repo_dir} && pkill -9 -f wyckoff_alert_bot 2>/dev/null; sleep 1 && (sudo systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null) || (pkill -9 -f 'terminal_api' 2>/dev/null; nohup {py_exe} wyckoff_alert_bot.py > bot.log 2>&1 & nohup {py_exe} -m uvicorn terminal_api:app --host 0.0.0.0 --port 8080 > terminal.log 2>&1 &))"
             try:
                 subprocess.Popen(
                     [bash_bin, "-c", cmd],
@@ -1223,7 +1223,7 @@ def trigger_system_restart():
         py_exe = sys.executable or shutil.which("python3") or "python3"
         bash_bin = shutil.which("bash") or "/bin/bash" or "/usr/bin/bash"
         repo_dir = os.path.dirname(os.path.abspath(__file__))
-        cmd = f"cd {repo_dir} && sleep 1 && (sudo systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null) || (pkill -f wyckoff_alert_bot.py 2>/dev/null; sleep 1; pkill -9 -f 'terminal_api' 2>/dev/null; nohup {py_exe} wyckoff_alert_bot.py > bot.log 2>&1 & nohup {py_exe} -m uvicorn terminal_api:app --host 0.0.0.0 --port 8080 > terminal.log 2>&1 &))"
+        cmd = f"cd {repo_dir} && pkill -9 -f wyckoff_alert_bot 2>/dev/null; sleep 1 && (sudo systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null || (echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service wyckoff-terminal.service 2>/dev/null) || (pkill -9 -f 'terminal_api' 2>/dev/null; nohup {py_exe} wyckoff_alert_bot.py > bot.log 2>&1 & nohup {py_exe} -m uvicorn terminal_api:app --host 0.0.0.0 --port 8080 > terminal.log 2>&1 &))"
         env = dict(os.environ)
         env["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" + (f":{env['PATH']}" if 'PATH' in env else "")
         subprocess.Popen(
@@ -1259,22 +1259,12 @@ def bot_health():
         sys_status = sys_res.stdout.strip()
 
         started = False
-        if not is_bot_running:
-            # Direct detached unbuffered python process launch
-            log_file = open(os.path.join(repo_dir, "bot.log"), "a")
-            env = dict(os.environ)
-            env["PYTHONUNBUFFERED"] = "1"
-            subprocess.Popen(
-                [py_exe, "-u", os.path.join(repo_dir, "wyckoff_alert_bot.py")],
-                cwd=repo_dir,
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-                stdin=subprocess.DEVNULL,
-                start_new_session=True,
-                env=env
-            )
-            started = True
-            time.sleep(1)
+        if not is_bot_running and sys_status != "active":
+            try:
+                subprocess.run("sudo systemctl restart wyckoff-bot.service 2>/dev/null || (echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service 2>/dev/null)", shell=True, timeout=5)
+                started = True
+            except:
+                pass
 
         bot_log_tail = ""
         try:

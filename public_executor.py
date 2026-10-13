@@ -364,7 +364,7 @@ def get_live_prices(tickers):
     if missing:
         try:
             import yfinance as yf
-            for t in missing:
+            for t in missing[:5]:
                 t_obj = yf.Ticker(t)
                 prices[t] = float(t_obj.fast_info.last_price)
         except:

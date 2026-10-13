@@ -26,8 +26,8 @@ def get_config():
 
 AUTO_BUY_MIN_ML_CONF = float(os.getenv("AUTO_BUY_MIN_ML_CONF", "55.0"))
 
-# Allowed Auto-Buy Timeframes: Strictly 5m Day Trades Only (No swings or higher TF holds)
-AUTO_BUY_ALLOWED_TIMEFRAMES = ["5m"]
+# Allowed Auto-Buy Timeframes: 5m Day Trades & 1m Stalker Radar Micro-Sparks (No higher TF swings)
+AUTO_BUY_ALLOWED_TIMEFRAMES = ["5m", "1m"]
 
 # Optimal Statistical Window: 9:40 AM to 3:30 PM EST (Skip 9:30-9:40 AM open order imbalance; capture 9:40+ morning expansion)
 AUTO_BUY_START_TIME = datetime.time(9, 40)
@@ -94,9 +94,9 @@ def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     if not cfg.get("auto_buy_enabled", True):
         return False, "AUTO_BUY_DISABLED"
 
-    # 0. Timeframe Guardrail (Strictly 5m day trades only; exclude 15m, 1h, 1d swings)
+    # 0. Timeframe Guardrail (Strictly 5m and 1m day trades only; exclude 15m, 1h, 1d swings)
     if (timeframe or "").lower() not in AUTO_BUY_ALLOWED_TIMEFRAMES:
-        return False, f"TIMEFRAME_RESTRICTED ({timeframe} != 5m day trade)"
+        return False, f"TIMEFRAME_RESTRICTED ({timeframe} not in 5m/1m day trade)"
 
     now = get_market_time()
     current_t = now.time()

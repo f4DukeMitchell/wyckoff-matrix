@@ -200,7 +200,7 @@ def update_stalker_candidates(candidates_list):
         pass
 
 def stalker_daemon_loop():
-    """Periodically checks 1-minute micro-spark for all actively stalked candidates without spamming Telegram."""
+    """Periodically checks 1-minute micro-spark for all actively stalked candidates and executes autonomous buys on confirmation."""
     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [Stalker Radar] Fast 1m Micro-Scanner Daemon active.")
     while True:
         try:
@@ -213,10 +213,65 @@ def stalker_daemon_loop():
                     continue
                 triggered, note = check_1m_micro_spark(ticker, setup)
                 cand['micro_status'] = note
-                if triggered and cand.get('status') != 'MICRO_SPARK_TRIGGERED':
+                if triggered and cand.get('status') not in ['MICRO_SPARK_TRIGGERED', 'ORDER_EXECUTED']:
                     cand['status'] = 'MICRO_SPARK_TRIGGERED'
                     changed = True
                     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [Stalker Radar] 1m spark triggered on {ticker} ({setup}): {note}")
+
+                    # Autonomous Auto-Buy Execution for 1m Micro-Sparks
+                    if setup == 'SPRING_STALK':
+                        try:
+                            from trade_tracker import log_alert, has_open_alerted_trade, has_open_trade, calculate_ml_confidence, mark_trade_alerted
+                            from auto_buyer import execute_autonomous_spring_buy
+
+                            # Prevent duplicate entries if already active on 1m
+                            if not (has_open_alerted_trade(ticker, "1m") or has_open_trade(ticker, "1m")):
+                                price = float(cand.get('current_price') or 0.0)
+                                test_lvl = float(cand.get('target_test_level') or price)
+                                sl = round(test_lvl * 0.998, 2)
+                                risk = price - sl
+                                if risk <= 0:
+                                    risk = max(0.20, price * 0.005)
+                                    sl = round(price - risk, 2)
+                                tp = round(price + (risk * 1.5), 2)
+                                target_r = 1.5
+
+                                ml_conf = calculate_ml_confidence(
+                                    bars_in_regime=cand.get('exhaustion_bars', 15),
+                                    vwap_distance=0.01,
+                                    atr_expansion=1.0,
+                                    hour_of_day=datetime.datetime.now().hour,
+                                    direction='LONG'
+                                )
+
+                                trade_id = log_alert(
+                                    ticker=ticker,
+                                    direction="LONG",
+                                    entry_price=price,
+                                    stop_loss=sl,
+                                    take_profit=tp,
+                                    regime="SPRING_1M",
+                                    timeframe="1m",
+                                    ml_confidence=ml_conf,
+                                    initial_stop_loss=sl
+                                )
+
+                                auto_executed, auto_reason = execute_autonomous_spring_buy(
+                                    trade_id=trade_id,
+                                    ticker=ticker,
+                                    price=price,
+                                    sl=sl,
+                                    tp=tp,
+                                    ml_conf=ml_conf,
+                                    timeframe="1m",
+                                    target_r=target_r
+                                )
+                                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [Stalker Radar] 1m Auto-buy execution for {ticker}: success={auto_executed}, reason={auto_reason}")
+                                if auto_executed:
+                                    cand['status'] = 'ORDER_EXECUTED'
+                                    mark_trade_alerted(trade_id)
+                        except Exception as auto_buy_err:
+                            print(f"[Stalker Radar] Auto-buy error for {ticker}: {auto_buy_err}")
             if changed:
                 update_stalker_candidates(candidates)
         except Exception:
