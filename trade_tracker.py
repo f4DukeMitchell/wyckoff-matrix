@@ -370,6 +370,13 @@ def check_open_trades():
                     outcome = 'LOSS'
                     exit_price = price
 
+            # --- EOD Session Flatten for Paper Day Trades (1m, 5m, 15m) ---
+            if outcome == 'OPEN' and str(trade.get('timeframe', '5m')).lower() in ['1m', '5m', '15m']:
+                now_t = datetime.datetime.now().time()
+                if now_t >= datetime.time(15, 55) or now_t < datetime.time(9, 30):
+                    outcome = 'CLOSED'
+                    exit_price = price
+
             # --- Feature 1: Breakeven Stop Ratchet (+0.75R) ---
             if outcome == 'OPEN':
                 b_set = trade.get('breakeven_set', 0) if isinstance(trade, dict) else (trade['breakeven_set'] if 'breakeven_set' in trade.keys() else 0)
@@ -747,15 +754,16 @@ def get_recent_trades(n=20):
 def has_open_alerted_trade(ticker, timeframe=None):
     """
     Feature 2: Duplicate Lock.
-    Returns True if this ticker already has an active OPEN alert on Telegram.
+    Returns True if this ticker already has an active OPEN alert on Telegram from TODAY'S session.
     """
     try:
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
+        today_prefix = datetime.datetime.now().strftime("%Y-%m-%d")
         if timeframe:
-            c.execute("SELECT COUNT(*) FROM alerts WHERE ticker = ? AND timeframe = ? AND outcome = 'OPEN' AND telegram_alerted = 1", (ticker, timeframe))
+            c.execute("SELECT COUNT(*) FROM alerts WHERE ticker = ? AND timeframe = ? AND outcome = 'OPEN' AND telegram_alerted = 1 AND timestamp >= ?", (ticker, timeframe, today_prefix))
         else:
-            c.execute("SELECT COUNT(*) FROM alerts WHERE ticker = ? AND outcome = 'OPEN' AND telegram_alerted = 1", (ticker,))
+            c.execute("SELECT COUNT(*) FROM alerts WHERE ticker = ? AND outcome = 'OPEN' AND telegram_alerted = 1 AND timestamp >= ?", (ticker, today_prefix))
         cnt = c.fetchone()[0]
         conn.close()
         return cnt > 0
@@ -764,16 +772,17 @@ def has_open_alerted_trade(ticker, timeframe=None):
 
 def has_open_trade(ticker, timeframe=None):
     """
-    Checks if any active OPEN record exists for this ticker and timeframe.
-    Prevents background loop from repeatedly inserting duplicate candidates.
+    Checks if any active OPEN record exists for this ticker and timeframe from TODAY'S session.
+    Prevents duplicate entries within the same day while guaranteeing past trades never block current execution.
     """
     try:
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
+        today_prefix = datetime.datetime.now().strftime("%Y-%m-%d")
         if timeframe:
-            c.execute("SELECT COUNT(*) FROM alerts WHERE ticker = ? AND timeframe = ? AND outcome = 'OPEN'", (ticker, timeframe))
+            c.execute("SELECT COUNT(*) FROM alerts WHERE ticker = ? AND timeframe = ? AND outcome = 'OPEN' AND timestamp >= ?", (ticker, timeframe, today_prefix))
         else:
-            c.execute("SELECT COUNT(*) FROM alerts WHERE ticker = ? AND outcome = 'OPEN'", (ticker,))
+            c.execute("SELECT COUNT(*) FROM alerts WHERE ticker = ? AND outcome = 'OPEN' AND timestamp >= ?", (ticker, today_prefix))
         cnt = c.fetchone()[0]
         conn.close()
         return cnt > 0
