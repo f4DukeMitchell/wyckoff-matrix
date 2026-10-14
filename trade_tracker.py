@@ -371,8 +371,9 @@ def check_open_trades():
                     exit_price = price
 
             # --- EOD Session Flatten for Paper Day Trades (1m, 5m, 15m) ---
-            if outcome == 'OPEN' and str(trade.get('timeframe', '5m')).lower() in ['1m', '5m', '15m']:
-                now_t = datetime.datetime.now().time()
+            # Strictly applies to non-broker paper simulations after 3:55 PM EST (America/New_York)
+            if outcome == 'OPEN' and trade.get('user_active') != 1 and str(trade.get('timeframe', '5m')).lower() in ['1m', '5m', '15m']:
+                now_t = get_est_now().time()
                 if now_t >= datetime.time(15, 55) or now_t < datetime.time(9, 30):
                     outcome = 'CLOSED'
                     exit_price = price

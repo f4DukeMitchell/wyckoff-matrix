@@ -165,17 +165,27 @@ def migrate():
         WHERE outcome = 'LOSS' AND pnl_r < -1.10
     """)
     # 8. Clean up any dummy test records from schema migration tests
-    # 9. Expire stale paper alerts from prior test runs (unblocking all duplicate-locked tickers)
+    # 9. Expire stale paper alerts from prior test runs (only from prior days)
     c.execute("""
         UPDATE alerts
         SET outcome = 'EXPIRED_STALE',
             user_active = 0
         WHERE outcome = 'OPEN' 
           AND (user_active = 0 OR user_active IS NULL)
+          AND timestamp < date('now')
     """)
     stale_cleaned = c.rowcount
     if stale_cleaned > 0:
         print(f"Expired {stale_cleaned} stale open paper alerts from prior test runs.")
+
+    # 10. Reactivate live broker position in MELI
+    c.execute("""
+        UPDATE alerts
+        SET outcome = 'OPEN', user_active = 1
+        WHERE ticker = 'MELI' AND (id = 581 OR timestamp >= date('now'))
+    """)
+    if c.rowcount > 0:
+        print(f"Reactivated {c.rowcount} live broker alert records for MELI.")
 
     conn.commit()
 

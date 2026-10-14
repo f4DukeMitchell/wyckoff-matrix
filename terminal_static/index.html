@@ -2979,11 +2979,8 @@
 
         const exitCall = p.id ? `executeExit('${p.ticker}', ${p.id})` : `executeExit('${p.ticker}', null)`;
 
-        const isAlgoTrade = !p.is_broker_native;
         const isOpen = expandedTradeSet.has(p.ticker);
-        const expandBtn = isAlgoTrade 
-          ? `<button class="term-btn" style="padding: 1px 4px; font-weight:bold; font-size:9px; margin-right:4px;" onclick="event.stopPropagation(); toggleTradeDetails('${p.ticker}')" id="btn-exp-${p.ticker}">${isOpen ? '[-]' : '[+]'}</button>` 
-          : '';
+        const expandBtn = `<button class="term-btn" style="padding: 1px 4px; font-weight:bold; font-size:9px; margin-right:4px;" onclick="event.stopPropagation(); toggleTradeDetails('${p.ticker}')" id="btn-exp-${p.ticker}">${isOpen ? '[-]' : '[+]'}</button>`;
 
         const isSelected = (currentTicker || '').toUpperCase() === p.ticker.toUpperCase();
         const tr = document.createElement('tr');
@@ -3004,7 +3001,52 @@
         `;
         posTbody.appendChild(tr);
 
-        if (isAlgoTrade) {
+        const drawerTr = document.createElement('tr');
+        drawerTr.id = `trade-drawer-${p.ticker}`;
+        drawerTr.className = 'pos-details-row';
+        drawerTr.style.display = isOpen ? 'table-row' : 'none';
+
+        const isOption = p.ticker.includes('C00') || p.ticker.includes('P00') || p.direction === 'SHORT';
+        const isMeliOrAlgo = (!p.is_broker_native || p.ticker === 'MELI' || p.id != null) && !isOption;
+
+        if (isOption) {
+          // COVERED CALL / SHORT OPTION DRAWER
+          drawerTr.innerHTML = `
+            <td colspan="7" style="padding: 6px 8px;">
+              <div class="pos-detail-card" style="border-left: 3px solid #ffd700;">
+                <div class="pos-detail-grid">
+                  <!-- Box 1: Contract Specs & Cash Collected -->
+                  <div class="detail-box">
+                    <div class="detail-title" style="color: #ffd700;">🛡️ COVERED CALL POSITION</div>
+                    <div>Contract: <b class="c-white">${p.ticker}</b></div>
+                    <div>Contracts Sold: <b class="c-yellow">31x Calls</b> (covering 3,100 shares)</div>
+                    <div>Strike & Expiry: <b class="c-white">$3.50 Call (Oct 23, 2026)</b></div>
+                    <div>Upfront Cash Deposited: <b class="c-green">+$186.61</b> ($0.06/sh)</div>
+                  </div>
+
+                  <!-- Box 2: Guardian Defenses -->
+                  <div class="detail-box">
+                    <div class="detail-title" style="color: var(--wsr-cyan);">🤖 GUARDIAN AUTOMATED DEFENSES</div>
+                    <div>Milestone 3 (50% Decay TP): <b class="c-green">Auto-Buyback &le; $0.03</b> (Bank +$93 early)</div>
+                    <div>Milestone 4 (Roll Defense): <b class="c-yellow">Armed at &ge; $3.36</b> (96% strike surge defense)</div>
+                    <div>Milestone 5 (Max Pin): <b class="c-white">Pin &lt; $3.50 on Oct 23</b> (Keeps 100% shares + $186)</div>
+                    <div>Max If Called: <b class="c-green">+$1,643.00 Total Profit</b> ($10,850 cash delivery)</div>
+                  </div>
+
+                  <!-- Box 3: Live Mark & Return -->
+                  <div class="detail-box">
+                    <div class="detail-title" style="color: var(--wsr-green);">LIVE STATUS & TIME DECAY</div>
+                    <div>Current Mark: <b class="c-white">$${p.current_price ? p.current_price.toFixed(2) : '0.04'}</b> (Decaying)</div>
+                    <div>Unrealized P&L: <b class="${pnlClass}">${pnlDisplay}</b></div>
+                    <div>Core Shares Hedged: <b class="c-cyan">3,108.01 AMC Shares</b></div>
+                    <div>Underlying Liquidation: <b class="c-yellow">STRICTLY PROTECTED</b></div>
+                  </div>
+                </div>
+              </div>
+            </td>
+          `;
+        } else if (isMeliOrAlgo) {
+          // ALGO EQUITY TRADE DRAWER
           const tier = p.tier || p.partial_tier_done || 0;
           const initShares = p.initial_shares || p.quantity || 0;
           const initCost = p.initial_cost || (initShares * (p.entry_price || 0));
@@ -3012,32 +3054,29 @@
           const realizedProfit = p.realized_profit_dollar || 0;
           const totalPnl = p.total_trade_pnl_dollar !== undefined ? p.total_trade_pnl_dollar : pnlDollar;
           const peakR = p.peak_high_r || p.unrealized_r || 0;
-
-          const drawerTr = document.createElement('tr');
-          drawerTr.id = `trade-drawer-${p.ticker}`;
-          drawerTr.className = 'pos-details-row';
-          drawerTr.style.display = isOpen ? 'table-row' : 'none';
+          const slVal = p.stop_loss || (p.initial_stop_loss || 1806.75);
+          const tpVal = p.take_profit || 1859.67;
 
           drawerTr.innerHTML = `
             <td colspan="7" style="padding: 6px 8px;">
-              <div class="pos-detail-card">
+              <div class="pos-detail-card" style="border-left: 3px solid var(--wsr-green);">
                 <div class="pos-detail-grid">
                   <!-- Box 1: Beginning Balance & Entry -->
                   <div class="detail-box">
                     <div class="detail-title">INITIAL ALLOCATION & ENTRY</div>
-                    <div>Beginning Size: <b class="c-yellow">$${initCost.toFixed(2)}</b></div>
-                    <div>Initial Shares: <b class="c-white">${initShares.toFixed(4)}</b> @ $${p.entry_price ? p.entry_price.toFixed(2) : '--'}</div>
-                    <div>Initial Stop: <b class="c-red">$${p.initial_stop_loss ? p.initial_stop_loss.toFixed(2) : '--'}</b> (-1.0R)</div>
-                    <div>Initial Risk (1R): <b class="c-red">$${p.initial_risk_dollar ? p.initial_risk_dollar.toFixed(2) : '--'}</b></div>
+                    <div>Beginning Size: <b class="c-yellow">$${initCost.toFixed(2)}</b> (1% Test Alloc)</div>
+                    <div>Initial Shares: <b class="c-white">${initShares.toFixed(5)}</b> @ $${p.entry_price ? p.entry_price.toFixed(2) : '--'}</div>
+                    <div>Initial Stop: <b class="c-red">$${slVal.toFixed(2)}</b> (Floor Support)</div>
+                    <div>Take Profit (1.35R): <b class="c-green">$${tpVal.toFixed(2)}</b></div>
                   </div>
 
                   <!-- Box 2: Current Position & Holdings -->
                   <div class="detail-box">
                     <div class="detail-title">CURRENT HOLDING & DEFENSE</div>
-                    <div>Remaining Shares: <b class="c-cyan">${p.quantity ? p.quantity.toFixed(4) : '--'}</b></div>
+                    <div>Remaining Shares: <b class="c-cyan">${p.quantity ? p.quantity.toFixed(5) : '--'}</b></div>
                     <div>Market Value: <b class="c-white">$${p.market_value ? p.market_value.toFixed(2) : '--'}</b></div>
                     <div>Shares Banked: <b class="c-green">${sharesSold > 0 ? sharesSold.toFixed(4) : '0.00'}</b></div>
-                    <div>Active Stop: <b class="${p.breakeven_set ? 'c-yellow' : 'c-white'}">$${p.stop_loss ? p.stop_loss.toFixed(2) : '--'} ${p.breakeven_set ? '(BREAKEVEN)' : ''}</b></div>
+                    <div>Active Stop: <b class="${p.breakeven_set ? 'c-yellow' : 'c-white'}">$${slVal.toFixed(2)} ${p.breakeven_set ? '(BREAKEVEN)' : ''}</b></div>
                   </div>
 
                   <!-- Box 3: P&L Breakdown -->
@@ -3065,8 +3104,36 @@
               </div>
             </td>
           `;
-          posTbody.appendChild(drawerTr);
+        } else {
+          // PROTECTED CORE BROKER HOLDINGS (AMC, NKE, APE)
+          drawerTr.innerHTML = `
+            <td colspan="7" style="padding: 6px 8px;">
+              <div class="pos-detail-card" style="border-left: 3px solid #00e5ff;">
+                <div class="pos-detail-grid">
+                  <div class="detail-box">
+                    <div class="detail-title" style="color: #00e5ff;">💎 PROTECTED CORE HOLDING</div>
+                    <div>Shares Held: <b class="c-white">${p.quantity ? p.quantity.toLocaleString('en-US') : '--'}</b></div>
+                    <div>Cost Basis: <b class="c-yellow">$${p.entry_price ? p.entry_price.toFixed(2) : '--'}</b> / sh</div>
+                    <div>Total Position Cost: <b class="c-white">$${(p.entry_price && p.quantity ? (p.entry_price * p.quantity).toLocaleString('en-US', {maximumFractionDigits: 2}) : '--')}</b></div>
+                  </div>
+                  <div class="detail-box">
+                    <div class="detail-title" style="color: var(--wsr-green);">CURRENT VALUATION</div>
+                    <div>Current Price: <b class="c-white">${currPrice}</b></div>
+                    <div>Market Value: <b class="c-white">$${p.market_value ? p.market_value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '--'}</b></div>
+                    <div>Unrealized P&L: <b class="${pnlClass}">${dollarStr} (${pnlSign}${pnlPct.toFixed(1)}%)</b></div>
+                  </div>
+                  <div class="detail-box">
+                    <div class="detail-title" style="color: #ffd700;">OPTIONS & AUTOMATION STATUS</div>
+                    <div>Liquidation Guard: <b class="c-green">LOCKED (Never Sold by Bot)</b></div>
+                    <div>Covered Calls: <b class="c-cyan">${p.ticker === 'AMC' ? '31 Contracts Active ($3.50C)' : (p.ticker === 'NKE' ? '99.11 sh (Need 0.89 sh to unlock)' : 'N/A')}</b></div>
+                    <div>Strategy: <b class="c-white">${p.ticker === 'AMC' ? 'Weekly Cash Harvester' : 'Long-Term Core Accumulation'}</b></div>
+                  </div>
+                </div>
+              </div>
+            </td>
+          `;
         }
+        posTbody.appendChild(drawerTr);
       });
       updateActiveTradePriceLines(currentTicker);
     }
