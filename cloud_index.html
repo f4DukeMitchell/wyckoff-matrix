@@ -4277,6 +4277,30 @@
         milestoneAlert.style.color = '#666';
       }
 
+      // Restore Directional Roadmap Milestone Texts (if previously switched to Covered Call)
+      const s1 = document.querySelector('#step-ms-1 .roadmap-step-header span:first-child');
+      const d1 = document.querySelector('#step-ms-1 div:last-child');
+      if (s1) s1.innerHTML = 'MILESTONE 1: ENTRY CONFIRMATION';
+      if (d1) d1.innerHTML = 'Buy confirmed 5M Wyckoff Spring. Initial hard option stop set at -35% premium ($<span id="rm-stop-loss">--</span>).';
+
+      const s2 = document.querySelector('#step-ms-2 .roadmap-step-header span:first-child');
+      const d2 = document.querySelector('#step-ms-2 div:last-child');
+      if (s2) s2.innerHTML = 'MILESTONE 2: EARLY STOP COMPRESSION';
+      if (d2) d2.innerHTML = 'Underlying clears local resistance. Stop loss compressed to -20% premium, reducing risk by half.';
+
+      const s3 = document.querySelector('#step-ms-3 .roadmap-step-header span:first-child');
+      const d3 = document.getElementById('rm-desc-tier3');
+      if (s3) s3.innerHTML = 'MILESTONE 3: BREAKEVEN LOCK & SCALE';
+      if (d3) d3.innerHTML = 'CRITICAL ACTION: Sell 1st contract / spread to secure profits. Ratchet stop on remaining contract to Breakeven ($0.00 risk free!).';
+
+      const s4 = document.querySelector('#step-ms-4 .roadmap-step-header span:first-child');
+      if (s4) s4.innerHTML = 'MILESTONE 4: WYCKOFF RESISTANCE EXIT';
+
+      const s5 = document.querySelector('#step-ms-5 .roadmap-step-header span:first-child');
+      const d5 = document.querySelector('#step-ms-5 div:last-child');
+      if (s5) s5.innerHTML = 'MILESTONE 5: MARKET FLATTEN';
+      if (d5) d5.innerHTML = 'Any remaining runner contracts are closed at market before the closing bell to ensure zero overnight gap risk.';
+
       const curMs = st.active_milestone || 0;
       for (let m = 1; m <= 5; m++) {
         const stepEl = document.getElementById(`step-ms-${m}`);
@@ -4352,13 +4376,21 @@
       }
 
       const stopPrice = call.mid ? (call.mid * 0.65).toFixed(2) : '--';
-      document.getElementById('rm-stop-loss').innerText = stopPrice;
+      const stopLossEl = document.getElementById('rm-stop-loss');
+      if (stopLossEl) stopLossEl.innerText = stopPrice;
 
       if (pilotBtn) {
-        pilotBtn.innerText = '⚡ EXECUTE PILOT (2x CALLS @ MID)';
-        pilotBtn.style.borderColor = '#00d26a';
-        pilotBtn.style.color = '#00d26a';
-        pilotBtn.style.background = 'rgba(0, 210, 106, 0.15)';
+        if (item.category === 'MEGACAP_TECH' && sp) {
+          pilotBtn.innerText = `⚡ EXECUTE SPREAD (2x $${sp.long_strike}C/$${sp.short_strike}C)`;
+          pilotBtn.style.borderColor = '#a855f7';
+          pilotBtn.style.color = '#a855f7';
+          pilotBtn.style.background = 'rgba(168, 85, 247, 0.15)';
+        } else {
+          pilotBtn.innerText = '⚡ EXECUTE PILOT (2x CALLS @ MID)';
+          pilotBtn.style.borderColor = '#00d26a';
+          pilotBtn.style.color = '#00d26a';
+          pilotBtn.style.background = 'rgba(0, 210, 106, 0.15)';
+        }
       }
 
       simStockMove(currentSimMove);
