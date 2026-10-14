@@ -134,7 +134,7 @@ def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, reg
         reply_markup = {"inline_keyboard": [buttons]}
         
     target_chat = None
-    if timeframe in ["5m", "15m"] and TELEGRAM_CHAT_ID_DAY: target_chat = TELEGRAM_CHAT_ID_DAY
+    if timeframe in ["1m", "5m", "15m"] and TELEGRAM_CHAT_ID_DAY: target_chat = TELEGRAM_CHAT_ID_DAY
     elif timeframe == "1h" and TELEGRAM_CHAT_ID_SWING: target_chat = TELEGRAM_CHAT_ID_SWING
     elif timeframe == "1d" and TELEGRAM_CHAT_ID_LONG: target_chat = TELEGRAM_CHAT_ID_LONG
         

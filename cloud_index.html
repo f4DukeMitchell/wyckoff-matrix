@@ -971,18 +971,26 @@
           </tbody>
         </table>
 
-        <!-- Live Telegram Broadcast Alerts (Last 5) -->
+        <!-- Live Telegram Broadcast Alerts -->
         <div id="section-telegram-alerts" style="margin-top: 14px; border-top: 1px solid #222; padding-top: 6px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; padding: 2px 4px; background: rgba(0, 180, 255, 0.05); border-left: 2px solid var(--wsr-cyan);">
-            <div style="display: flex; gap: 6px; align-items: center;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; padding: 3px 5px; background: rgba(0, 180, 255, 0.05); border-left: 2px solid var(--wsr-cyan); flex-wrap: wrap; gap: 4px;">
+            <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
               <span style="font-size: 10px; font-weight: bold; color: #00e5ff;">📢 LIVE TELEGRAM BROADCASTS</span>
-              <span style="font-size: 8.5px; color: #aaa; background: rgba(0, 229, 255, 0.15); padding: 1px 4px; border-radius: 2px;">LAST 5 ALERTS</span>
+              <div style="display: inline-flex; gap: 2px; background: rgba(0,0,0,0.5); padding: 1px 3px; border-radius: 3px; border: 1px solid #333;">
+                <button id="tg-filter-all" class="term-btn" onclick="filterTelegram('ALL')" style="font-size: 8px; padding: 1px 5px; background: #00e5ff; color: #000; font-weight: bold; border-radius: 2px;">ALL</button>
+                <button id="tg-filter-day" class="term-btn" onclick="filterTelegram('DAY')" style="font-size: 8px; padding: 1px 5px; background: transparent; color: #aaa; border-radius: 2px;">⚡ DAY TRADES</button>
+                <button id="tg-filter-swing" class="term-btn" onclick="filterTelegram('SWING')" style="font-size: 8px; padding: 1px 5px; background: transparent; color: #aaa; border-radius: 2px;">🌊 SWING TRADES</button>
+              </div>
             </div>
-            <span style="font-size: 8.5px; color: #777;">REAL-TIME</span>
+            <div style="display: flex; gap: 4px; align-items: center;">
+              <span id="tg-count-badge" style="font-size: 8.5px; color: #aaa; background: rgba(0, 229, 255, 0.15); padding: 1px 4px; border-radius: 2px;">0 ALERTS</span>
+              <span style="font-size: 8.5px; color: #777;">REAL-TIME</span>
+            </div>
           </div>
           <table id="tbl-telegram-alerts" style="font-size: 10px; table-layout: auto; width: 100%;">
             <thead>
               <tr>
+                <th style="padding: 3px 4px; cursor: pointer; user-select: none;" onclick="sortTelegram('channel')">CHANNEL <span id="th-tg-channel">&#x25B4;&#x25BE;</span></th>
                 <th style="padding: 3px 4px; cursor: pointer; user-select: none;" onclick="sortTelegram('ticker')">SYM <span id="th-tg-ticker">&#x25B4;&#x25BE;</span></th>
                 <th style="padding: 3px 4px; cursor: pointer; user-select: none;" onclick="sortTelegram('direction')">DIR <span id="th-tg-dir">&#x25B4;&#x25BE;</span></th>
                 <th style="padding: 3px 4px; cursor: pointer; user-select: none;" onclick="sortTelegram('entry_price')">ENTRY <span id="th-tg-price">&#x25B4;&#x25BE;</span></th>
@@ -3201,14 +3209,38 @@
 
     let tgSortField = 'timestamp';
     let tgSortAsc = false;
+    let tgFilter = 'ALL'; // 'ALL', 'DAY', 'SWING'
     let rawTelegramAlertsData = [];
+
+    function filterTelegram(filterType) {
+      tgFilter = filterType;
+      const pills = [
+        { id: 'tg-filter-all', type: 'ALL', bg: '#00e5ff' },
+        { id: 'tg-filter-day', type: 'DAY', bg: '#00e5ff' },
+        { id: 'tg-filter-swing', type: 'SWING', bg: '#ff9800' }
+      ];
+      pills.forEach(p => {
+        const btn = document.getElementById(p.id);
+        if (!btn) return;
+        if (p.type === filterType) {
+          btn.style.background = p.bg;
+          btn.style.color = '#000';
+          btn.style.fontWeight = 'bold';
+        } else {
+          btn.style.background = 'transparent';
+          btn.style.color = '#aaa';
+          btn.style.fontWeight = 'normal';
+        }
+      });
+      renderTelegramAlertsTable();
+    }
 
     function sortTelegram(field) {
       if (tgSortField === field) {
         tgSortAsc = !tgSortAsc;
       } else {
         tgSortField = field;
-        tgSortAsc = true;
+        tgSortAsc = (field === 'timestamp') ? false : true;
       }
       renderTelegramAlertsTable();
     }
@@ -3219,6 +3251,7 @@
       tbody.innerHTML = '';
 
       const thMap = {
+        'channel': 'th-tg-channel',
         'ticker': 'th-tg-ticker',
         'direction': 'th-tg-dir',
         'entry_price': 'th-tg-price',
@@ -3236,6 +3269,20 @@
       });
 
       let list = [...(rawTelegramAlertsData || [])];
+
+      // Apply Channel filter
+      if (tgFilter === 'DAY') {
+        list = list.filter(a => (a.channel_type === 'DAY' || ['1m', '5m', '15m'].includes((a.timeframe || '').toLowerCase())));
+      } else if (tgFilter === 'SWING') {
+        list = list.filter(a => (a.channel_type === 'SWING' || !['1m', '5m', '15m'].includes((a.timeframe || '').toLowerCase())));
+      }
+
+      // Update count badge
+      const countBadge = document.getElementById('tg-count-badge');
+      if (countBadge) {
+        countBadge.innerText = `${list.length} ALERTS`;
+      }
+
       list.sort((a, b) => {
         let valA = a[tgSortField];
         let valB = b[tgSortField];
@@ -3259,10 +3306,16 @@
           const conf = a.ml_confidence !== undefined && a.ml_confidence !== null ? `${Number(a.ml_confidence).toFixed(1)}%` : '--';
           const timeStr = formatSignalTimeEST(a.timestamp);
 
+          const isDay = a.channel_type === 'DAY' || ['1m', '5m', '15m'].includes((a.timeframe || '').toLowerCase());
+          const channelBadge = isDay
+            ? `<span style="font-size: 8px; padding: 1px 4px; border-radius: 2px; background: rgba(0, 229, 255, 0.15); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.4); white-space: nowrap; font-weight: bold;">⚡ DAY</span>`
+            : `<span style="font-size: 8px; padding: 1px 4px; border-radius: 2px; background: rgba(255, 152, 0, 0.15); color: #ff9800; border: 1px solid rgba(255, 152, 0, 0.4); white-space: nowrap; font-weight: bold;">🌊 SWING</span>`;
+
           const tr = document.createElement('tr');
           tr.style.cursor = 'pointer';
           tr.onclick = () => selectTicker(a.ticker, a.timeframe || '5m');
           tr.innerHTML = `
+            <td style="padding: 3px 4px;">${channelBadge}</td>
             <td class="c-cyan" style="padding: 3px 4px; font-weight: bold;">${a.ticker}</td>
             <td class="${dirColor}" style="padding: 3px 4px; font-weight: bold;">${a.direction}</td>
             <td style="padding: 3px 4px;">$${a.entry_price ? a.entry_price.toFixed(2) : '--'}</td>
@@ -3276,7 +3329,7 @@
           tbody.appendChild(tr);
         });
       } else {
-        tbody.innerHTML = '<tr><td colspan="7" class="c-muted" style="text-align: center; padding: 8px;">No Telegram broadcasts recorded yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="c-muted" style="text-align: center; padding: 8px;">No Telegram broadcasts match filter</td></tr>';
       }
     }
 

@@ -248,16 +248,29 @@ def get_terminal_state():
     """)
     history = [dict(r) for r in c.fetchall()]
 
-    # Latest 5 Telegram broadcast alerts
+    # Latest Telegram broadcast alerts (Day Trades & Swing Trades)
     c.execute("""
         SELECT id, ticker, direction, entry_price, stop_loss, take_profit, 
                timeframe, timestamp, outcome, ml_confidence
         FROM alerts
         WHERE ticker NOT LIKE 'TEST%' AND (telegram_alerted = 1 OR telegram_alerted IS NULL)
-        ORDER BY id DESC LIMIT 5
+        ORDER BY id DESC LIMIT 25
     """)
-    telegram_alerts = [dict(r) for r in c.fetchall()]
+    raw_tg = [dict(r) for r in c.fetchall()]
     conn.close()
+
+    telegram_alerts = []
+    for r in raw_tg:
+        tf = (r.get('timeframe') or '').lower()
+        if tf in ['1m', '5m', '15m']:
+            r['channel'] = 'Wyckoff Day Trades'
+            r['channel_type'] = 'DAY'
+            r['chat_id'] = '-5547865201'
+        else:
+            r['channel'] = 'Wyckoff Trades'
+            r['channel_type'] = 'SWING'
+            r['chat_id'] = '8610265859'
+        telegram_alerts.append(r)
 
     stalker_list = []
     
