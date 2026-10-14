@@ -178,7 +178,8 @@ def migrate():
     if stale_cleaned > 0:
         print(f"Expired {stale_cleaned} stale open paper alerts from prior test runs.")
 
-    # 10. Reactivate live broker position in MELI with exact Wyckoff brackets
+    # 10. Reactivate live broker positions in MELI and NXPI with exact Wyckoff brackets
+    # MELI
     c.execute("SELECT id FROM alerts WHERE ticker = 'MELI' AND direction = 'LONG' AND outcome = 'OPEN'")
     meli_row = c.fetchone()
     if meli_row:
@@ -189,7 +190,6 @@ def migrate():
                 ml_confidence = 61.0
             WHERE id = ?
         """, (meli_row[0],))
-        print(f"Updated active MELI trade ID {meli_row[0]}.")
     else:
         c.execute("""
             INSERT INTO alerts (
@@ -200,9 +200,29 @@ def migrate():
                 'BULLISH (Seeking Reversal)', '5m', datetime('now', '-2 hours'), 'OPEN', 1, 0.01717, 61.0
             )
         """)
-        print("Inserted active MELI trade with exact brackets into alerts.")
-    if c.rowcount > 0:
-        print(f"Reactivated {c.rowcount} live broker alert records for MELI.")
+
+    # NXPI
+    c.execute("SELECT id FROM alerts WHERE ticker = 'NXPI' AND direction = 'LONG' AND outcome = 'OPEN'")
+    nxpi_row = c.fetchone()
+    if nxpi_row:
+        c.execute("""
+            UPDATE alerts 
+            SET outcome = 'OPEN', user_active = 1, entry_price = 219.52, stop_loss = 216.47, 
+                initial_stop_loss = 216.47, take_profit = 223.77, initial_shares = 0.14081, timeframe = '5m',
+                ml_confidence = 64.0
+            WHERE id = ?
+        """, (nxpi_row[0],))
+    else:
+        c.execute("""
+            INSERT INTO alerts (
+                ticker, direction, entry_price, stop_loss, initial_stop_loss, take_profit, 
+                regime, timeframe, timestamp, outcome, user_active, initial_shares, ml_confidence
+            ) VALUES (
+                'NXPI', 'LONG', 219.52, 216.47, 216.47, 223.77, 
+                'BULLISH (Seeking Reversal)', '5m', datetime('now', '-30 minutes'), 'OPEN', 1, 0.14081, 64.0
+            )
+        """)
+    print("Reactivated live broker alert records for MELI and NXPI with full brackets.")
 
     conn.commit()
 
