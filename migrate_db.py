@@ -211,9 +211,8 @@ def migrate():
             term_procs = [l for l in p_out.splitlines() if any(k in l for k in ['terminal', 'uvicorn', 'wyckoff'])]
             print("RUNNING PROCESSES:\n" + "\n".join(term_procs[:10]))
             
-            repo_dir = os.path.dirname(os.path.abspath(__file__))
-            # Force reload of services via systemctl
-            cycle_cmd = "sleep 1 && (echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service wyckoff-terminal.service)"
+            # Force reload of services via systemctl and kill any detached uvicorn process
+            cycle_cmd = "sleep 1 && (echo 'M642423s$' | sudo -S systemctl restart wyckoff-bot.service wyckoff-terminal.service || true) && (pkill -f 'uvicorn terminal_api' || true) && sleep 1 && (echo 'M642423s$' | sudo -S systemctl restart wyckoff-terminal.service || true)"
             subprocess.Popen(["bash", "-c", cycle_cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, start_new_session=True)
             print("Scheduled background systemctl service restart (bot + terminal).")
         except Exception as e:
