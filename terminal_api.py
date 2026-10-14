@@ -247,6 +247,16 @@ def get_terminal_state():
         ORDER BY id DESC LIMIT 30
     """)
     history = [dict(r) for r in c.fetchall()]
+
+    # Latest 5 Telegram broadcast alerts
+    c.execute("""
+        SELECT id, ticker, direction, entry_price, stop_loss, take_profit, 
+               timeframe, timestamp, outcome, ml_confidence
+        FROM alerts
+        WHERE ticker NOT LIKE 'TEST%' AND (telegram_alerted = 1 OR telegram_alerted IS NULL)
+        ORDER BY id DESC LIMIT 5
+    """)
+    telegram_alerts = [dict(r) for r in c.fetchall()]
     conn.close()
 
     stalker_list = []
@@ -277,7 +287,8 @@ def get_terminal_state():
         "stalker_radar": stalker_list,
         "priority_queue": p_queue,
         "priority_stats": p_stats,
-        "history": history
+        "history": history,
+        "telegram_alerts": telegram_alerts
     }
 
 @app.get("/api/terminal/priority-queue")
@@ -528,6 +539,100 @@ def get_bars(ticker: str, interval: str = "5m"):
         "markers": markers,
         "volume_profile": vp_distribution
     }
+
+_company_cache = {}
+
+@app.get("/api/company/{ticker}")
+def get_company_profile(ticker: str):
+    """
+    Returns company fundamental data, industry, valuation, and 52-week stats
+    for deep research on the selected ticker.
+    """
+    sym = ticker.upper().replace("/", "-")
+    now = datetime.datetime.now()
+    if sym in _company_cache:
+        cached_time, cached_data = _company_cache[sym]
+        if (now - cached_time).total_seconds() < 3600:
+            return cached_data
+
+    import yfinance as yf
+    try:
+        t = yf.Ticker(sym)
+        fi = t.fast_info
+        last_price = float(getattr(fi, 'last_price', 0.0) or 0.0)
+        mkt_cap = float(getattr(fi, 'market_cap', 0.0) or 0.0)
+        y_high = float(getattr(fi, 'year_high', 0.0) or 0.0)
+        y_low = float(getattr(fi, 'year_low', 0.0) or 0.0)
+        three_m_vol = float(getattr(fi, 'three_month_average_volume', 0.0) or 0.0)
+        
+        info = {}
+        try:
+            info = t.info or {}
+        except:
+            pass
+
+        def format_mkt_cap(val):
+            if val >= 1e12: return f"${val/1e12:.2f}T"
+            if val >= 1e9: return f"${val/1e9:.2f}B"
+            if val >= 1e6: return f"${val/1e6:.2f}M"
+            return f"${val:,.0f}" if val > 0 else "--"
+
+        def format_vol(val):
+            if val >= 1e6: return f"{val/1e6:.2f}M"
+            if val >= 1e3: return f"{val/1e3:.1f}K"
+            return f"{val:,.0f}" if val > 0 else "--"
+
+        short_name = info.get('shortName') or info.get('longName') or sym
+        sector = info.get('sector') or "--"
+        industry = info.get('industry') or "--"
+        pe = info.get('trailingPE') or info.get('forwardPE')
+        pe_str = f"{pe:.1f}" if pe else "--"
+        beta = info.get('beta')
+        beta_str = f"{beta:.2f}" if beta else "--"
+        range_52 = f"${y_low:.2f} - ${y_high:.2f}" if (y_low and y_high) else "--"
+
+        # Check Wyckoff Bias from alerts or live bars
+        bias = "ACCUMULATION / TR"
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT direction, regime FROM alerts WHERE ticker = ? ORDER BY id DESC LIMIT 1", (sym,))
+        row = c.fetchone()
+        conn.close()
+        if row:
+            direction, regime = row
+            bias = f"{direction} ({regime or 'ACTIVE'})"
+
+        res = {
+            "ticker": sym,
+            "name": short_name,
+            "sector": sector,
+            "industry": industry,
+            "price": last_price,
+            "market_cap": format_mkt_cap(mkt_cap),
+            "pe_ratio": pe_str,
+            "beta": beta_str,
+            "range_52": range_52,
+            "avg_volume": format_vol(three_m_vol),
+            "bias": bias,
+            "website": info.get('website', '')
+        }
+        _company_cache[sym] = (now, res)
+        return res
+    except Exception as e:
+        return {
+            "ticker": sym,
+            "name": sym,
+            "sector": "--",
+            "industry": "--",
+            "price": 0.0,
+            "market_cap": "--",
+            "pe_ratio": "--",
+            "beta": "--",
+            "range_52": "--",
+            "avg_volume": "--",
+            "bias": "--",
+            "error": str(e)
+        }
 
 @app.get("/api/evidence/{ticker}")
 def get_evidence(ticker: str, timeframe: str = "5m"):

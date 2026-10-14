@@ -970,6 +970,33 @@
             <!-- Populated via JS -->
           </tbody>
         </table>
+
+        <!-- Live Telegram Broadcast Alerts (Last 5) -->
+        <div id="section-telegram-alerts" style="margin-top: 14px; border-top: 1px solid #222; padding-top: 6px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; padding: 2px 4px; background: rgba(0, 180, 255, 0.05); border-left: 2px solid var(--wsr-cyan);">
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <span style="font-size: 10px; font-weight: bold; color: #00e5ff;">📢 LIVE TELEGRAM BROADCASTS</span>
+              <span style="font-size: 8.5px; color: #aaa; background: rgba(0, 229, 255, 0.15); padding: 1px 4px; border-radius: 2px;">LAST 5 ALERTS</span>
+            </div>
+            <span style="font-size: 8.5px; color: #777;">REAL-TIME</span>
+          </div>
+          <table id="tbl-telegram-alerts" style="font-size: 10px; table-layout: auto; width: 100%;">
+            <thead>
+              <tr>
+                <th style="padding: 3px 4px; cursor: pointer; user-select: none;" onclick="sortTelegram('ticker')">SYM <span id="th-tg-ticker">&#x25B4;&#x25BE;</span></th>
+                <th style="padding: 3px 4px; cursor: pointer; user-select: none;" onclick="sortTelegram('direction')">DIR <span id="th-tg-dir">&#x25B4;&#x25BE;</span></th>
+                <th style="padding: 3px 4px; cursor: pointer; user-select: none;" onclick="sortTelegram('entry_price')">ENTRY <span id="th-tg-price">&#x25B4;&#x25BE;</span></th>
+                <th style="padding: 3px 4px; cursor: pointer; user-select: none;" onclick="sortTelegram('timeframe')">TF <span id="th-tg-tf">&#x25B4;&#x25BE;</span></th>
+                <th style="padding: 3px 4px; cursor: pointer; user-select: none;" onclick="sortTelegram('ml_confidence')">CONF <span id="th-tg-conf">&#x25B4;&#x25BE;</span></th>
+                <th style="padding: 3px 4px; cursor: pointer; user-select: none;" onclick="sortTelegram('timestamp')">TIME (EST) <span id="th-tg-time">&#x25B4;&#x25BE;</span></th>
+                <th style="padding: 3px 4px; text-align: center;">CHART</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-telegram-alerts-body">
+              <!-- Populated via JS -->
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -1070,19 +1097,85 @@
     </div>
 
     <!-- PANE 5: WYCKOFF EVIDENCE & METRICS (Bottom Center) -->
+    <!-- PANE 5: COMPANY RESEARCH & INTEL (Bottom Center) -->
     <div class="pane" id="pane-signal">
       <div class="pane-header">
-        <span>SIGNAL EVIDENCE & ML CONFIDENCE</span>
-        <span id="ev-pattern-match" class="c-green">-- PATTERN MATCH</span>
-      </div>
-      <div class="pane-content" style="padding: 8px;">
-        <div style="line-height: 1.6; font-size: 11px;">
-          <div><span id="ev-check-st" class="c-green">&#10003;</span> MICRO SUPERTREND CONFIRMATION</div>
-          <div><span id="ev-check-vol" class="c-green">&#10003;</span> <span id="ev-label-vol">VOLUME EXHAUSTION (DRY-UP &lt; 1.2x)</span></div>
-          <div><span id="ev-check-range" class="c-green">&#10003;</span> RECLAIMED TRADING RANGE EXTREME</div>
-          <div><span id="ev-check-shield" class="c-green">&#10003;</span> OPENING WHIPSAW SHIELD PASSED</div>
-          <div><span id="ev-check-slot" class="c-green">&#10003;</span> 1% TEST FRACTIONAL SLOTTING READY</div>
+        <div>
+          <span id="research-pane-title">RESEARCH & COMPANY DATA</span>
+          <span id="research-ticker-badge" class="c-cyan" style="font-weight: bold; margin-left: 4px;">--</span>
         </div>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <span id="company-sector-badge" class="c-yellow" style="font-size: 9px; font-weight: bold;">--</span>
+          <span id="ev-pattern-match" class="c-green" style="font-size: 9px; font-weight: bold;">--</span>
+        </div>
+      </div>
+      <div class="pane-content" style="padding: 6px 8px; display: flex; flex-direction: column; justify-content: space-between; height: 100%; box-sizing: border-box; overflow-y: auto;">
+        
+        <!-- Company Metadata Stats Grid -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: rgba(255,255,255,0.02); border: 1px solid #222; border-radius: 4px; padding: 5px 8px; font-size: 10px;">
+          <div>
+            <div style="color: #777; font-size: 8px;">COMPANY</div>
+            <div id="company-name" class="c-white" style="font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Company Name">--</div>
+          </div>
+          <div>
+            <div style="color: #777; font-size: 8px;">MARKET CAP</div>
+            <div id="company-mktcap" class="c-green" style="font-weight: bold;">--</div>
+          </div>
+          <div>
+            <div style="color: #777; font-size: 8px;">52-WK RANGE</div>
+            <div id="company-52range" class="c-cyan" style="font-weight: bold;">--</div>
+          </div>
+          <div>
+            <div style="color: #777; font-size: 8px;">P/E / BETA</div>
+            <div id="company-pe-beta" class="c-yellow" style="font-weight: bold;">--</div>
+          </div>
+          <div style="grid-column: span 2;">
+            <div style="color: #777; font-size: 8px;">INDUSTRY</div>
+            <div id="company-industry" class="c-muted" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">--</div>
+          </div>
+          <div>
+            <div style="color: #777; font-size: 8px;">AVG VOL (3M)</div>
+            <div id="company-avgvol" class="c-white">--</div>
+          </div>
+          <div>
+            <div style="color: #777; font-size: 8px;">WYCKOFF BIAS</div>
+            <div id="company-bias" class="c-green" style="font-weight: bold;">--</div>
+          </div>
+        </div>
+
+        <!-- 1-Click Research Deep-Links -->
+        <div style="margin-top: 5px;">
+          <div style="font-size: 8.5px; color: #888; font-weight: bold; margin-bottom: 3px; display: flex; justify-content: space-between;">
+            <span>DIRECT RESEARCH DEEP-LINKS</span>
+            <span style="font-size: 8px; color: #555;">OPENS IN NEW TAB ↗</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;">
+            <a id="link-tv" href="#" target="_blank" class="term-btn" style="text-align: center; text-decoration: none; padding: 3px 2px; font-size: 9px; border-color: rgba(41, 98, 255, 0.5); color: #2962ff;">📈 TRADINGVIEW</a>
+            <a id="link-public" href="#" target="_blank" class="term-btn" style="text-align: center; text-decoration: none; padding: 3px 2px; font-size: 9px; border-color: rgba(0, 255, 136, 0.4); color: #00ff88;">⚡ PUBLIC.COM</a>
+            <a id="link-yf" href="#" target="_blank" class="term-btn" style="text-align: center; text-decoration: none; padding: 3px 2px; font-size: 9px; border-color: rgba(186, 104, 200, 0.5); color: #ba68c8;">📊 YAHOO FIN</a>
+            <a id="link-sec" href="#" target="_blank" class="term-btn" style="text-align: center; text-decoration: none; padding: 3px 2px; font-size: 9px; border-color: rgba(255, 215, 0, 0.4); color: #ffd700;">🛡️ SEC FILINGS</a>
+            <a id="link-uw" href="#" target="_blank" class="term-btn" style="text-align: center; text-decoration: none; padding: 3px 2px; font-size: 9px; border-color: rgba(0, 229, 255, 0.4); color: #00e5ff;">🌊 OPTIONS FLOW</a>
+            <a id="link-finviz" href="#" target="_blank" class="term-btn" style="text-align: center; text-decoration: none; padding: 3px 2px; font-size: 9px; border-color: rgba(255, 110, 64, 0.4); color: #ff6e40;">📰 FINVIZ NEWS</a>
+            <a id="link-sa" href="#" target="_blank" class="term-btn" style="text-align: center; text-decoration: none; padding: 3px 2px; font-size: 9px; border-color: rgba(77, 208, 225, 0.4); color: #4dd0e1;">📑 FINANCIALS</a>
+            <a id="link-st" href="#" target="_blank" class="term-btn" style="text-align: center; text-decoration: none; padding: 3px 2px; font-size: 9px; border-color: rgba(255, 64, 129, 0.4); color: #ff4081;">💬 STOCKTWITS</a>
+          </div>
+        </div>
+
+        <!-- Optional Collapsible Signal Checklist Drawer -->
+        <div style="margin-top: 4px; padding-top: 3px; border-top: 1px dashed #222;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <a href="#" onclick="toggleSignalChecklist(event)" id="btn-toggle-ev" style="font-size: 8.5px; color: #666; text-decoration: underline;">[+] VIEW TECHNICAL EVIDENCE CHECKLIST</a>
+            <span style="font-size: 8px; color: #555;" id="ev-quick-summary">CONF: --</span>
+          </div>
+          <div id="ev-drawer" style="display: none; margin-top: 4px; font-size: 9px; line-height: 1.4; color: #bbb;">
+            <div><span id="ev-check-st" class="c-green">&#10003;</span> MICRO SUPERTREND CONFIRMATION</div>
+            <div><span id="ev-check-vol" class="c-green">&#10003;</span> <span id="ev-label-vol">VOLUME EXHAUSTION (DRY-UP &lt; 1.2x)</span></div>
+            <div><span id="ev-check-range" class="c-green">&#10003;</span> RECLAIMED TRADING RANGE EXTREME</div>
+            <div><span id="ev-check-shield" class="c-green">&#10003;</span> OPENING WHIPSAW SHIELD PASSED</div>
+            <div><span id="ev-check-slot" class="c-green">&#10003;</span> 1% TEST FRACTIONAL SLOTTING READY</div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -2670,7 +2763,79 @@
       } catch (e) {
         console.error("Error loading flow:", e);
       }
+      loadCompanyResearch(ticker);
       loadEvidence(ticker, currentInterval);
+    }
+
+    function updateResearchLinks(sym) {
+      if (!sym) return;
+      const s = sym.toUpperCase();
+      const sLower = s.toLowerCase();
+      const tv = document.getElementById('link-tv');
+      const pub = document.getElementById('link-public');
+      const yf = document.getElementById('link-yf');
+      const sec = document.getElementById('link-sec');
+      const uw = document.getElementById('link-uw');
+      const fv = document.getElementById('link-finviz');
+      const sa = document.getElementById('link-sa');
+      const st = document.getElementById('link-st');
+
+      if (tv) tv.href = `https://www.tradingview.com/chart/?symbol=${s}`;
+      if (pub) pub.href = `https://public.com/stocks/${sLower}`;
+      if (yf) yf.href = `https://finance.yahoo.com/quote/${s}`;
+      if (sec) sec.href = `https://www.sec.gov/edgar/searchedgar/companysearch?companyName=${s}`;
+      if (uw) uw.href = `https://unusualwhales.com/stock/${s}/overview`;
+      if (fv) fv.href = `https://finviz.com/quote.ashx?t=${s}`;
+      if (sa) sa.href = `https://stockanalysis.com/stocks/${sLower}/financials/`;
+      if (st) st.href = `https://stocktwits.com/symbol/${s}`;
+
+      const tBadge = document.getElementById('research-ticker-badge');
+      if (tBadge) tBadge.innerText = s;
+    }
+
+    async function loadCompanyResearch(ticker) {
+      if (!ticker) return;
+      const sym = ticker.toUpperCase();
+      updateResearchLinks(sym);
+
+      try {
+        const res = await fetch(`/api/company/${sym}`);
+        if (res.ok) {
+          const d = await res.json();
+          const nameEl = document.getElementById('company-name');
+          const capEl = document.getElementById('company-mktcap');
+          const r52El = document.getElementById('company-52range');
+          const peBetaEl = document.getElementById('company-pe-beta');
+          const indEl = document.getElementById('company-industry');
+          const volEl = document.getElementById('company-avgvol');
+          const biasEl = document.getElementById('company-bias');
+          const secEl = document.getElementById('company-sector-badge');
+
+          if (nameEl) {
+            nameEl.innerText = d.name || sym;
+            nameEl.title = d.name || sym;
+          }
+          if (capEl) capEl.innerText = d.market_cap || '--';
+          if (r52El) r52El.innerText = d.range_52 || '--';
+          if (peBetaEl) peBetaEl.innerText = `${d.pe_ratio || '--'} / ${d.beta || '--'}`;
+          if (indEl) indEl.innerText = d.industry || '--';
+          if (volEl) volEl.innerText = d.avg_volume || '--';
+          if (biasEl) biasEl.innerText = d.bias || '--';
+          if (secEl) secEl.innerText = (d.sector || '--').toUpperCase();
+        }
+      } catch (err) {
+        console.error("Error loading company research:", err);
+      }
+    }
+
+    function toggleSignalChecklist(e) {
+      if (e) e.preventDefault();
+      const drawer = document.getElementById('ev-drawer');
+      const btn = document.getElementById('btn-toggle-ev');
+      if (!drawer) return;
+      const isHidden = drawer.style.display === 'none';
+      drawer.style.display = isHidden ? 'block' : 'none';
+      if (btn) btn.innerText = isHidden ? '[-] HIDE TECHNICAL CHECKLIST' : '[+] VIEW TECHNICAL EVIDENCE CHECKLIST';
     }
 
     // --- LOAD DYNAMIC SIGNAL EVIDENCE & REAL ML SCORE ---
@@ -2683,8 +2848,13 @@
         const pmEl = document.getElementById('ev-pattern-match');
         if (pmEl && data.pattern_match !== undefined) {
           const score = Number(data.pattern_match).toFixed(1);
-          pmEl.innerText = `${score}% PATTERN MATCH`;
+          pmEl.innerText = `${score}% CONF`;
           pmEl.className = score >= 70 ? 'c-green' : (score >= 50 ? 'c-yellow' : 'c-red');
+        }
+
+        const qsEl = document.getElementById('ev-quick-summary');
+        if (qsEl && data.pattern_match !== undefined) {
+          qsEl.innerText = `CONF: ${Number(data.pattern_match).toFixed(1)}%`;
         }
 
         const ev = data.evidence || {};
@@ -2953,8 +3123,93 @@
         // Audit History Table
         rawHistoryData = data.history || [];
         renderHistoryTable();
+
+        // Live Telegram Alerts Table (Last 5)
+        rawTelegramAlertsData = data.telegram_alerts || [];
+        renderTelegramAlertsTable();
       } catch (e) {
         console.error("State refresh error:", e);
+      }
+    }
+
+    let tgSortField = 'timestamp';
+    let tgSortAsc = false;
+    let rawTelegramAlertsData = [];
+
+    function sortTelegram(field) {
+      if (tgSortField === field) {
+        tgSortAsc = !tgSortAsc;
+      } else {
+        tgSortField = field;
+        tgSortAsc = true;
+      }
+      renderTelegramAlertsTable();
+    }
+
+    function renderTelegramAlertsTable() {
+      const tbody = document.getElementById('tbl-telegram-alerts-body');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      const thMap = {
+        'ticker': 'th-tg-ticker',
+        'direction': 'th-tg-dir',
+        'entry_price': 'th-tg-price',
+        'timeframe': 'th-tg-tf',
+        'ml_confidence': 'th-tg-conf',
+        'timestamp': 'th-tg-time'
+      };
+
+      Object.entries(thMap).forEach(([f, id]) => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.innerHTML = (tgSortField === f) ? (tgSortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
+          el.style.color = (tgSortField === f) ? '#00e5ff' : '#666';
+        }
+      });
+
+      let list = [...(rawTelegramAlertsData || [])];
+      list.sort((a, b) => {
+        let valA = a[tgSortField];
+        let valB = b[tgSortField];
+        if (['entry_price', 'ml_confidence'].includes(tgSortField)) {
+          valA = parseFloat(valA || 0);
+          valB = parseFloat(valB || 0);
+          return tgSortAsc ? valA - valB : valB - valA;
+        }
+        valA = (valA || '').toString().toLowerCase();
+        valB = (valB || '').toString().toLowerCase();
+        if (valA < valB) return tgSortAsc ? -1 : 1;
+        if (valA > valB) return tgSortAsc ? 1 : -1;
+        return 0;
+      });
+
+      if (list.length > 0) {
+        list.forEach(a => {
+          const isLong = a.direction === 'LONG';
+          const dirColor = isLong ? 'c-green' : 'c-red';
+          const tf = (a.timeframe || '5m').toUpperCase();
+          const conf = a.ml_confidence !== undefined && a.ml_confidence !== null ? `${Number(a.ml_confidence).toFixed(1)}%` : '--';
+          const timeStr = formatSignalTimeEST(a.timestamp);
+
+          const tr = document.createElement('tr');
+          tr.style.cursor = 'pointer';
+          tr.onclick = () => selectTicker(a.ticker, a.timeframe || '5m');
+          tr.innerHTML = `
+            <td class="c-cyan" style="padding: 3px 4px; font-weight: bold;">${a.ticker}</td>
+            <td class="${dirColor}" style="padding: 3px 4px; font-weight: bold;">${a.direction}</td>
+            <td style="padding: 3px 4px;">$${a.entry_price ? a.entry_price.toFixed(2) : '--'}</td>
+            <td style="padding: 3px 4px;"><b class="c-yellow">${tf}</b></td>
+            <td class="c-green" style="padding: 3px 4px; font-weight: bold;">${conf}</td>
+            <td class="c-muted" style="padding: 3px 4px; font-size: 9px;">${timeStr}</td>
+            <td style="padding: 3px 4px; text-align: center;">
+              <button class="term-btn" onclick="event.stopPropagation(); selectTicker('${a.ticker}', '${a.timeframe || '5m'}')" style="padding: 1px 5px; font-size: 9px;">CHART</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } else {
+        tbody.innerHTML = '<tr><td colspan="7" class="c-muted" style="text-align: center; padding: 8px;">No Telegram broadcasts recorded yet</td></tr>';
       }
     }
 
