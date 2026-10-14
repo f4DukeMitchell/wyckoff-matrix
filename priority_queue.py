@@ -6,13 +6,12 @@ from typing import List, Dict, Any
 
 QUEUE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "priority_queue.json")
 
-# Core Anchor Leaders: The top liquid mega-caps always monitored for 5M setups
+# Core Anchor Leaders: Top 25 high-beta, high-liquidity leaders permanently monitored on 5M.
+# Leaves maximum bandwidth for dynamic 15M breakout/spring promotions.
 ANCHOR_TICKERS = [
-    "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "AMD", "AVGO", "LLY",
-    "JPM", "V", "MA", "UNH", "XOM", "COST", "HD", "PG", "NFLX", "CRM",
-    "BAC", "CVX", "WMT", "ABBV", "KO", "ORCL", "MRK", "PEP", "LIN", "TMO",
-    "ACN", "CSCO", "MCD", "DIS", "ABT", "ADBE", "QCOM", "WFC", "IBM", "CAT",
-    "GE", "VZ", "NOW", "INTC", "TXN", "UBER", "COIN", "PLTR", "AMAT", "BA"
+    "NVDA", "TSLA", "AMD", "META", "PLTR", "UBER", "COIN", "AMZN", "AAPL", "MSFT",
+    "GOOGL", "AVGO", "NFLX", "CRM", "QCOM", "DIS", "BA", "INTC", "NOW", "GE",
+    "WFC", "JPM", "LLY", "COST", "HD"
 ]
 
 _QUEUE_MEMORY: Dict[str, Dict[str, Any]] = {}
