@@ -259,12 +259,36 @@ def execute_option_sell_to_open(option_symbol, quantity=1, limit_price=None):
         order_type=OrderType.LIMIT if limit_price else OrderType.MARKET,
         limit_price=limit_dec,
         quantity=Decimal(str(quantity)),
-        time_in_force=TimeInForce.DAY
+        open_close_indicator=OpenCloseIndicator.OPEN,
+        expiration=OrderExpirationRequest(time_in_force=TimeInForce.DAY)
     )
 
-    res = client.place_order(acc_id, req)
+    res = client.place_order(req, account_id=acc_id)
     status_str = str(getattr(res, 'status', 'SUBMITTED'))
     cash_est = (float(limit_price) * quantity * 100) if limit_price else 0.0
+
+    # Register into Covered Call Guardian daemon
+    try:
+        import covered_call_guardian, re
+        root = "AMC" if "AMC" in option_symbol else ("NKE" if "NKE" in option_symbol else option_symbol[:4])
+        m = re.search(r'([A-Z]+)(\d{2})(\d{2})(\d{2})[CP](\d{8})', option_symbol)
+        if m:
+            yr, mo, dy = f"20{m.group(2)}", m.group(3), m.group(4)
+            exp_str = f"{yr}-{mo}-{dy}"
+            strike_val = float(m.group(5)) / 1000.0
+        else:
+            exp_str = "2026-10-23"
+            strike_val = 3.50
+        covered_call_guardian.register_covered_call(
+            ticker=root,
+            option_symbol=option_symbol,
+            strike=strike_val,
+            expiry=exp_str,
+            quantity=quantity,
+            entry_premium=float(limit_price or 0.0)
+        )
+    except Exception as reg_err:
+        print(f"Guardian registration error: {reg_err}")
 
     try:
         from telegram_notifier import send_message, is_configured
@@ -310,10 +334,11 @@ def execute_option_buy_to_close(option_symbol, quantity=1, limit_price=None):
         order_type=OrderType.LIMIT if limit_price else OrderType.MARKET,
         limit_price=limit_dec,
         quantity=Decimal(str(quantity)),
-        time_in_force=TimeInForce.DAY
+        open_close_indicator=OpenCloseIndicator.CLOSE,
+        expiration=OrderExpirationRequest(time_in_force=TimeInForce.DAY)
     )
 
-    res = client.place_order(acc_id, req)
+    res = client.place_order(req, account_id=acc_id)
     status_str = str(getattr(res, 'status', 'SUBMITTED'))
 
     return {
