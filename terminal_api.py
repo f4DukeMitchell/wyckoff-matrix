@@ -699,6 +699,66 @@ def place_option_buy(order: OptionOrderPayload):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+class CoveredCallOrderPayload(BaseModel):
+    ticker: str
+    symbol: str
+    strike: float
+    expiry: str
+    quantity: int = 1
+    limit_price: float
+
+@app.post("/api/order/sell_covered_call")
+def place_covered_call_sell(order: CoveredCallOrderPayload):
+    """
+    Executes a limit sell to open covered call contracts on Public.com,
+    deposits instant cash credit, and registers position into Covered Call Guardian.
+    """
+    try:
+        from public_executor import execute_option_sell_to_open
+        res = execute_option_sell_to_open(order.symbol, quantity=order.quantity, limit_price=order.limit_price)
+        
+        # Register in Covered Call Guardian for automated 50% profit take & roll defense
+        try:
+            import covered_call_guardian
+            covered_call_guardian.register_covered_call(
+                ticker=order.ticker,
+                option_symbol=order.symbol,
+                strike=order.strike,
+                expiry=order.expiry,
+                quantity=order.quantity,
+                entry_premium=order.limit_price
+            )
+        except Exception as g_err:
+            print(f"Error registering in CC Guardian: {g_err}")
+
+        return {"success": True, "order": res}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/covered_calls/status")
+def get_cc_status():
+    """Returns current active covered calls, automated defense settings, and roll history."""
+    try:
+        import covered_call_guardian
+        covered_call_guardian.sync_active_with_broker()
+        state = covered_call_guardian.load_cc_state()
+        return {"status": "SUCCESS", "data": state}
+    except Exception as e:
+        return {"status": "ERROR", "error": str(e)}
+
+@app.post("/api/covered_calls/toggle_auto")
+def toggle_cc_auto():
+    """Toggles automated roll defense and 50% take profit on/off."""
+    try:
+        import covered_call_guardian
+        state = covered_call_guardian.load_cc_state()
+        state["auto_roll_enabled"] = not state.get("auto_roll_enabled", True)
+        state["auto_take_profit_enabled"] = not state.get("auto_take_profit_enabled", True)
+        covered_call_guardian.save_cc_state(state)
+        return {"status": "SUCCESS", "data": state}
+    except Exception as e:
+        return {"status": "ERROR", "error": str(e)}
+
 class ExitPayload(BaseModel):
     ticker: str
     trade_id: int | None = None

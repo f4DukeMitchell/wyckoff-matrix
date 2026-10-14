@@ -523,6 +523,13 @@ def guardian_loop():
             run_guardian_cycle()
         except Exception as e:
             print(f"[{get_est_now_str()}] [Guardian] Error in cycle: {e}")
+
+        try:
+            import covered_call_guardian
+            covered_call_guardian.run_covered_call_cycle()
+        except Exception as e:
+            print(f"[{get_est_now_str()}] [Guardian] Error in CC cycle: {e}")
+
         time.sleep(10)
 
 _GUARDIAN_THREAD = None

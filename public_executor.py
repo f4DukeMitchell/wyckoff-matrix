@@ -240,6 +240,91 @@ def execute_option_buy(option_symbol, quantity=2, limit_price=None):
         'account_id': acc_id
     }
 
+def execute_option_sell_to_open(option_symbol, quantity=1, limit_price=None):
+    """
+    Executes a limit order to SELL TO OPEN covered call contracts on Public.com at mid-price.
+    Collects upfront cash credit directly into buying power while keeping underlying shares safe.
+    """
+    client = get_client()
+    acc_id = get_account_id()
+    option_symbol = option_symbol.upper()
+
+    limit_dec = Decimal(f"{float(limit_price):.2f}") if limit_price else None
+    order_uuid = str(uuid.uuid4())
+
+    req = OrderRequest(
+        order_id=order_uuid,
+        instrument=OrderInstrument(symbol=option_symbol, type='OPTION'),
+        order_side=OrderSide.SELL,
+        order_type=OrderType.LIMIT if limit_price else OrderType.MARKET,
+        limit_price=limit_dec,
+        quantity=Decimal(str(quantity)),
+        time_in_force=TimeInForce.DAY
+    )
+
+    res = client.place_order(acc_id, req)
+    status_str = str(getattr(res, 'status', 'SUBMITTED'))
+    cash_est = (float(limit_price) * quantity * 100) if limit_price else 0.0
+
+    try:
+        from telegram_notifier import send_message, is_configured
+        if is_configured():
+            msg = (
+                f"🛡️ [COVERED CALL EXECUTED - CASH HARVEST]\n"
+                f"• Contract: {option_symbol}\n"
+                f"• Size: {quantity} Contracts (Covered by shares)\n"
+                f"• Limit Price: ${float(limit_price or 0.0):.2f}\n"
+                f"• Instant Cash Deposited: +${cash_est:.2f}\n"
+                f"• Order Status: {status_str}\n"
+                f"🤖 Covered Call Guardian is actively monitoring 50% decay take-profit and roll defense."
+            )
+            send_message(msg)
+    except Exception as tg_err:
+        print(f"Telegram notify error on covered call sell: {tg_err}")
+
+    return {
+        'order_id': order_uuid,
+        'symbol': option_symbol,
+        'quantity': quantity,
+        'limit_price': float(limit_price or 0.0),
+        'cash_credit': cash_est,
+        'status': status_str,
+        'account_id': acc_id
+    }
+
+def execute_option_buy_to_close(option_symbol, quantity=1, limit_price=None):
+    """
+    Executes a BUY TO CLOSE order to buy back a short covered call on Public.com (50% profit take or defense).
+    """
+    client = get_client()
+    acc_id = get_account_id()
+    option_symbol = option_symbol.upper()
+
+    limit_dec = Decimal(f"{float(limit_price):.2f}") if limit_price else None
+    order_uuid = str(uuid.uuid4())
+
+    req = OrderRequest(
+        order_id=order_uuid,
+        instrument=OrderInstrument(symbol=option_symbol, type='OPTION'),
+        order_side=OrderSide.BUY,
+        order_type=OrderType.LIMIT if limit_price else OrderType.MARKET,
+        limit_price=limit_dec,
+        quantity=Decimal(str(quantity)),
+        time_in_force=TimeInForce.DAY
+    )
+
+    res = client.place_order(acc_id, req)
+    status_str = str(getattr(res, 'status', 'SUBMITTED'))
+
+    return {
+        'order_id': order_uuid,
+        'symbol': option_symbol,
+        'quantity': quantity,
+        'limit_price': float(limit_price or 0.0),
+        'status': status_str,
+        'account_id': acc_id
+    }
+
 def execute_exit_position(ticker, quantity=None, direction=None):
     """
     Closes an open position on Public.com:

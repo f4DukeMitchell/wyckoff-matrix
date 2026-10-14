@@ -3826,6 +3826,58 @@
         alert('Please select an options candidate from the table first.');
         return;
       }
+
+      // Check if this is a Covered Call
+      const ccItem = (rawCoveredCallsData.setups || []).find(d => d.ticker === selectedOptionsTicker && Math.abs(d.strike - selectedOptionsStrike) < 0.01 && d.expiry === selectedOptionsExpiry)
+                  || (rawCoveredCallsData.setups || []).find(d => d.ticker === selectedOptionsTicker);
+
+      if (currentOptFilter === 'COVERED' || (ccItem && selectedOptionsStrike)) {
+        const item = ccItem;
+        if (!item) {
+          alert("No covered call selected.");
+          return;
+        }
+        const callSym = (item.optimal_call && item.optimal_call.symbol) 
+          || `${item.ticker}${item.expiry.replace(/-/g, '').slice(2)}C${String(Math.round(item.strike * 1000)).padStart(8, '0')}`;
+        const mid = item.mid || 0.06;
+        const totalCash = item.upfront_cash || (mid * item.contracts_count * 100);
+
+        if (!confirm(`🛡️ CONFIRM COVERED CALL ORDER:\n\nSell to Open ${item.contracts_count} contracts of ${item.ticker} ($${item.strike.toFixed(2)} Call exp ${item.expiry}) at Mid-Price $${mid.toFixed(2)} on Public.com?\n\n💰 Instant Cash Deposited: +$${totalCash.toFixed(2)}\n🤖 Covered Call Guardian will AUTOMATICALLY manage 50% take-profit and roll defense to preserve all ${item.shares_held} shares!`)) {
+          return;
+        }
+
+        const btn = document.getElementById('wb-btn-pilot');
+        const prevText = btn ? btn.innerText : '';
+        if (btn) btn.innerText = 'TRANSMITTING SELL ORDER...';
+        try {
+          const res = await fetch('/api/order/sell_covered_call', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              ticker: item.ticker,
+              symbol: callSym,
+              strike: item.strike,
+              expiry: item.expiry,
+              quantity: item.contracts_count,
+              limit_price: mid
+            })
+          });
+          const data = await res.json();
+          if (data.success) {
+            alert(`✓ COVERED CALL EXECUTED!\n\nContract: ${callSym}\nSize: ${item.contracts_count} Contracts\nInstant Cash Deposited: +$${totalCash.toFixed(2)}\nStatus: ${data.order.status}\n\n🤖 Automated Covered Call Guardian is ARMED! It will auto-close at 50% decay (Milestone 3) and auto-roll up-and-out if stock surges (Milestone 4)!`);
+            fetchOptionsScanner();
+          } else {
+            alert('Order error: ' + (data.detail || JSON.stringify(data)));
+          }
+        } catch (err) {
+          alert('Execution error: ' + err);
+        } finally {
+          if (btn) btn.innerText = prevText;
+        }
+        return;
+      }
+
+      // Normal long options pilot order
       const item = rawOptionsData.find(d => d.ticker === selectedOptionsTicker);
       if (!item || !item.optimal_call) {
         alert('No optimal call contract found for ' + selectedOptionsTicker);
