@@ -1045,12 +1045,12 @@
           <button class="term-btn" onclick="setScannerPaneWidth('480px')" style="padding: 1px 4px; font-size: 9px;">480</button>
         </div>
         <div style="display: flex; gap: 4px;">
-          <button class="term-btn tf-filter-btn" data-tf="QUEUE" onclick="filterByTF('QUEUE')" style="border: 1px solid var(--wsr-orange); color: var(--wsr-orange); font-weight: bold;">⚡ 5M QUEUE</button>
-          <button class="term-btn tf-filter-btn active-tf" data-tf="ALL" onclick="filterByTF('ALL')">ALL</button>
-          <button class="term-btn tf-filter-btn" data-tf="5m" onclick="filterByTF('5m')">5M</button>
-          <button class="term-btn tf-filter-btn" data-tf="15m" onclick="filterByTF('15m')">15M</button>
-          <button class="term-btn tf-filter-btn" data-tf="1h" onclick="filterByTF('1h')">1H</button>
-          <button class="term-btn tf-filter-btn" data-tf="1d" onclick="filterByTF('1d')">1D</button>
+          <button id="btn-tf-queue" class="term-btn tf-filter-btn" data-tf="QUEUE" onclick="filterByTF('QUEUE')" style="background: var(--wsr-orange); color: var(--wsr-black); font-weight: bold; border: 1px solid var(--wsr-orange);">⚡ 5M QUEUE</button>
+          <button id="btn-tf-all" class="term-btn tf-filter-btn" data-tf="ALL" onclick="filterByTF('ALL')">ALL</button>
+          <button id="btn-tf-5m" class="term-btn tf-filter-btn" data-tf="5m" onclick="filterByTF('5m')">5M</button>
+          <button id="btn-tf-15m" class="term-btn tf-filter-btn" data-tf="15m" onclick="filterByTF('15m')">15M</button>
+          <button id="btn-tf-1h" class="term-btn tf-filter-btn" data-tf="1h" onclick="filterByTF('1h')">1H</button>
+          <button id="btn-tf-1d" class="term-btn tf-filter-btn" data-tf="1d" onclick="filterByTF('1d')">1D</button>
         </div>
       </div>
       <div class="pane-content">
@@ -1975,7 +1975,7 @@
     let rawPriorityStats = {};
     let rawPositionsData = [];
     let activeTradePriceLines = [];
-    let activeTFFilter = 'ALL';
+    let activeTFFilter = 'QUEUE'; // Default to 5M Priority Queue / Radar view!
     let currentSortField = 'id';
     let sortAsc = false;
     let cachedBuyingPower = 2000.0;
@@ -2195,9 +2195,13 @@
         if (btnTf.toUpperCase() === tf.toUpperCase()) {
           btn.style.background = 'var(--wsr-orange)';
           btn.style.color = 'var(--wsr-black)';
+          btn.style.borderColor = 'var(--wsr-orange)';
+          btn.style.fontWeight = 'bold';
         } else {
           btn.style.background = '#1c1c1c';
-          btn.style.color = 'var(--wsr-white)';
+          btn.style.color = (btnTf.toUpperCase() === 'QUEUE') ? 'var(--wsr-orange)' : 'var(--wsr-white)';
+          btn.style.borderColor = (btnTf.toUpperCase() === 'QUEUE') ? 'rgba(255, 152, 0, 0.4)' : '#333';
+          btn.style.fontWeight = 'normal';
         }
       });
       renderScannerTable();
