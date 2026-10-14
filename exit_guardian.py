@@ -13,9 +13,11 @@ def get_est_now_str():
 
 def send_tg(msg: str):
     try:
-        from telegram_notifier import send_message, is_configured
+        from telegram_notifier import send_message, is_configured, TELEGRAM_CHAT_ID_DAY
         if is_configured():
             send_message(msg)
+            if TELEGRAM_CHAT_ID_DAY:
+                send_message(msg, chat_id=TELEGRAM_CHAT_ID_DAY)
     except Exception as e:
         print(f"[{get_est_now_str()}] [Guardian] Telegram error: {e}")
 

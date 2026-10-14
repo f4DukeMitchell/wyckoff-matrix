@@ -178,52 +178,12 @@ def migrate():
     if stale_cleaned > 0:
         print(f"Expired {stale_cleaned} stale open paper alerts from prior test runs.")
 
-    # 10. Reactivate live broker positions in MELI and NXPI with exact Wyckoff brackets
-    # MELI
-    c.execute("SELECT id FROM alerts WHERE ticker = 'MELI' AND direction = 'LONG' AND outcome = 'OPEN'")
-    meli_row = c.fetchone()
-    if meli_row:
-        c.execute("""
-            UPDATE alerts 
-            SET outcome = 'OPEN', user_active = 1, entry_price = 1829.35, stop_loss = 1806.75, 
-                initial_stop_loss = 1806.75, take_profit = 1859.67, initial_shares = 0.01717, timeframe = '5m',
-                ml_confidence = 61.0
-            WHERE id = ?
-        """, (meli_row[0],))
-    else:
-        c.execute("""
-            INSERT INTO alerts (
-                ticker, direction, entry_price, stop_loss, initial_stop_loss, take_profit, 
-                regime, timeframe, timestamp, outcome, user_active, initial_shares, ml_confidence
-            ) VALUES (
-                'MELI', 'LONG', 1829.35, 1806.75, 1806.75, 1859.67, 
-                'BULLISH (Seeking Reversal)', '5m', datetime('now', '-2 hours'), 'OPEN', 1, 0.01717, 61.0
-            )
-        """)
-
-    # NXPI
-    c.execute("SELECT id FROM alerts WHERE ticker = 'NXPI' AND direction = 'LONG' AND outcome = 'OPEN'")
-    nxpi_row = c.fetchone()
-    if nxpi_row:
-        c.execute("""
-            UPDATE alerts 
-            SET outcome = 'OPEN', user_active = 1, entry_price = 219.52, stop_loss = 216.47, 
-                initial_stop_loss = 216.47, take_profit = 223.77, initial_shares = 0.14081, timeframe = '5m',
-                ml_confidence = 64.0
-            WHERE id = ?
-        """, (nxpi_row[0],))
-    else:
-        c.execute("""
-            INSERT INTO alerts (
-                ticker, direction, entry_price, stop_loss, initial_stop_loss, take_profit, 
-                regime, timeframe, timestamp, outcome, user_active, initial_shares, ml_confidence
-            ) VALUES (
-                'NXPI', 'LONG', 219.52, 216.47, 216.47, 223.77, 
-                'BULLISH (Seeking Reversal)', '5m', datetime('now', '-30 minutes'), 'OPEN', 1, 0.14081, 64.0
-            )
-        """)
-    print("Reactivated live broker alert records for MELI and NXPI with full brackets.")
-
+    # Clean up any lingering open test alerts for MELI or NXPI
+    c.execute("""
+        UPDATE alerts 
+        SET outcome = 'CLOSED', user_active = 0 
+        WHERE ticker IN ('MELI', 'NXPI') AND outcome = 'OPEN'
+    """)
     conn.commit()
 
     # Clear stalker cache on disk

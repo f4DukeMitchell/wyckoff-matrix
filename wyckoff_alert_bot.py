@@ -1341,10 +1341,18 @@ if __name__ == "__main__":
                     # Note: Live broker trades (user_active=1) are handled exclusively by exit_guardian
                     # which manages 5-tier scaling, breakeven stop, and the 15% uncapped runner into EOD flatten.
                     if (t.get('user_active') == 1 or t.get('telegram_alerted') == 1) and TELEGRAM_ENABLED:
-                        from telegram_notifier import send_message
-                        emoji = "🎉" if t.get('outcome') == 'WIN' else ("🛡️" if t.get('outcome') == 'BREAKEVEN' else "🚨")
-                        alert_msg = f"{emoji} PAPER EXIT ALERT: {t.get('ticker')} has hit its {t.get('outcome')} target!\nReturn: {t.get('pnl_r', 0):+.1f}R Units"
+                        from telegram_notifier import send_message, TELEGRAM_CHAT_ID_DAY
+                        outcome_str = t.get('outcome', 'CLOSED')
+                        pnl_val = t.get('pnl_r', 0) or 0.0
+                        if outcome_str == 'CLOSED':
+                            emoji = "🌅"
+                            alert_msg = f"{emoji} EOD FLATTEN: {t.get('ticker')} closed at session end.\nReturn: {pnl_val:+.2f}R Units"
+                        else:
+                            emoji = "🎉" if outcome_str == 'WIN' else ("🛡️" if outcome_str == 'BREAKEVEN' else "🚨")
+                            alert_msg = f"{emoji} PAPER EXIT ALERT: {t.get('ticker')} ({outcome_str})\nReturn: {pnl_val:+.2f}R Units"
                         send_message(alert_msg)
+                        if TELEGRAM_CHAT_ID_DAY:
+                            send_message(alert_msg, chat_id=TELEGRAM_CHAT_ID_DAY)
             except: pass
         
         now = get_market_now()
