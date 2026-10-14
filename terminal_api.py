@@ -1321,6 +1321,16 @@ def get_options_scanner():
     except Exception as e:
         return {"status": "ERROR", "error": str(e), "setups": []}
 
+@app.get("/api/options/covered-calls")
+def get_covered_calls():
+    """Returns real-time covered call intelligence for user's long positions (AMC, NKE)."""
+    try:
+        import options_engine
+        data = options_engine.get_covered_calls_scanner_data()
+        return {"status": "SUCCESS", "data": data}
+    except Exception as e:
+        return {"status": "ERROR", "error": str(e), "data": {}}
+
 @app.get("/api/options/ticker/{ticker}")
 def get_ticker_options(ticker: str):
     """Scans and structures options intelligence for a specific user-requested ticker."""

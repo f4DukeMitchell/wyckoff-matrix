@@ -1370,15 +1370,70 @@
 
     <!-- FILTER & ACTION TOOLBAR -->
     <div class="options-toolbar">
-      <div style="display: flex; gap: 6px; align-items: center;">
+      <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
         <span style="font-weight: 700; color: #a855f7; margin-right: 4px;">⚡ OPTIONS SCANNER</span>
         <button class="options-filter-btn active" id="btn-opt-all" onclick="filterOptionsTable('ALL')">ALL SETUPS</button>
         <button class="options-filter-btn" id="btn-opt-sweet_spot" onclick="filterOptionsTable('SWEET_SPOT')">🎯 STRATEGY 1: SWEET SPOT 2x CALLS ($15-$75)</button>
         <button class="options-filter-btn" id="btn-opt-megacap" onclick="filterOptionsTable('MEGACAP')">⚖️ STRATEGY 4: MEGA-CAP 2x SPREADS ($75+)</button>
+        <button class="options-filter-btn" id="btn-opt-covered" onclick="filterOptionsTable('COVERED')" style="border-color: #ffd700; color: #ffd700;">🛡️ COVERED CALLS: AMC &amp; NKE (WEEKLY HARVEST)</button>
       </div>
       <div style="display: flex; gap: 8px; align-items: center;">
         <input type="text" id="opt-search-input" placeholder="SEARCH TICKER..." oninput="searchOptionsTable()" style="background: #111; border: 1px solid #333; color: #fff; padding: 2px 6px; font-family: inherit; font-size: 10px; width: 130px; text-transform: uppercase;" />
         <button class="options-filter-btn" onclick="fetchOptionsScanner()" style="border-color: #00d26a; color: #00d26a;">⚡ REFRESH GREEKS</button>
+      </div>
+    </div>
+
+    <!-- COVERED CALLS PORTFOLIO HARVESTER BANNER -->
+    <div id="covered-calls-banner" style="display: none; background: #121008; border-bottom: 2px solid #ffd700; padding: 10px 14px; gap: 10px; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 13px; font-weight: 800; color: #ffd700; letter-spacing: 0.5px;">🛡️ COVERED CALL INCOME ENGINE // LONG PORTFOLIO CASH HARVEST</span>
+          <span style="font-size: 9.5px; background: rgba(255, 215, 0, 0.15); border: 1px solid #ffd700; color: #ffd700; padding: 1px 6px; font-weight: 700; border-radius: 2px;">AGGRESSIVE WEEKLY REINVESTMENT</span>
+        </div>
+        <div style="font-size: 10.5px; color: #aaa;">
+          Estimated Annual Cash Generation: <b class="c-green" style="font-size: 12px;" id="cc-total-annual-cash">+$4,250 – $5,000 / YEAR</b>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <!-- AMC ASSET CARD -->
+        <div id="cc-card-amc" style="background: #18150c; border: 1px solid #443510; border-left: 4px solid #ffd700; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <b class="c-yellow" style="font-size: 13px;">AMC ENTERTAINMENT (AMC)</b>
+              <span class="strat-badge" style="background: rgba(255, 215, 0, 0.2); border: 1px solid #ffd700; color: #ffd700; font-size: 9px; font-weight: bold;">31 CONTRACTS AVAILABLE</span>
+            </div>
+            <div style="font-size: 10px; color: #bbb; margin-top: 3px;">
+              Holdings: <b>3,108 Shares</b> ($9,510 value) | Cost Basis: <b>$13.25</b> | Current: <b id="cc-amc-price">$3.06</b>
+            </div>
+            <div style="font-size: 10.5px; color: #eee; margin-top: 4px;">
+              Recommended Weekly: <span class="c-green" style="font-weight: 700;" id="cc-amc-rec">SELL 31x $4.00 CALL (Nov 06)</span>
+              &rarr; <b class="c-green" id="cc-amc-cash">+$279.00 CASH</b> (<span id="cc-amc-yield">+44.7% Ann. Yield</span>)
+            </div>
+          </div>
+          <div>
+            <button class="options-filter-btn" onclick="selectCoveredCallTicker('AMC')" style="border-color: #ffd700; color: #ffd700; background: rgba(255, 215, 0, 0.1); padding: 5px 12px; font-weight: bold;">⚡ LOAD AMC ROADMAP</button>
+          </div>
+        </div>
+
+        <!-- NKE ASSET CARD -->
+        <div id="cc-card-nke" style="background: #18150c; border: 1px solid #443510; border-left: 4px solid #00e5ff; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <b class="c-cyan" style="font-size: 13px;">NIKE, INC. (NKE)</b>
+              <span class="strat-badge" style="background: rgba(0, 229, 255, 0.2); border: 1px solid #00e5ff; color: #00e5ff; font-size: 9px; font-weight: bold;">1 CONTRACT AVAILABLE (100 SH)</span>
+            </div>
+            <div style="font-size: 10px; color: #bbb; margin-top: 3px;">
+              Holdings: <b>99.12 &rarr; 100 Shares</b> ($3,540 value) | Cost Basis: <b>$67.40</b> | Current: <b id="cc-nke-price">$35.40</b>
+            </div>
+            <div style="font-size: 10.5px; color: #eee; margin-top: 4px;">
+              Recommended Weekly: <span class="c-green" style="font-weight: 700;" id="cc-nke-rec">SELL 1x $37.00 CALL (Oct 23)</span>
+              &rarr; <b class="c-green" id="cc-nke-cash">+$28.00 CASH</b> (<span id="cc-nke-yield">+28.9% Ann. Yield</span>)
+            </div>
+          </div>
+          <div>
+            <button class="options-filter-btn" onclick="selectCoveredCallTicker('NKE')" style="border-color: #00e5ff; color: #00e5ff; background: rgba(0, 229, 255, 0.1); padding: 5px 12px; font-weight: bold;">⚡ LOAD NKE ROADMAP</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -3185,18 +3240,43 @@
 
     // --- OPTIONS MATRIX STATE & LOGIC ---
     let rawOptionsData = [];
+    let rawCoveredCallsData = { holdings: [], setups: [] };
     let selectedOptionsTicker = null;
+    let selectedOptionsStrike = null;
+    let selectedOptionsExpiry = null;
     let currentOptFilter = 'ALL';
     let currentSimMove = 1.00;
 
     async function fetchOptionsScanner() {
       const tbody = document.getElementById('tbl-options-scanner-body');
       try {
-        const res = await fetch('/api/options/scanner');
-        const data = await res.json();
-        if (data.status === 'SUCCESS' && data.setups && data.setups.length > 0) {
-          rawOptionsData = data.setups;
-          renderOptionsTable(rawOptionsData);
+        const [optRes, ccRes] = await Promise.all([
+          fetch('/api/options/scanner').catch(() => null),
+          fetch('/api/options/covered-calls').catch(() => null)
+        ]);
+
+        if (ccRes && ccRes.ok) {
+          const ccJson = await ccRes.json();
+          if (ccJson.status === 'SUCCESS' && ccJson.data) {
+            rawCoveredCallsData = ccJson.data;
+            updateCoveredCallsBanner(rawCoveredCallsData);
+          }
+        }
+
+        if (optRes && optRes.ok) {
+          const optJson = await optRes.json();
+          if (optJson.status === 'SUCCESS' && optJson.setups && optJson.setups.length > 0) {
+            rawOptionsData = optJson.setups;
+          }
+        }
+
+        if (currentOptFilter === 'COVERED') {
+          renderOptionsTable(rawCoveredCallsData.setups || []);
+          if (rawCoveredCallsData.setups && rawCoveredCallsData.setups.length > 0) {
+            selectOptionsCandidate(rawCoveredCallsData.setups[0]);
+          }
+        } else if (rawOptionsData.length > 0) {
+          filterOptionsTable(currentOptFilter);
           if (!selectedOptionsTicker || !rawOptionsData.find(x => x.ticker === selectedOptionsTicker)) {
             selectOptionsCandidate(rawOptionsData[0]);
           } else {
@@ -3211,6 +3291,37 @@
       }
     }
 
+    function updateCoveredCallsBanner(data) {
+      if (!data || !data.holdings) return;
+      const amc = data.holdings.find(h => h.ticker === 'AMC');
+      if (amc) {
+        const elPrice = document.getElementById('cc-amc-price');
+        if (elPrice) elPrice.innerText = `$${amc.price.toFixed(2)}`;
+        if (amc.best_weekly) {
+          const elRec = document.getElementById('cc-amc-rec');
+          const elCash = document.getElementById('cc-amc-cash');
+          const elYield = document.getElementById('cc-amc-yield');
+          if (elRec) elRec.innerText = `SELL ${amc.best_weekly.contracts_count}x $${amc.best_weekly.strike.toFixed(2)} CALL (${amc.best_weekly.expiry})`;
+          if (elCash) elCash.innerText = `+$${amc.best_weekly.upfront_cash.toFixed(2)} CASH`;
+          if (elYield) elYield.innerText = `+${amc.best_weekly.ann_yield}% Ann. Yield`;
+        }
+      }
+
+      const nke = data.holdings.find(h => h.ticker === 'NKE');
+      if (nke) {
+        const elPrice = document.getElementById('cc-nke-price');
+        if (elPrice) elPrice.innerText = `$${nke.price.toFixed(2)}`;
+        if (nke.best_weekly) {
+          const elRec = document.getElementById('cc-nke-rec');
+          const elCash = document.getElementById('cc-nke-cash');
+          const elYield = document.getElementById('cc-nke-yield');
+          if (elRec) elRec.innerText = `SELL ${nke.best_weekly.contracts_count}x $${nke.best_weekly.strike.toFixed(2)} CALL (${nke.best_weekly.expiry})`;
+          if (elCash) elCash.innerText = `+$${nke.best_weekly.upfront_cash.toFixed(2)} CASH`;
+          if (elYield) elYield.innerText = `+${nke.best_weekly.ann_yield}% Ann. Yield`;
+        }
+      }
+    }
+
     function filterOptionsTable(filter) {
       currentOptFilter = filter;
       document.querySelectorAll('.options-filter-btn').forEach(b => {
@@ -3218,6 +3329,20 @@
       });
       const activeBtn = document.getElementById('btn-opt-' + filter.toLowerCase());
       if (activeBtn) activeBtn.classList.add('active');
+
+      const ccBanner = document.getElementById('covered-calls-banner');
+
+      if (filter === 'COVERED') {
+        if (ccBanner) ccBanner.style.display = 'flex';
+        const setups = rawCoveredCallsData.setups || [];
+        renderOptionsTable(setups);
+        if (setups.length > 0) {
+          selectOptionsCandidate(setups[0]);
+        }
+        return;
+      }
+
+      if (ccBanner) ccBanner.style.display = 'none';
 
       let filtered = rawOptionsData;
       if (filter === 'SWEET_SPOT') {
@@ -3228,14 +3353,41 @@
       renderOptionsTable(filtered);
     }
 
+    function selectCoveredCallTicker(ticker) {
+      filterOptionsTable('COVERED');
+      if (rawCoveredCallsData && rawCoveredCallsData.setups) {
+        const candidate = rawCoveredCallsData.setups.find(s => s.ticker === ticker && s.flavor === 'SWEET_SPOT') || rawCoveredCallsData.setups.find(s => s.ticker === ticker);
+        if (candidate) {
+          selectOptionsCandidate(candidate);
+        }
+      }
+      const p = document.getElementById('options-workbench-pane');
+      if (p) p.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function selectCoveredCallItem(ticker, strike, expiry) {
+      if (rawCoveredCallsData && rawCoveredCallsData.setups) {
+        const found = rawCoveredCallsData.setups.find(s => s.ticker === ticker && Math.abs(s.strike - strike) < 0.01 && s.expiry === expiry);
+        if (found) {
+          selectOptionsCandidate(found);
+          renderOptionsTable(rawCoveredCallsData.setups);
+        }
+      }
+    }
+
     function searchOptionsTable() {
       const query = (document.getElementById('opt-search-input').value || '').trim().toUpperCase();
       if (!query) {
         filterOptionsTable(currentOptFilter);
         return;
       }
-      const filtered = rawOptionsData.filter(d => d.ticker.includes(query));
-      renderOptionsTable(filtered);
+      if (currentOptFilter === 'COVERED') {
+        const filtered = (rawCoveredCallsData.setups || []).filter(d => d.ticker.includes(query));
+        renderOptionsTable(filtered);
+      } else {
+        const filtered = rawOptionsData.filter(d => d.ticker.includes(query));
+        renderOptionsTable(filtered);
+      }
     }
 
     let optionsSortField = 'confluence_score';
@@ -3265,17 +3417,17 @@
         let valB = b[optionsSortField];
 
         if (optionsSortField === 'delta') {
-          valA = a.optimal_call ? a.optimal_call.delta : 0;
-          valB = b.optimal_call ? b.optimal_call.delta : 0;
+          valA = a.optimal_call ? a.optimal_call.delta : (a.delta || 0);
+          valB = b.optimal_call ? b.optimal_call.delta : (b.delta || 0);
         } else if (optionsSortField === 'gamma') {
           valA = a.optimal_call ? a.optimal_call.gamma : 0;
           valB = b.optimal_call ? b.optimal_call.gamma : 0;
         } else if (optionsSortField === 'iv') {
-          valA = a.optimal_call ? a.optimal_call.iv : 0;
-          valB = b.optimal_call ? b.optimal_call.iv : 0;
+          valA = a.optimal_call ? a.optimal_call.iv : (a.iv || 0);
+          valB = b.optimal_call ? b.optimal_call.iv : (b.iv || 0);
         } else if (optionsSortField === 'call_strike') {
-          valA = a.optimal_call ? a.optimal_call.strike : 0;
-          valB = b.optimal_call ? b.optimal_call.strike : 0;
+          valA = a.optimal_call ? a.optimal_call.strike : (a.strike || 0);
+          valB = b.optimal_call ? b.optimal_call.strike : (b.strike || 0);
         }
 
         if (typeof valA === 'number' || typeof valB === 'number') {
@@ -3293,6 +3445,46 @@
 
       sorted.forEach(item => {
         const tr = document.createElement('tr');
+        
+        // Handle COVERED_CALL rendering
+        if (item.category === 'COVERED_CALL') {
+          const isSel = (selectedOptionsTicker === item.ticker && Math.abs(selectedOptionsStrike - item.strike) < 0.01 && selectedOptionsExpiry === item.expiry);
+          if (isSel) tr.style.backgroundColor = '#251b0a';
+
+          const call = item.optimal_call || {};
+          tr.innerHTML = `
+            <td style="cursor:pointer;" onclick="selectCoveredCallItem('${item.ticker}', ${item.strike}, '${item.expiry}')">
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <b class="c-yellow" style="font-size: 11.5px;">${item.ticker}</b>
+                <span class="strat-badge" style="background: rgba(255, 215, 0, 0.2); border: 1px solid #ffd700; color: #ffd700; font-size: 8.5px; font-weight: bold;">${item.contracts_count}x CTR (${item.shares_held} SH)</span>
+              </div>
+              <div style="font-size: 8.5px; color: #bbb;">${item.company_name}</div>
+            </td>
+            <td><b>$${item.stock_price.toFixed(2)}</b></td>
+            <td><b class="c-green">${item.confluence_score}</b></td>
+            <td style="cursor:pointer;" onclick="selectCoveredCallItem('${item.ticker}', ${item.strike}, '${item.expiry}')">
+              <span class="c-green" style="font-weight: 700;">$${item.strike.toFixed(2)}C</span>
+              <span style="font-size: 9.5px; color: #bbb;">(Mid $${item.mid.toFixed(2)})</span>
+              <div style="font-size: 8.5px; color: #888;">${item.expiry} (${item.dte}d)</div>
+            </td>
+            <td><span class="c-cyan">${item.delta.toFixed(2)}Δ</span> <div style="font-size: 8px; color: #00d26a;">${item.keep_prob}% keep</div></td>
+            <td><span class="c-yellow">${call.gamma ? call.gamma.toFixed(3) : '--'}</span></td>
+            <td>${item.iv ? item.iv.toFixed(0) + '%' : '--'}</td>
+            <td>
+              <span class="strat-badge" style="background: rgba(255, 215, 0, 0.15); border: 1px solid #ffd700; color: #ffd700; font-weight: bold;">${item.flavor_title}</span>
+              <div style="font-size: 8.5px; color: #bbb;">${item.recommended_strategy} &rarr; <b class="c-green">+${item.ann_yield}% Ann.</b></div>
+            </td>
+            <td><b class="c-green" style="font-size: 11px;">+${item.upfront_cash.toFixed(0)} CASH</b></td>
+            <td>
+              <button class="options-filter-btn" style="padding: 1px 5px; font-size: 9px; border-color: #ffd700; color: #ffd700;" onclick="selectCoveredCallItem('${item.ticker}', ${item.strike}, '${item.expiry}')">ROADMAP</button>
+              <button class="options-filter-btn" style="padding: 1px 5px; font-size: 9px; border-color: #00e5ff; color: #00e5ff;" onclick="viewChartFromOptions('${item.ticker}')">CHART</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+          return;
+        }
+
+        // Standard Wyckoff Long Setup rendering
         if (selectedOptionsTicker === item.ticker) {
           tr.style.backgroundColor = '#161320';
         }
@@ -3355,13 +3547,125 @@
     function selectOptionsCandidate(item) {
       if (!item) return;
       selectedOptionsTicker = item.ticker;
+      selectedOptionsStrike = item.strike || (item.optimal_call ? item.optimal_call.strike : null);
+      selectedOptionsExpiry = item.expiry || item.expiration;
 
       document.getElementById('wb-ticker').innerText = item.ticker;
       document.getElementById('wb-price').innerText = `$${item.stock_price.toFixed(2)}`;
-      document.getElementById('wb-expiry').innerText = `${item.expiration} (${item.dte} DTE)`;
-      document.getElementById('wb-pcr').innerText = `${item.pcr_vol || '--'}`;
+      document.getElementById('wb-expiry').innerText = `${item.expiry || item.expiration} (${item.dte} DTE)`;
+      document.getElementById('wb-pcr').innerText = `${item.pcr_vol || item.volume || '--'}`;
 
       const catBadge = document.getElementById('wb-cat-badge');
+      const statusBox = document.getElementById('wb-status-box');
+      const statusBadge = document.getElementById('wb-status-badge');
+      const statusDetail = document.getElementById('wb-status-detail');
+      const milestoneAlert = document.getElementById('wb-milestone-alert');
+      const pilotBtn = document.getElementById('wb-btn-pilot');
+
+      // --- COVERED CALL WORKBENCH RENDERING ---
+      if (item.category === 'COVERED_CALL') {
+        catBadge.innerText = `🛡️ COVERED CALL (${item.contracts_count}x CONTRACTS)`;
+        catBadge.className = 'strat-badge';
+        catBadge.style.background = 'rgba(255, 215, 0, 0.2)';
+        catBadge.style.borderColor = '#ffd700';
+        catBadge.style.color = '#ffd700';
+
+        statusBox.style.background = '#151206';
+        statusBox.style.borderColor = '#443510';
+        statusBox.style.borderLeftColor = '#ffd700';
+        statusBadge.innerHTML = `🛡️ PROTECTED LONG HOLDING (${item.shares_held} SHARES)`;
+        statusBadge.style.color = '#ffd700';
+        statusBadge.style.background = 'rgba(255, 215, 0, 0.15)';
+        statusBadge.style.borderColor = '#ffd700';
+        statusDetail.innerHTML = `Cost Basis: <b>$${item.cost_basis.toFixed(2)}</b> | Current Value: <b>$${(item.stock_price * item.shares_held).toFixed(2)}</b> | Covered Capacity: <b>${item.contracts_count} Contracts</b> (100 sh/ea)`;
+        milestoneAlert.innerHTML = `⚡ <b>INSTANT CASH CREDIT:</b> Selling ${item.contracts_count}x Call credits <b>+$${item.upfront_cash.toFixed(2)} cash</b> into buying power immediately.`;
+        milestoneAlert.style.color = 'var(--wsr-green)';
+
+        // Roadmap Steps for Covered Call
+        for (let m = 1; m <= 5; m++) {
+          const stepEl = document.getElementById(`step-ms-${m}`);
+          const tagEl = document.getElementById(`step-tag-${m}`);
+          if (!stepEl || !tagEl) continue;
+          stepEl.classList.remove('active');
+          stepEl.style.borderColor = '#222';
+          stepEl.style.borderLeftColor = '#ffd700';
+          stepEl.style.background = '#0d0d0d';
+        }
+
+        const ms = item.milestones || {};
+        if (ms.m1) {
+          const s1 = document.querySelector('#step-ms-1 .roadmap-step-header span:first-child');
+          const t1 = document.getElementById('step-tag-1');
+          const d1 = document.querySelector('#step-ms-1 div:last-child');
+          if (s1) s1.innerHTML = `<span style="color: #ffd700;">${ms.m1.title}</span>`;
+          if (t1) t1.innerHTML = `<span class="c-green" style="font-weight: 700;">${ms.m1.target}</span>`;
+          if (d1) d1.innerText = ms.m1.desc;
+        }
+        if (ms.m2) {
+          const s2 = document.querySelector('#step-ms-2 .roadmap-step-header span:first-child');
+          const t2 = document.getElementById('step-tag-2');
+          const d2 = document.querySelector('#step-ms-2 div:last-child');
+          if (s2) s2.innerHTML = `<span style="color: #00e5ff;">${ms.m2.title}</span>`;
+          if (t2) t2.innerHTML = `<span class="c-cyan" style="font-weight: 700;">FLOOR ${ms.m2.target}</span>`;
+          if (d2) d2.innerText = ms.m2.desc;
+        }
+        if (ms.m3) {
+          const s3 = document.querySelector('#step-ms-3 .roadmap-step-header span:first-child');
+          const t3 = document.getElementById('step-tag-3');
+          const d3 = document.getElementById('rm-desc-tier3');
+          if (s3) s3.innerHTML = `<span style="color: #00d26a;">${ms.m3.title}</span>`;
+          if (t3) t3.innerHTML = `<span class="c-green" style="font-weight: 700;">${ms.m3.target}</span>`;
+          if (d3) d3.innerText = ms.m3.desc;
+        }
+        if (ms.m4) {
+          const s4 = document.querySelector('#step-ms-4 .roadmap-step-header span:first-child');
+          const t4 = document.getElementById('step-tag-4');
+          const d4 = document.getElementById('rm-desc-tier4');
+          if (s4) s4.innerHTML = `<span style="color: #ff9800;">${ms.m4.title}</span>`;
+          if (t4) t4.innerHTML = `<span class="c-yellow" style="font-weight: 700;">TRIGGER ${ms.m4.target}</span>`;
+          if (d4) d4.innerText = ms.m4.desc;
+        }
+        if (ms.m5) {
+          const s5 = document.querySelector('#step-ms-5 .roadmap-step-header span:first-child');
+          const t5 = document.getElementById('step-tag-5');
+          const d5 = document.querySelector('#step-ms-5 div:last-child');
+          if (s5) s5.innerHTML = `<span style="color: #fff;">${ms.m5.title}</span>`;
+          if (t5) t5.innerHTML = `<span class="c-white" style="font-weight: 700;">${ms.m5.target}</span>`;
+          if (d5) d5.innerText = ms.m5.desc;
+        }
+
+        document.getElementById('wb-strat-name').innerText = `STRATEGY: COVERED CALL CASH HARVESTER (${item.flavor_title})`;
+        document.getElementById('wb-strat-desc').innerHTML = `${item.flavor_desc}<br>Instant upfront cash deposit: <b class="c-green">+$${item.upfront_cash.toFixed(2)}</b>. If called away at $${item.strike.toFixed(2)}, total cash delivered is <b class="c-white">$${item.called_cash.toFixed(2)}</b>.`;
+
+        // Call box
+        const call = item.optimal_call || {};
+        document.getElementById('wb-call-strike').innerText = `$${item.strike.toFixed(2)} CALL (${item.expiry})`;
+        document.getElementById('wb-call-mid').innerText = `$${item.mid.toFixed(2)}`;
+        document.getElementById('wb-call-cost').innerText = `+$${item.upfront_cash.toFixed(0)} CASH`;
+        document.getElementById('wb-call-delta').innerText = `${item.delta.toFixed(2)} (${item.keep_prob}% keep)`;
+        document.getElementById('wb-call-gamma').innerText = call.gamma ? call.gamma.toFixed(3) : '--';
+        document.getElementById('wb-call-iv').innerText = `${item.iv}%`;
+
+        // Spread box transformed into Liquidation summary
+        document.getElementById('wb-spread-strikes').innerText = `$${item.called_cash.toFixed(2)} TOTAL CASH`;
+        document.getElementById('wb-spread-debit').innerText = `$${(item.strike * item.contracts_count * 100).toFixed(0)}`;
+        document.getElementById('wb-spread-cost').innerText = `+$${item.upfront_cash.toFixed(0)} cash`;
+        const gainAboveCurrent = item.called_cash - (item.stock_price * item.contracts_count * 100);
+        document.getElementById('wb-spread-profit').innerText = `+$${gainAboveCurrent.toFixed(0)}`;
+        document.getElementById('wb-spread-ror').innerText = `+${((gainAboveCurrent / (item.stock_price * item.contracts_count * 100)) * 100).toFixed(1)}%`;
+
+        if (pilotBtn) {
+          pilotBtn.innerText = `⚡ EXECUTE COVERED CALL (${item.contracts_count}x @ $${item.mid.toFixed(2)} MID)`;
+          pilotBtn.style.borderColor = '#ffd700';
+          pilotBtn.style.color = '#ffd700';
+          pilotBtn.style.background = 'rgba(255, 215, 0, 0.15)';
+        }
+
+        simStockMove(currentSimMove);
+        return;
+      }
+
+      // --- STANDARD WYCKOFF LONG CANDIDATE RENDERING ---
       if (item.category === 'SWEET_SPOT_MIDCAP') {
         catBadge.innerText = '🎯 SWEET SPOT ($15-$75)';
         catBadge.className = 'strat-badge strat-tranche';
@@ -3370,13 +3674,7 @@
         catBadge.className = 'strat-badge strat-spread';
       }
 
-      // Update Live Trade Status Box
       const st = item.trade_status || {};
-      const statusBox = document.getElementById('wb-status-box');
-      const statusBadge = document.getElementById('wb-status-badge');
-      const statusDetail = document.getElementById('wb-status-detail');
-      const milestoneAlert = document.getElementById('wb-milestone-alert');
-
       if (st.is_active) {
         statusBox.style.background = '#09150d';
         statusBox.style.borderColor = '#1b4a24';
@@ -3401,7 +3699,6 @@
         milestoneAlert.style.color = '#666';
       }
 
-      // Update Roadmap Milestones Dynamic Highlighting
       const curMs = st.active_milestone || 0;
       for (let m = 1; m <= 5; m++) {
         const stepEl = document.getElementById(`step-ms-${m}`);
@@ -3429,7 +3726,6 @@
         }
       }
 
-      // Dynamic Wyckoff TR Ceiling & R Target Calculation for Milestone 4
       const entryP = st.entry_price || item.stock_price;
       const slP = st.stop_loss || (entryP * 0.985);
       const tpP = st.take_profit || (entryP + (Math.abs(entryP - slP) * 1.5));
@@ -3445,7 +3741,6 @@
         tag4El.innerText = `+${targetR}R (+100%)`;
       }
 
-      // Architecture Blueprint (Concentrated on 1 and 4)
       let stratTitle = '';
       if (item.category === 'SWEET_SPOT_MIDCAP' || item.recommended_strategy === 'STRATEGY_1_TRANCHE') {
         stratTitle = 'STRATEGY 1: 2-CONTRACT TRANCHE LADDER ($15-$75 MID-CAPS)';
@@ -3455,7 +3750,6 @@
       document.getElementById('wb-strat-name').innerText = stratTitle;
       document.getElementById('wb-strat-desc').innerText = item.strategy_description || '';
 
-      // Call Contract
       const call = item.optimal_call || {};
       document.getElementById('wb-call-strike').innerText = `$${call.strike ? call.strike.toFixed(2) : '--'} CALL`;
       document.getElementById('wb-call-mid').innerText = `$${call.mid ? call.mid.toFixed(2) : '0.00'}`;
@@ -3464,7 +3758,6 @@
       document.getElementById('wb-call-gamma').innerText = call.gamma ? call.gamma.toFixed(4) : '--';
       document.getElementById('wb-call-iv').innerText = call.iv ? `${call.iv.toFixed(0)}%` : '--';
 
-      // Spread Contract
       const sp = item.vertical_spread;
       if (sp) {
         document.getElementById('wb-spread-strikes').innerText = `$${sp.long_strike}C / $${sp.short_strike}C`;
@@ -3480,11 +3773,16 @@
         document.getElementById('wb-spread-ror').innerText = '--';
       }
 
-      // Hard stop loss calculation (-35% option premium)
       const stopPrice = call.mid ? (call.mid * 0.65).toFixed(2) : '--';
       document.getElementById('rm-stop-loss').innerText = stopPrice;
 
-      // Update Payoff Sim
+      if (pilotBtn) {
+        pilotBtn.innerText = '⚡ EXECUTE PILOT (2x CALLS @ MID)';
+        pilotBtn.style.borderColor = '#00d26a';
+        pilotBtn.style.color = '#00d26a';
+        pilotBtn.style.background = 'rgba(0, 210, 106, 0.15)';
+      }
+
       simStockMove(currentSimMove);
     }
 

@@ -421,3 +421,188 @@ def get_options_scanner_data(force_refresh=False):
     _OPTIONS_CACHE["data"] = results
     _OPTIONS_CACHE["timestamp"] = now
     return results
+
+_COVERED_CALLS_CACHE = {"timestamp": 0, "data": None}
+
+def get_covered_calls_scanner_data(force_refresh=False):
+    """
+    Scans real-time covered call weekly/monthly options chains for user's long holdings (AMC, NKE).
+    Calculates instant cash deposits (31x AMC, 1x NKE), keep-stock delta probability,
+    5-milestone execution roadmaps, and annualized yield.
+    """
+    global _COVERED_CALLS_CACHE
+    import time, datetime
+    import yfinance as yf
+    now = time.time()
+    if not force_refresh and _COVERED_CALLS_CACHE["data"] and (now - _COVERED_CALLS_CACHE["timestamp"] < CACHE_TTL):
+        return _COVERED_CALLS_CACHE["data"]
+
+    today = datetime.date.today()
+    configs = [
+        {"ticker": "AMC", "company": "AMC Entertainment", "shares": 3108, "contracts": 31, "cost_basis": 13.25, "strikes": [3.5, 4.0, 4.5, 5.0]},
+        {"ticker": "NKE", "company": "NIKE, Inc.", "shares": 100, "contracts": 1, "cost_basis": 67.40, "strikes": [35.5, 36.0, 37.0, 38.0, 40.0]}
+    ]
+
+    setups = []
+    holdings_summary = []
+
+    for cfg in configs:
+        sym = cfg["ticker"]
+        try:
+            t = yf.Ticker(sym)
+            price = float(t.fast_info.last_price or 0.0)
+            if price <= 0:
+                continue
+            exps = t.options[:6]
+
+            holding_val = round(price * cfg["shares"], 2)
+            total_basis = round(cfg["cost_basis"] * cfg["shares"], 2)
+            best_weekly = None
+
+            for exp in exps:
+                try:
+                    exp_date = datetime.datetime.strptime(exp, '%Y-%m-%d').date()
+                    dte = (exp_date - today).days
+                    if dte < 3 or dte > 45:
+                        continue
+                    opt = t.option_chain(exp)
+                    for s in cfg["strikes"]:
+                        c = opt.calls[opt.calls['strike'] == s]
+                        if not c.empty:
+                            r = c.iloc[0]
+                            bid = float(r.bid or 0.0)
+                            ask = float(r.ask or 0.0)
+                            mid = round((bid + ask) / 2.0, 2)
+                            last_p = float(r.lastPrice or 0.0)
+                            if mid <= 0.01 and bid == 0 and last_p == 0:
+                                continue
+                            if mid == 0 and last_p > 0:
+                                mid = last_p
+
+                            iv = float(r.impliedVolatility or 0.0)
+                            vol = int(r.volume or 0)
+                            oi = int(r.openInterest or 0)
+
+                            moneyness = price / s
+                            if moneyness >= 1.0:
+                                delta = min(0.95, round(0.50 + (moneyness - 1.0) * 2.0, 2))
+                            else:
+                                dist = (s - price) / price
+                                delta = max(0.04, round(0.50 / (1.0 + (dist * 12.0)), 2))
+
+                            if 0.14 <= delta <= 0.28:
+                                flavor = "SWEET_SPOT"
+                                flavor_title = "🛡️ SWEET SPOT (RECOMMENDED)"
+                                flavor_desc = f"Ideal ~0.20Δ balance: ~{int((1-delta)*100)}% probability to keep shares while harvesting robust weekly cash."
+                            elif delta > 0.28:
+                                flavor = "AGGRESSIVE_CASH"
+                                flavor_title = "💰 AGGRESSIVE CASH"
+                                flavor_desc = f"Near-the-money ({delta:.2f}Δ): Maximizes immediate upfront cash deposit today."
+                            else:
+                                flavor = "GROWTH_EXIT"
+                                flavor_title = "🚀 TARGET PROFIT EXIT"
+                                flavor_desc = f"Higher strike (${s:.2f}): Harvests light cash while locking in higher liquidation value."
+
+                            total_cash = round(mid * cfg["contracts"] * 100, 2)
+                            called_cash = round((s * cfg["contracts"] * 100) + total_cash, 2)
+                            port_val = price * cfg["contracts"] * 100
+                            ann_yield = round((total_cash / max(port_val, 1)) * (365 / max(dte, 1)) * 100, 1)
+                            keep_prob = int(round((1.0 - delta) * 100))
+
+                            setup_item = {
+                                "ticker": sym,
+                                "company_name": cfg["company"],
+                                "category": "COVERED_CALL",
+                                "stock_price": round(price, 2),
+                                "shares_held": cfg["shares"],
+                                "contracts_count": cfg["contracts"],
+                                "cost_basis": cfg["cost_basis"],
+                                "strike": s,
+                                "expiry": exp,
+                                "dte": dte,
+                                "bid": bid,
+                                "ask": ask,
+                                "mid": mid,
+                                "delta": delta,
+                                "iv": round(iv * 100, 1) if iv < 5.0 else round(iv, 1),
+                                "volume": vol,
+                                "open_interest": oi,
+                                "upfront_cash": total_cash,
+                                "called_cash": called_cash,
+                                "ann_yield": ann_yield,
+                                "keep_prob": keep_prob,
+                                "flavor": flavor,
+                                "flavor_title": flavor_title,
+                                "flavor_desc": flavor_desc,
+                                "confluence_score": 92 if flavor == "SWEET_SPOT" else (86 if flavor == "AGGRESSIVE_CASH" else 76),
+                                "estimated_risk": f"+${total_cash:.0f} CASH",
+                                "recommended_strategy": f"SELL {cfg['contracts']}x ${s:.2f} CALL ({exp})",
+                                "optimal_call": {
+                                    "strike": s,
+                                    "bid": bid,
+                                    "ask": ask,
+                                    "mid": mid,
+                                    "delta": delta,
+                                    "iv": round(iv * 100, 1) if iv < 5.0 else round(iv, 1),
+                                    "gamma": round(0.05 / max(price, 1), 3),
+                                    "theta": round(-mid / max(dte, 1), 3)
+                                },
+                                "milestones": {
+                                    "m1": {
+                                        "title": "MILESTONE 1: INSTANT CASH CREDIT DEPOSIT",
+                                        "desc": f"Sell to Open {cfg['contracts']}x ${s:.2f} Call at mid (${mid:.2f}). Deposit +${total_cash:.2f} cash into buying power immediately upon fill.",
+                                        "target": f"+${total_cash:.2f}"
+                                    },
+                                    "m2": {
+                                        "title": "MILESTONE 2: DOWNSIDE BREAKEVEN CUSHION",
+                                        "desc": f"Cost basis effectively reduced by ${mid:.2f}/sh. Immediate breakeven safety floor is ${price - mid:.2f}.",
+                                        "target": f"${price - mid:.2f}"
+                                    },
+                                    "m3": {
+                                        "title": "MILESTONE 3: 50% PROFIT TAKE & RE-ROLL",
+                                        "desc": f"If option price decays by 50% to ${mid*0.5:.2f} (banking +${total_cash*0.5:.2f} profit early), buy back to close and immediately re-sell next weekly cycle.",
+                                        "target": f"${mid*0.5:.2f} (50% Decay)"
+                                    },
+                                    "m4": {
+                                        "title": "MILESTONE 4: ROLL DEFENSE TRIGGER",
+                                        "desc": f"If {sym} surges toward ${s*0.96:.2f}, roll up-and-out: buy back call and sell next month's higher strike for net credit to keep 100% of shares.",
+                                        "target": f"${s*0.96:.2f}"
+                                    },
+                                    "m5": {
+                                        "title": "MILESTONE 5: ASSIGNMENT CASH LIQUIDATION",
+                                        "desc": f"If {sym} finishes above ${s:.2f} at expiration, broker delivers ${s * cfg['contracts'] * 100:.2f} share sale cash + keep ${total_cash:.2f} premium.",
+                                        "target": f"${called_cash:.2f} TOTAL CASH"
+                                    }
+                                }
+                            }
+                            setups.append(setup_item)
+                            if (flavor == "SWEET_SPOT" and (not best_weekly or dte < best_weekly["dte"])) or not best_weekly:
+                                best_weekly = setup_item
+                except Exception:
+                    pass
+
+            holdings_summary.append({
+                "ticker": sym,
+                "company": cfg["company"],
+                "shares": cfg["shares"],
+                "contracts": cfg["contracts"],
+                "cost_basis": cfg["cost_basis"],
+                "price": round(price, 2),
+                "holding_val": holding_val,
+                "total_basis": total_basis,
+                "unrealized_pnl": round(holding_val - total_basis, 2),
+                "unrealized_pct": round(((holding_val - total_basis) / max(total_basis, 1)) * 100, 1),
+                "best_weekly": best_weekly
+            })
+        except Exception as e:
+            print(f"Error scanning covered calls for {sym}: {e}")
+
+    result_data = {
+        "holdings": holdings_summary,
+        "setups": setups,
+        "timestamp": now
+    }
+    _COVERED_CALLS_CACHE["data"] = result_data
+    _COVERED_CALLS_CACHE["timestamp"] = now
+    return result_data
+
