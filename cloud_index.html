@@ -1019,6 +1019,20 @@
         </div>
       </div>
       <div class="pane-content">
+        <!-- 5M Queue Interactive Filter & Search Bar -->
+        <div id="queue-filter-toolbar" style="display: none; padding: 4px 8px; background: rgba(0,0,0,0.5); border-bottom: 1px solid #222; align-items: center; justify-content: space-between; gap: 4px; font-size: 10px; flex-wrap: wrap;">
+          <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
+            <span style="font-size: 9px; color: #888; font-weight: bold;">FILTER:</span>
+            <button class="term-btn q-flt-btn active-tf" data-qflt="ALL" onclick="setQueueFilterStatus('ALL')">ALL</button>
+            <button class="term-btn q-flt-btn" data-qflt="HOT" onclick="setQueueFilterStatus('HOT')" style="color: #00ff88; border-color: rgba(0,255,136,0.3);">🔥 HOT</button>
+            <button class="term-btn q-flt-btn" data-qflt="TEST" onclick="setQueueFilterStatus('TEST')" style="color: #ffd700; border-color: rgba(255,215,0,0.3);">🛡️ TESTS</button>
+            <button class="term-btn q-flt-btn" data-qflt="ANCHOR" onclick="setQueueFilterStatus('ANCHOR')" style="color: #00d2ff; border-color: rgba(0,210,255,0.3);">💎 ANCHORS</button>
+            <button class="term-btn q-flt-btn" data-qflt="CHOP" onclick="setQueueFilterStatus('CHOP')" style="color: #ff4444; border-color: rgba(255,68,68,0.3);">⚠️ CHOP</button>
+          </div>
+          <div style="display: flex; gap: 4px; align-items: center;">
+            <input type="text" id="queue-sym-filter" placeholder="FILTER SYM..." oninput="setQueueSearchQuery(this.value)" style="background: #111; border: 1px solid #333; color: #fff; font-size: 9px; padding: 2px 6px; border-radius: 3px; width: 85px; text-transform: uppercase;">
+          </div>
+        </div>
         <table id="tbl-scanner">
           <thead id="tbl-scanner-thead">
             <tr>
@@ -1082,11 +1096,11 @@
         <table id="tbl-history">
           <thead>
             <tr>
-              <th>SYM</th>
-              <th>DIR</th>
-              <th>TF</th>
-              <th>RESULT</th>
-              <th>RETURN</th>
+              <th style="cursor: pointer; user-select: none;" onclick="sortHistory('ticker')">SYM <span id="th-hist-ticker">&#x25B4;&#x25BE;</span></th>
+              <th style="cursor: pointer; user-select: none;" onclick="sortHistory('direction')">DIR <span id="th-hist-dir">&#x25B4;&#x25BE;</span></th>
+              <th style="cursor: pointer; user-select: none;" onclick="sortHistory('timeframe')">TF <span id="th-hist-tf">&#x25B4;&#x25BE;</span></th>
+              <th style="cursor: pointer; user-select: none;" onclick="sortHistory('outcome')">RESULT <span id="th-hist-outcome">&#x25B4;&#x25BE;</span></th>
+              <th style="cursor: pointer; user-select: none;" onclick="sortHistory('pnl_r')">RETURN <span id="th-hist-pnl">&#x25B4;&#x25BE;</span></th>
             </tr>
           </thead>
           <tbody>
@@ -1310,15 +1324,15 @@
         <table id="tbl-ml-history">
           <thead>
             <tr>
-              <th>VERSION</th>
-              <th>TIMESTAMP</th>
-              <th>SAMPLES</th>
-              <th>PRE-TRAIN WIN%</th>
-              <th>MODEL FIT</th>
+              <th style="cursor: pointer; user-select: none;" onclick="sortMLHistory('version')">VERSION <span id="th-ml-version">&#x25B4;&#x25BE;</span></th>
+              <th style="cursor: pointer; user-select: none;" onclick="sortMLHistory('timestamp')">TIMESTAMP <span id="th-ml-time">&#x25B4;&#x25BE;</span></th>
+              <th style="cursor: pointer; user-select: none;" onclick="sortMLHistory('training_samples')">SAMPLES <span id="th-ml-samples">&#x25B4;&#x25BE;</span></th>
+              <th style="cursor: pointer; user-select: none;" onclick="sortMLHistory('win_rate_before')">PRE-TRAIN WIN% <span id="th-ml-prewin">&#x25B4;&#x25BE;</span></th>
+              <th style="cursor: pointer; user-select: none;" onclick="sortMLHistory('model_accuracy')">MODEL FIT <span id="th-ml-fit">&#x25B4;&#x25BE;</span></th>
               <th>TOP DECISIVE FACTOR</th>
               <th>TRIGGER EVENT</th>
-              <th>REALIZED WIN%</th>
-              <th>NET R</th>
+              <th style="cursor: pointer; user-select: none;" onclick="sortMLHistory('realized_win_rate')">REALIZED WIN% <span id="th-ml-win">&#x25B4;&#x25BE;</span></th>
+              <th style="cursor: pointer; user-select: none;" onclick="sortMLHistory('realized_net_r')">NET R <span id="th-ml-netr">&#x25B4;&#x25BE;</span></th>
               <th>STATUS</th>
             </tr>
           </thead>
@@ -1370,15 +1384,84 @@
 
     <!-- FILTER & ACTION TOOLBAR -->
     <div class="options-toolbar">
-      <div style="display: flex; gap: 6px; align-items: center;">
+      <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
         <span style="font-weight: 700; color: #a855f7; margin-right: 4px;">⚡ OPTIONS SCANNER</span>
         <button class="options-filter-btn active" id="btn-opt-all" onclick="filterOptionsTable('ALL')">ALL SETUPS</button>
         <button class="options-filter-btn" id="btn-opt-sweet_spot" onclick="filterOptionsTable('SWEET_SPOT')">🎯 STRATEGY 1: SWEET SPOT 2x CALLS ($15-$75)</button>
         <button class="options-filter-btn" id="btn-opt-megacap" onclick="filterOptionsTable('MEGACAP')">⚖️ STRATEGY 4: MEGA-CAP 2x SPREADS ($75+)</button>
+        <button class="options-filter-btn" id="btn-opt-covered" onclick="filterOptionsTable('COVERED')" style="border-color: #ffd700; color: #ffd700;">🛡️ COVERED CALLS: AMC &amp; NKE (WEEKLY HARVEST)</button>
       </div>
       <div style="display: flex; gap: 8px; align-items: center;">
         <input type="text" id="opt-search-input" placeholder="SEARCH TICKER..." oninput="searchOptionsTable()" style="background: #111; border: 1px solid #333; color: #fff; padding: 2px 6px; font-family: inherit; font-size: 10px; width: 130px; text-transform: uppercase;" />
         <button class="options-filter-btn" onclick="fetchOptionsScanner()" style="border-color: #00d26a; color: #00d26a;">⚡ REFRESH GREEKS</button>
+      </div>
+    </div>
+
+    <!-- COVERED CALLS PORTFOLIO HARVESTER BANNER -->
+    <div id="covered-calls-banner" style="display: none; background: #121008; border-bottom: 2px solid #ffd700; padding: 10px 14px; gap: 10px; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 13px; font-weight: 800; color: #ffd700; letter-spacing: 0.5px;">🛡️ COVERED CALL INCOME ENGINE // LONG PORTFOLIO CASH HARVEST</span>
+          <span style="font-size: 9.5px; background: rgba(255, 215, 0, 0.15); border: 1px solid #ffd700; color: #ffd700; padding: 1px 6px; font-weight: 700; border-radius: 2px;">AGGRESSIVE WEEKLY REINVESTMENT</span>
+        </div>
+        <div style="font-size: 10.5px; color: #aaa;">
+          Estimated Annual Cash Generation: <b class="c-green" style="font-size: 12px;" id="cc-total-annual-cash">+$4,250 – $5,000 / YEAR</b>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <!-- AMC ASSET CARD -->
+        <div id="cc-card-amc" style="background: #18150c; border: 1px solid #443510; border-left: 4px solid #ffd700; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <b class="c-yellow" style="font-size: 13px;">AMC ENTERTAINMENT (AMC)</b>
+              <span class="strat-badge" style="background: rgba(255, 215, 0, 0.2); border: 1px solid #ffd700; color: #ffd700; font-size: 9px; font-weight: bold;">31 CONTRACTS AVAILABLE</span>
+            </div>
+            <div style="font-size: 10px; color: #bbb; margin-top: 3px;">
+              Holdings: <b>3,108 Shares</b> ($9,510 value) | Cost Basis: <b>$13.25</b> | Current: <b id="cc-amc-price">$3.06</b>
+            </div>
+            <div style="font-size: 10.5px; color: #eee; margin-top: 4px;">
+              Recommended Weekly: <span class="c-green" style="font-weight: 700;" id="cc-amc-rec">SELL 31x $3.50 CALL (Oct 23)</span>
+              &rarr; <b class="c-green" id="cc-amc-cash">+$155.00 CASH</b> (<span id="cc-amc-yield">+65.3% Ann. Yield</span>)
+            </div>
+            <!-- FLOW & MAX PAIN GRAVITY STRIP -->
+            <div id="cc-amc-flow-intel" style="font-size: 9.5px; color: #aaa; margin-top: 5px; padding-top: 4px; border-top: 1px dashed #332709; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+              <span>🧲 MAX PAIN: <b class="c-yellow" id="cc-amc-mp">$2.50</b> (<span id="cc-amc-mp-pull" class="c-red">-$0.56 / -17.8% gravity pull</span>)</span>
+              <span>• P/C RATIO: <b class="c-green" id="cc-amc-pcr">0.37 (43.3k Calls vs 16.2k Puts)</b></span>
+              <span>• MM PIN ZONE: <b class="c-white" id="cc-amc-pin">$2.50 - $3.00</b></span>
+              <span class="strat-badge" style="background: rgba(0, 210, 106, 0.15); border: 1px solid #00d26a; color: #00d26a; font-size: 8.5px; padding: 0 4px;">⚡ ALGO: $3.50+ SHELTERED ABOVE PIN WALL</span>
+            </div>
+          </div>
+          <div>
+            <button class="options-filter-btn" onclick="selectCoveredCallTicker('AMC')" style="border-color: #ffd700; color: #ffd700; background: rgba(255, 215, 0, 0.1); padding: 5px 12px; font-weight: bold;">⚡ LOAD AMC ROADMAP</button>
+          </div>
+        </div>
+
+        <!-- NKE ASSET CARD -->
+        <div id="cc-card-nke" style="background: #18150c; border: 1px solid #443510; border-left: 4px solid #00e5ff; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <b class="c-cyan" style="font-size: 13px;">NIKE, INC. (NKE)</b>
+              <span class="strat-badge" style="background: rgba(0, 229, 255, 0.2); border: 1px solid #00e5ff; color: #00e5ff; font-size: 9px; font-weight: bold;">1 CONTRACT AVAILABLE (100 SH)</span>
+            </div>
+            <div style="font-size: 10px; color: #bbb; margin-top: 3px;">
+              Holdings: <b>99.12 &rarr; 100 Shares</b> ($3,540 value) | Cost Basis: <b>$67.40</b> | Current: <b id="cc-nke-price">$35.40</b>
+            </div>
+            <div style="font-size: 10.5px; color: #eee; margin-top: 4px;">
+              Recommended Weekly: <span class="c-green" style="font-weight: 700;" id="cc-nke-rec">SELL 1x $37.00 CALL (Oct 23)</span>
+              &rarr; <b class="c-green" id="cc-nke-cash">+$28.00 CASH</b> (<span id="cc-nke-yield">+28.9% Ann. Yield</span>)
+            </div>
+            <!-- FLOW & MAX PAIN GRAVITY STRIP -->
+            <div id="cc-nke-flow-intel" style="font-size: 9.5px; color: #aaa; margin-top: 5px; padding-top: 4px; border-top: 1px dashed #332709; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+              <span>🧲 MAX PAIN: <b class="c-cyan" id="cc-nke-mp">$35.00</b> (<span id="cc-nke-mp-pull" class="c-muted">Near Spot</span>)</span>
+              <span>• P/C RATIO: <b class="c-white" id="cc-nke-pcr">0.85 (Neutral)</b></span>
+              <span>• MM PIN ZONE: <b class="c-white" id="cc-nke-pin">$35.00 - $37.00</b></span>
+              <span class="strat-badge" style="background: rgba(0, 229, 255, 0.15); border: 1px solid #00e5ff; color: #00e5ff; font-size: 8.5px; padding: 0 4px;">⚡ ALGO: $37.00+ SWEET SPOT</span>
+            </div>
+          </div>
+          <div>
+            <button class="options-filter-btn" onclick="selectCoveredCallTicker('NKE')" style="border-color: #00e5ff; color: #00e5ff; background: rgba(0, 229, 255, 0.1); padding: 5px 12px; font-weight: bold;">⚡ LOAD NKE ROADMAP</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1448,6 +1531,27 @@
           <div id="wb-strat-name" style="font-size: 12px; font-weight: 700; color: #c084fc; margin-top: 2px;">STRATEGY 1: 2-CONTRACT TRANCHE LADDER</div>
           <div id="wb-strat-desc" style="font-size: 10px; color: #ccc; margin-top: 4px; line-height: 1.3;">
             2x Contracts. Sell Tranche 1 @ 50% target to lock BE $0.00, ride Tranche 2 to target.
+          </div>
+        </div>
+
+        <!-- INSTITUTIONAL FLOW & MAX PAIN GRAVITY INTEL CARD (DYNAMIC) -->
+        <div id="wb-max-pain-box" style="display: none; background: #161208; border: 1px solid #4d3c11; border-left: 3px solid #ffd700; padding: 8px 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 9.5px; color: #ffd700; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">🧲 INSTITUTIONAL FLOW &amp; MAX PAIN GRAVITY</span>
+            <span id="wb-mp-badge" style="font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 2px; background: rgba(0, 210, 106, 0.15); border: 1px solid #00d26a; color: #00d26a;">🛡️ SHELTERED ABOVE PIN</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 5px;">
+            <div style="font-size: 10px; color: #ccc;">
+              Max Pain: <b class="c-yellow" id="wb-mp-val">$2.50</b> | Gamma Wall: <b class="c-cyan" id="wb-gw-val">$2.50</b><br>
+              Pin Gravity Pull: <b id="wb-mp-pull" class="c-red">-$0.54 (-17.8%)</b>
+            </div>
+            <div style="font-size: 10px; color: #ccc;">
+              P/C Ratio: <b class="c-green" id="wb-mp-pcr">0.37 (BULLISH SKEW)</b><br>
+              Call OI: <b class="c-white" id="wb-mp-calloi">43,294</b> vs Put: <b class="c-muted" id="wb-mp-putoi">16,220</b>
+            </div>
+          </div>
+          <div id="wb-mp-explanation" style="font-size: 9.5px; color: #ddd; margin-top: 5px; line-height: 1.35; background: #0c0a05; padding: 5px 8px; border-radius: 2px; border: 1px solid #2a220b;">
+            Institutions face massive losses if AMC stays above $3.00 due to 43,294 open calls. Market makers typically short stock and dump inventory to pin between $2.50–$3.00 toward Friday expiration. Your selected strike sits safely outside this pin zone, allowing Max Pain gravity to crush the option into rapid 50% decay profit!
           </div>
         </div>
 
@@ -1964,6 +2068,31 @@
       renderScannerTable();
     }
 
+    let queueSortField = 'status';
+    let queueSortAsc = true;
+    let queueFilterStatus = 'ALL';
+    let queueSearchQuery = '';
+
+    function sortQueue(field) {
+      if (queueSortField === field) {
+        queueSortAsc = !queueSortAsc;
+      } else {
+        queueSortField = field;
+        queueSortAsc = true;
+      }
+      renderScannerTable();
+    }
+
+    function setQueueFilterStatus(status) {
+      queueFilterStatus = status;
+      renderScannerTable();
+    }
+
+    function setQueueSearchQuery(q) {
+      queueSearchQuery = (q || '').trim().toUpperCase();
+      renderScannerTable();
+    }
+
     function sortScanner(field) {
       if (currentSortField === field) {
         sortAsc = !sortAsc;
@@ -2024,24 +2153,98 @@
       scanTbody.innerHTML = '';
 
       const theadEl = document.getElementById('tbl-scanner-thead');
+      const queueToolbar = document.getElementById('queue-filter-toolbar');
 
       // --- DYNAMIC 5M QUEUE / CHOPPING BLOCK VIEW ---
       if (activeTFFilter === 'QUEUE') {
+        if (queueToolbar) queueToolbar.style.display = 'flex';
+
         if (theadEl) {
+          const arrowTicker = queueSortField === 'ticker' ? (queueSortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
+          const arrowStatus = queueSortField === 'status' ? (queueSortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
+          const arrowPrice = queueSortField === 'price' ? (queueSortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
+          const arrowDist = queueSortField === 'dist_boundary_pct' ? (queueSortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
+          const arrowRegime = queueSortField === 'bars_in_regime' ? (queueSortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
+
           theadEl.innerHTML = `
             <tr>
-              <th>SYM</th>
-              <th>5M RADAR STATUS</th>
-              <th>PRICE</th>
-              <th>BOUNDARY PROXIMITY</th>
-              <th>REGIME / CHOP</th>
-              <th>VIEW</th>
+              <th style="cursor: pointer; user-select: none;" onclick="sortQueue('ticker')">SYM <span style="font-size: 9px; color: ${queueSortField === 'ticker' ? '#00e5ff' : '#666'};">${arrowTicker}</span></th>
+              <th style="cursor: pointer; user-select: none;" onclick="sortQueue('status')">5M RADAR STATUS <span style="font-size: 9px; color: ${queueSortField === 'status' ? '#00e5ff' : '#666'};">${arrowStatus}</span></th>
+              <th style="cursor: pointer; user-select: none;" onclick="sortQueue('price')">PRICE <span style="font-size: 9px; color: ${queueSortField === 'price' ? '#00e5ff' : '#666'};">${arrowPrice}</span></th>
+              <th style="cursor: pointer; user-select: none;" onclick="sortQueue('dist_boundary_pct')">BOUNDARY PROXIMITY <span style="font-size: 9px; color: ${queueSortField === 'dist_boundary_pct' ? '#00e5ff' : '#666'};">${arrowDist}</span></th>
+              <th style="cursor: pointer; user-select: none;" onclick="sortQueue('bars_in_regime')">REGIME / CHOP <span style="font-size: 9px; color: ${queueSortField === 'bars_in_regime' ? '#00e5ff' : '#666'};">${arrowRegime}</span></th>
+              <th style="text-align: center;">VIEW</th>
             </tr>
           `;
         }
 
-        if (rawPriorityQueueData && rawPriorityQueueData.length > 0) {
-          rawPriorityQueueData.forEach(item => {
+        let queueList = [...(rawPriorityQueueData || [])];
+
+        // 1. Status Filter
+        if (queueFilterStatus === 'HOT') {
+          queueList = queueList.filter(item => item.status === 'HOT_SPRING' || item.status === 'HOT_UTAD');
+        } else if (queueFilterStatus === 'TEST') {
+          queueList = queueList.filter(item => item.status === 'TEST_SUPPORT' || item.status === 'TEST_RESIST');
+        } else if (queueFilterStatus === 'ANCHOR') {
+          queueList = queueList.filter(item => item.status === 'ANCHOR_MONITOR');
+        } else if (queueFilterStatus === 'CHOP') {
+          queueList = queueList.filter(item => item.status === 'CHOPPING_BLOCK');
+        }
+
+        // 2. Search Query Filter
+        if (queueSearchQuery) {
+          queueList = queueList.filter(item => (item.ticker || '').toUpperCase().includes(queueSearchQuery));
+        }
+
+        // 3. Sorting
+        const STATUS_RANK = {
+          'HOT_SPRING': 1,
+          'HOT_UTAD': 2,
+          'TEST_SUPPORT': 3,
+          'TEST_RESIST': 4,
+          'ANCHOR_MONITOR': 5,
+          'MONITORING': 6,
+          'CHOPPING_BLOCK': 7
+        };
+
+        queueList.sort((a, b) => {
+          if (queueSortField === 'ticker') {
+            let tA = (a.ticker || '').toLowerCase();
+            let tB = (b.ticker || '').toLowerCase();
+            if (tA < tB) return queueSortAsc ? -1 : 1;
+            if (tA > tB) return queueSortAsc ? 1 : -1;
+            return 0;
+          } else if (queueSortField === 'status') {
+            let rA = STATUS_RANK[a.status] || 99;
+            let rB = STATUS_RANK[b.status] || 99;
+            return queueSortAsc ? rA - rB : rB - rA;
+          } else if (queueSortField === 'price') {
+            let pA = parseFloat(a.price || 0);
+            let pB = parseFloat(b.price || 0);
+            return queueSortAsc ? pA - pB : pB - pA;
+          } else if (queueSortField === 'dist_boundary_pct') {
+            let dA = parseFloat(a.dist_boundary_pct !== undefined && a.dist_boundary_pct !== null ? a.dist_boundary_pct : 999);
+            let dB = parseFloat(b.dist_boundary_pct !== undefined && b.dist_boundary_pct !== null ? b.dist_boundary_pct : 999);
+            return queueSortAsc ? dA - dB : dB - dA;
+          } else if (queueSortField === 'bars_in_regime') {
+            let bA = a.status === 'CHOPPING_BLOCK' ? (a.chop_cycles || 0) : (a.bars_in_regime || 0);
+            let bB = b.status === 'CHOPPING_BLOCK' ? (b.chop_cycles || 0) : (b.bars_in_regime || 0);
+            return queueSortAsc ? bA - bB : bB - bA;
+          }
+          return 0;
+        });
+
+        // Update button active state
+        document.querySelectorAll('.q-flt-btn').forEach(btn => {
+          if (btn.getAttribute('data-qflt') === queueFilterStatus) {
+            btn.classList.add('active-tf');
+          } else {
+            btn.classList.remove('active-tf');
+          }
+        });
+
+        if (queueList && queueList.length > 0) {
+          queueList.forEach(item => {
             let statusBadge = '';
             let rowStyle = '';
             if (item.status === 'HOT_SPRING') {
@@ -2095,21 +2298,29 @@
             scanTbody.appendChild(tr);
           });
         } else {
-          scanTbody.innerHTML = `<tr><td colspan="6" class="c-muted" style="text-align: center; padding: 14px;">⚡ 5M Priority Queue initializing... (~120-150 tickers stream on 5M close)</td></tr>`;
+          scanTbody.innerHTML = `<tr><td colspan="6" class="c-muted" style="text-align: center; padding: 14px;">${rawPriorityQueueData && rawPriorityQueueData.length > 0 ? 'No tickers match filter criteria' : '⚡ 5M Priority Queue initializing... (~120-150 tickers stream on 5M close)'}</td></tr>`;
         }
         return;
       }
 
       // --- STANDARD SCANNER RADAR VIEW ---
+      if (queueToolbar) queueToolbar.style.display = 'none';
+
       if (theadEl) {
+        const arrowTicker = currentSortField === 'ticker' ? (sortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
+        const arrowDir = currentSortField === 'direction' ? (sortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
+        const arrowEntry = currentSortField === 'entry_price' ? (sortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
+        const arrowTf = currentSortField === 'timeframe' ? (sortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
+        const arrowTime = currentSortField === 'timestamp' ? (sortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
+
         theadEl.innerHTML = `
           <tr>
-            <th onclick="sortScanner('ticker')">SYM &#x25B4;&#x25BE;</th>
-            <th onclick="sortScanner('direction')">SETUP &#x25B4;&#x25BE;</th>
-            <th onclick="sortScanner('entry_price')">ENTRY &#x25B4;&#x25BE;</th>
-            <th onclick="sortScanner('timeframe')">TF &#x25B4;&#x25BE;</th>
-            <th onclick="sortScanner('timestamp')">SIGNAL TIME (EST) &#x25B4;&#x25BE;</th>
-            <th>TRADE</th>
+            <th style="cursor: pointer; user-select: none;" onclick="sortScanner('ticker')">SYM <span style="font-size: 9px; color: ${currentSortField === 'ticker' ? '#00e5ff' : '#666'};">${arrowTicker}</span></th>
+            <th style="cursor: pointer; user-select: none;" onclick="sortScanner('direction')">SETUP <span style="font-size: 9px; color: ${currentSortField === 'direction' ? '#00e5ff' : '#666'};">${arrowDir}</span></th>
+            <th style="cursor: pointer; user-select: none;" onclick="sortScanner('entry_price')">ENTRY <span style="font-size: 9px; color: ${currentSortField === 'entry_price' ? '#00e5ff' : '#666'};">${arrowEntry}</span></th>
+            <th style="cursor: pointer; user-select: none;" onclick="sortScanner('timeframe')">TF <span style="font-size: 9px; color: ${currentSortField === 'timeframe' ? '#00e5ff' : '#666'};">${arrowTf}</span></th>
+            <th style="cursor: pointer; user-select: none;" onclick="sortScanner('timestamp')">SIGNAL TIME (EST) <span style="font-size: 9px; color: ${currentSortField === 'timestamp' ? '#00e5ff' : '#666'};">${arrowTime}</span></th>
+            <th style="text-align: center;">TRADE</th>
           </tr>
         `;
       }
@@ -2740,25 +2951,76 @@
         renderScannerTable();
 
         // Audit History Table
-        const histTbody = document.querySelector('#tbl-history tbody');
-        histTbody.innerHTML = '';
-        if (data.history && data.history.length > 0) {
-          data.history.forEach(h => {
-            const tr = document.createElement('tr');
-            const color = h.outcome === 'WIN' ? 'c-green' : (h.outcome === 'BREAKEVEN' ? 'c-yellow' : 'c-red');
-            const tf = (h.timeframe || '5m').toUpperCase();
-            tr.innerHTML = `
-              <td class="c-cyan" style="cursor:pointer;" onclick="selectTicker('${h.ticker}', '${h.timeframe || '5m'}')"><b>${h.ticker}</b></td>
-              <td>${h.direction}</td>
-              <td><b class="c-yellow">${tf}</b></td>
-              <td class="${color}">${h.outcome}</td>
-              <td class="${color}">${h.pnl_r ? (h.pnl_r >= 0 ? '+' : '') + h.pnl_r.toFixed(1) + 'R' : '--'}</td>
-            `;
-            histTbody.appendChild(tr);
-          });
-        }
+        rawHistoryData = data.history || [];
+        renderHistoryTable();
       } catch (e) {
         console.error("State refresh error:", e);
+      }
+    }
+
+    let historySortField = 'timestamp';
+    let historySortAsc = false;
+    let rawHistoryData = [];
+
+    function sortHistory(field) {
+      if (historySortField === field) {
+        historySortAsc = !historySortAsc;
+      } else {
+        historySortField = field;
+        historySortAsc = true;
+      }
+      renderHistoryTable();
+    }
+
+    function renderHistoryTable() {
+      const histTbody = document.querySelector('#tbl-history tbody');
+      if (!histTbody) return;
+      histTbody.innerHTML = '';
+
+      const thTicker = document.getElementById('th-hist-ticker');
+      const thDir = document.getElementById('th-hist-dir');
+      const thTf = document.getElementById('th-hist-tf');
+      const thOutcome = document.getElementById('th-hist-outcome');
+      const thPnl = document.getElementById('th-hist-pnl');
+
+      if (thTicker) thTicker.innerHTML = historySortField === 'ticker' ? (historySortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
+      if (thDir) thDir.innerHTML = historySortField === 'direction' ? (historySortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
+      if (thTf) thTf.innerHTML = historySortField === 'timeframe' ? (historySortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
+      if (thOutcome) thOutcome.innerHTML = historySortField === 'outcome' ? (historySortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
+      if (thPnl) thPnl.innerHTML = historySortField === 'pnl_r' ? (historySortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
+
+      let list = [...rawHistoryData];
+      list.sort((a, b) => {
+        let valA = a[historySortField];
+        let valB = b[historySortField];
+        if (historySortField === 'pnl_r') {
+          valA = parseFloat(valA || 0);
+          valB = parseFloat(valB || 0);
+          return historySortAsc ? valA - valB : valB - valA;
+        }
+        valA = (valA || '').toString().toLowerCase();
+        valB = (valB || '').toString().toLowerCase();
+        if (valA < valB) return historySortAsc ? -1 : 1;
+        if (valA > valB) return historySortAsc ? 1 : -1;
+        return 0;
+      });
+
+      if (list.length > 0) {
+        list.forEach(h => {
+          const tr = document.createElement('tr');
+          const color = h.outcome === 'WIN' ? 'c-green' : (h.outcome === 'BREAKEVEN' ? 'c-yellow' : 'c-red');
+          const tf = (h.timeframe || '5m').toUpperCase();
+          tr.innerHTML = `
+            <td class="c-cyan" style="cursor:pointer;" onclick="selectTicker('${h.ticker}', '${h.timeframe || '5m'}')"><b>${h.ticker}</b></td>
+            <td>${h.direction}</td>
+            <td><b class="c-yellow">${tf}</b></td>
+            <td class="${color}">${h.outcome}</td>
+            <td class="${color}">${h.pnl_r ? (h.pnl_r >= 0 ? '+' : '') + h.pnl_r.toFixed(1) + 'R' : '--'}</td>
+          `;
+          histTbody.appendChild(tr);
+        });
+      } else {
+        histTbody.innerHTML = '<tr><td colspan="5" class="c-muted">No trade history recorded yet</td></tr>';
       }
     }
 
@@ -3086,37 +3348,94 @@
         });
 
         // Render version history table
-        const tbody = document.getElementById('tbl-ml-history-body');
-        tbody.innerHTML = '';
-        (data.history || []).forEach(h => {
-          const tr = document.createElement('tr');
-          const isChamp = h.version === champ.version;
-          const statusBadge = isChamp 
-            ? '<span style="color:var(--wsr-yellow); font-weight:700;">★ CHAMPION</span>' 
-            : (h.status === 'DECOMMISSIONED' ? '<span class="c-muted">RETIRED</span>' : '<span class="c-green">ACTIVE</span>');
-          
-          const timeStr = h.timestamp ? h.timestamp.replace('T', ' ').substring(0, 16) : '--';
-          const netR = h.realized_net_r !== undefined ? (h.realized_net_r >= 0 ? '+' : '') + h.realized_net_r.toFixed(2) + 'R' : '0.00R';
-          const winPct = h.realized_win_rate !== undefined ? `${h.realized_win_rate}%` : '--';
-
-          tr.innerHTML = `
-            <td class="c-yellow"><b>${h.version}</b></td>
-            <td class="c-muted">${timeStr}</td>
-            <td>${h.training_samples}</td>
-            <td>${h.win_rate_before}%</td>
-            <td class="c-green">${h.model_accuracy}%</td>
-            <td class="c-white">${h.top_feature || '--'}</td>
-            <td class="c-dim">${h.notes || 'Automated'}</td>
-            <td class="c-green">${winPct}</td>
-            <td class="${(h.realized_net_r || 0) >= 0 ? 'c-green' : 'c-red'}">${netR}</td>
-            <td>${statusBadge}</td>
-          `;
-          tbody.appendChild(tr);
-        });
+        rawMLHistoryData = data.history || [];
+        rawMLChamp = champ;
+        renderMLHistoryTable();
 
       } catch (err) {
         console.error("Error fetching ML overview:", err);
       }
+    }
+
+    let mlHistorySortField = 'timestamp';
+    let mlHistorySortAsc = false;
+    let rawMLHistoryData = [];
+    let rawMLChamp = {};
+
+    function sortMLHistory(field) {
+      if (mlHistorySortField === field) {
+        mlHistorySortAsc = !mlHistorySortAsc;
+      } else {
+        mlHistorySortField = field;
+        mlHistorySortAsc = true;
+      }
+      renderMLHistoryTable();
+    }
+
+    function renderMLHistoryTable() {
+      const tbody = document.getElementById('tbl-ml-history-body');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      ['version', 'time', 'samples', 'prewin', 'fit', 'win', 'netr'].forEach(k => {
+        const el = document.getElementById('th-ml-' + k);
+        if (el) el.innerHTML = '&#x25B4;&#x25BE;';
+      });
+      const fieldMap = {
+        'version': 'version',
+        'timestamp': 'time',
+        'training_samples': 'samples',
+        'win_rate_before': 'prewin',
+        'model_accuracy': 'fit',
+        'realized_win_rate': 'win',
+        'realized_net_r': 'netr'
+      };
+      if (fieldMap[mlHistorySortField]) {
+        const activeEl = document.getElementById('th-ml-' + fieldMap[mlHistorySortField]);
+        if (activeEl) activeEl.innerHTML = mlHistorySortAsc ? '▲' : '▼';
+      }
+
+      let list = [...rawMLHistoryData];
+      list.sort((a, b) => {
+        let valA = a[mlHistorySortField];
+        let valB = b[mlHistorySortField];
+        if (['training_samples', 'win_rate_before', 'model_accuracy', 'realized_win_rate', 'realized_net_r'].includes(mlHistorySortField)) {
+          valA = parseFloat(valA || 0);
+          valB = parseFloat(valB || 0);
+          return mlHistorySortAsc ? valA - valB : valB - valA;
+        }
+        valA = (valA || '').toString().toLowerCase();
+        valB = (valB || '').toString().toLowerCase();
+        if (valA < valB) return mlHistorySortAsc ? -1 : 1;
+        if (valA > valB) return mlHistorySortAsc ? 1 : -1;
+        return 0;
+      });
+
+      list.forEach(h => {
+        const tr = document.createElement('tr');
+        const isChamp = rawMLChamp && h.version === rawMLChamp.version;
+        const statusBadge = isChamp 
+          ? '<span style="color:var(--wsr-yellow); font-weight:700;">★ CHAMPION</span>' 
+          : (h.status === 'DECOMMISSIONED' ? '<span class="c-muted">RETIRED</span>' : '<span class="c-green">ACTIVE</span>');
+        
+        const timeStr = h.timestamp ? h.timestamp.replace('T', ' ').substring(0, 16) : '--';
+        const netR = h.realized_net_r !== undefined ? (h.realized_net_r >= 0 ? '+' : '') + h.realized_net_r.toFixed(2) + 'R' : '0.00R';
+        const winPct = h.realized_win_rate !== undefined ? `${h.realized_win_rate}%` : '--';
+
+        tr.innerHTML = `
+          <td class="c-yellow"><b>${h.version}</b></td>
+          <td class="c-muted">${timeStr}</td>
+          <td>${h.training_samples}</td>
+          <td>${h.win_rate_before}%</td>
+          <td class="c-green">${h.model_accuracy}%</td>
+          <td class="c-white">${h.top_feature || '--'}</td>
+          <td class="c-dim">${h.notes || 'Automated'}</td>
+          <td class="c-green">${winPct}</td>
+          <td class="${(h.realized_net_r || 0) >= 0 ? 'c-green' : 'c-red'}">${netR}</td>
+          <td>${statusBadge}</td>
+        `;
+        tbody.appendChild(tr);
+      });
     }
 
     async function triggerRetrain() {
@@ -3185,18 +3504,43 @@
 
     // --- OPTIONS MATRIX STATE & LOGIC ---
     let rawOptionsData = [];
+    let rawCoveredCallsData = { holdings: [], setups: [] };
     let selectedOptionsTicker = null;
+    let selectedOptionsStrike = null;
+    let selectedOptionsExpiry = null;
     let currentOptFilter = 'ALL';
     let currentSimMove = 1.00;
 
     async function fetchOptionsScanner() {
       const tbody = document.getElementById('tbl-options-scanner-body');
       try {
-        const res = await fetch('/api/options/scanner');
-        const data = await res.json();
-        if (data.status === 'SUCCESS' && data.setups && data.setups.length > 0) {
-          rawOptionsData = data.setups;
-          renderOptionsTable(rawOptionsData);
+        const [optRes, ccRes] = await Promise.all([
+          fetch('/api/options/scanner').catch(() => null),
+          fetch('/api/options/covered-calls').catch(() => null)
+        ]);
+
+        if (ccRes && ccRes.ok) {
+          const ccJson = await ccRes.json();
+          if (ccJson.status === 'SUCCESS' && ccJson.data) {
+            rawCoveredCallsData = ccJson.data;
+            updateCoveredCallsBanner(rawCoveredCallsData);
+          }
+        }
+
+        if (optRes && optRes.ok) {
+          const optJson = await optRes.json();
+          if (optJson.status === 'SUCCESS' && optJson.setups && optJson.setups.length > 0) {
+            rawOptionsData = optJson.setups;
+          }
+        }
+
+        if (currentOptFilter === 'COVERED') {
+          renderOptionsTable(rawCoveredCallsData.setups || []);
+          if (rawCoveredCallsData.setups && rawCoveredCallsData.setups.length > 0) {
+            selectOptionsCandidate(rawCoveredCallsData.setups[0]);
+          }
+        } else if (rawOptionsData.length > 0) {
+          filterOptionsTable(currentOptFilter);
           if (!selectedOptionsTicker || !rawOptionsData.find(x => x.ticker === selectedOptionsTicker)) {
             selectOptionsCandidate(rawOptionsData[0]);
           } else {
@@ -3211,6 +3555,64 @@
       }
     }
 
+    function updateCoveredCallsBanner(data) {
+      if (!data || !data.holdings) return;
+      const amc = data.holdings.find(h => h.ticker === 'AMC');
+      if (amc) {
+        const elPrice = document.getElementById('cc-amc-price');
+        if (elPrice) elPrice.innerText = `$${amc.price.toFixed(2)}`;
+        if (amc.best_weekly) {
+          const elRec = document.getElementById('cc-amc-rec');
+          const elCash = document.getElementById('cc-amc-cash');
+          const elYield = document.getElementById('cc-amc-yield');
+          if (elRec) elRec.innerText = `SELL ${amc.best_weekly.contracts_count}x $${amc.best_weekly.strike.toFixed(2)} CALL (${amc.best_weekly.expiry})`;
+          if (elCash) elCash.innerText = `+$${amc.best_weekly.upfront_cash.toFixed(2)} CASH`;
+          if (elYield) elYield.innerText = `+${amc.best_weekly.ann_yield}% Ann. Yield`;
+        }
+        if (amc.flow_intel) {
+          const fi = amc.flow_intel;
+          const elMp = document.getElementById('cc-amc-mp');
+          const elPull = document.getElementById('cc-amc-mp-pull');
+          const elPcr = document.getElementById('cc-amc-pcr');
+          const elPin = document.getElementById('cc-amc-pin');
+          if (elMp) elMp.innerText = `$${fi.max_pain.toFixed(2)}`;
+          if (elPull) {
+            elPull.innerText = `${fi.spot_dist_from_mp >= 0 ? '-' : '+'}$${Math.abs(fi.spot_dist_from_mp).toFixed(2)} (${fi.spot_dist_from_mp_pct >= 0 ? '-' : '+'}${Math.abs(fi.spot_dist_from_mp_pct).toFixed(1)}% gravity pull)`;
+            elPull.className = fi.spot_dist_from_mp >= 0 ? 'c-red' : 'c-green';
+          }
+          if (elPcr) elPcr.innerText = `${fi.put_call_ratio.toFixed(2)} (${(fi.call_oi/1000).toFixed(1)}k Calls vs ${(fi.put_oi/1000).toFixed(1)}k Puts)`;
+          if (elPin) elPin.innerText = fi.pin_zone;
+        }
+      }
+
+      const nke = data.holdings.find(h => h.ticker === 'NKE');
+      if (nke) {
+        const elPrice = document.getElementById('cc-nke-price');
+        if (elPrice) elPrice.innerText = `$${nke.price.toFixed(2)}`;
+        if (nke.best_weekly) {
+          const elRec = document.getElementById('cc-nke-rec');
+          const elCash = document.getElementById('cc-nke-cash');
+          const elYield = document.getElementById('cc-nke-yield');
+          if (elRec) elRec.innerText = `SELL ${nke.best_weekly.contracts_count}x $${nke.best_weekly.strike.toFixed(2)} CALL (${nke.best_weekly.expiry})`;
+          if (elCash) elCash.innerText = `+$${nke.best_weekly.upfront_cash.toFixed(2)} CASH`;
+          if (elYield) elYield.innerText = `+${nke.best_weekly.ann_yield}% Ann. Yield`;
+        }
+        if (nke.flow_intel) {
+          const fi = nke.flow_intel;
+          const elMp = document.getElementById('cc-nke-mp');
+          const elPull = document.getElementById('cc-nke-mp-pull');
+          const elPcr = document.getElementById('cc-nke-pcr');
+          const elPin = document.getElementById('cc-nke-pin');
+          if (elMp) elMp.innerText = `$${fi.max_pain.toFixed(2)}`;
+          if (elPull) {
+            elPull.innerText = `${fi.spot_dist_from_mp >= 0 ? '-' : '+'}$${Math.abs(fi.spot_dist_from_mp).toFixed(2)} (${fi.spot_dist_from_mp_pct >= 0 ? '-' : '+'}${Math.abs(fi.spot_dist_from_mp_pct).toFixed(1)}%)`;
+          }
+          if (elPcr) elPcr.innerText = `${fi.put_call_ratio.toFixed(2)} (${fi.put_call_label})`;
+          if (elPin) elPin.innerText = fi.pin_zone;
+        }
+      }
+    }
+
     function filterOptionsTable(filter) {
       currentOptFilter = filter;
       document.querySelectorAll('.options-filter-btn').forEach(b => {
@@ -3218,6 +3620,20 @@
       });
       const activeBtn = document.getElementById('btn-opt-' + filter.toLowerCase());
       if (activeBtn) activeBtn.classList.add('active');
+
+      const ccBanner = document.getElementById('covered-calls-banner');
+
+      if (filter === 'COVERED') {
+        if (ccBanner) ccBanner.style.display = 'flex';
+        const setups = rawCoveredCallsData.setups || [];
+        renderOptionsTable(setups);
+        if (setups.length > 0) {
+          selectOptionsCandidate(setups[0]);
+        }
+        return;
+      }
+
+      if (ccBanner) ccBanner.style.display = 'none';
 
       let filtered = rawOptionsData;
       if (filter === 'SWEET_SPOT') {
@@ -3228,14 +3644,41 @@
       renderOptionsTable(filtered);
     }
 
+    function selectCoveredCallTicker(ticker) {
+      filterOptionsTable('COVERED');
+      if (rawCoveredCallsData && rawCoveredCallsData.setups) {
+        const candidate = rawCoveredCallsData.setups.find(s => s.ticker === ticker && s.flavor === 'SWEET_SPOT') || rawCoveredCallsData.setups.find(s => s.ticker === ticker);
+        if (candidate) {
+          selectOptionsCandidate(candidate);
+        }
+      }
+      const p = document.getElementById('options-workbench-pane');
+      if (p) p.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function selectCoveredCallItem(ticker, strike, expiry) {
+      if (rawCoveredCallsData && rawCoveredCallsData.setups) {
+        const found = rawCoveredCallsData.setups.find(s => s.ticker === ticker && Math.abs(s.strike - strike) < 0.01 && s.expiry === expiry);
+        if (found) {
+          selectOptionsCandidate(found);
+          renderOptionsTable(rawCoveredCallsData.setups);
+        }
+      }
+    }
+
     function searchOptionsTable() {
       const query = (document.getElementById('opt-search-input').value || '').trim().toUpperCase();
       if (!query) {
         filterOptionsTable(currentOptFilter);
         return;
       }
-      const filtered = rawOptionsData.filter(d => d.ticker.includes(query));
-      renderOptionsTable(filtered);
+      if (currentOptFilter === 'COVERED') {
+        const filtered = (rawCoveredCallsData.setups || []).filter(d => d.ticker.includes(query));
+        renderOptionsTable(filtered);
+      } else {
+        const filtered = rawOptionsData.filter(d => d.ticker.includes(query));
+        renderOptionsTable(filtered);
+      }
     }
 
     let optionsSortField = 'confluence_score';
@@ -3265,17 +3708,17 @@
         let valB = b[optionsSortField];
 
         if (optionsSortField === 'delta') {
-          valA = a.optimal_call ? a.optimal_call.delta : 0;
-          valB = b.optimal_call ? b.optimal_call.delta : 0;
+          valA = a.optimal_call ? a.optimal_call.delta : (a.delta || 0);
+          valB = b.optimal_call ? b.optimal_call.delta : (b.delta || 0);
         } else if (optionsSortField === 'gamma') {
           valA = a.optimal_call ? a.optimal_call.gamma : 0;
           valB = b.optimal_call ? b.optimal_call.gamma : 0;
         } else if (optionsSortField === 'iv') {
-          valA = a.optimal_call ? a.optimal_call.iv : 0;
-          valB = b.optimal_call ? b.optimal_call.iv : 0;
+          valA = a.optimal_call ? a.optimal_call.iv : (a.iv || 0);
+          valB = b.optimal_call ? b.optimal_call.iv : (b.iv || 0);
         } else if (optionsSortField === 'call_strike') {
-          valA = a.optimal_call ? a.optimal_call.strike : 0;
-          valB = b.optimal_call ? b.optimal_call.strike : 0;
+          valA = a.optimal_call ? a.optimal_call.strike : (a.strike || 0);
+          valB = b.optimal_call ? b.optimal_call.strike : (b.strike || 0);
         }
 
         if (typeof valA === 'number' || typeof valB === 'number') {
@@ -3293,6 +3736,47 @@
 
       sorted.forEach(item => {
         const tr = document.createElement('tr');
+        
+        // Handle COVERED_CALL rendering
+        if (item.category === 'COVERED_CALL') {
+          const isSel = (selectedOptionsTicker === item.ticker && Math.abs(selectedOptionsStrike - item.strike) < 0.01 && selectedOptionsExpiry === item.expiry);
+          if (isSel) tr.style.backgroundColor = '#251b0a';
+
+          const call = item.optimal_call || {};
+          tr.innerHTML = `
+            <td style="cursor:pointer;" onclick="selectCoveredCallItem('${item.ticker}', ${item.strike}, '${item.expiry}')">
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <b class="c-yellow" style="font-size: 11.5px;">${item.ticker}</b>
+                <span class="strat-badge" style="background: rgba(255, 215, 0, 0.2); border: 1px solid #ffd700; color: #ffd700; font-size: 8.5px; font-weight: bold;">${item.contracts_count}x CTR (${item.shares_held} SH)</span>
+              </div>
+              <div style="font-size: 8.5px; color: #bbb;">${item.company_name}</div>
+            </td>
+            <td><b>$${item.stock_price.toFixed(2)}</b></td>
+            <td><b class="c-green">${item.confluence_score}</b></td>
+            <td style="cursor:pointer;" onclick="selectCoveredCallItem('${item.ticker}', ${item.strike}, '${item.expiry}')">
+              <span class="c-green" style="font-weight: 700;">$${item.strike.toFixed(2)}C</span>
+              <span style="font-size: 9.5px; color: #bbb;">(Mid $${item.mid.toFixed(2)})</span>
+              <div style="font-size: 8.5px; color: #888;">${item.expiry} (${item.dte}d)</div>
+            </td>
+            <td><span class="c-cyan">${item.delta.toFixed(2)}Δ</span> <div style="font-size: 8px; color: #00d26a;">${item.keep_prob}% keep</div></td>
+            <td><span class="c-yellow">${call.gamma ? call.gamma.toFixed(3) : '--'}</span></td>
+            <td>${item.iv ? item.iv.toFixed(0) + '%' : '--'}</td>
+            <td>
+              <span class="strat-badge" style="background: rgba(255, 215, 0, 0.15); border: 1px solid #ffd700; color: #ffd700; font-weight: bold;">${item.flavor_title}</span>
+              ${item.max_pain_intel ? `<span class="strat-badge" style="background: ${item.max_pain_intel.algo_pin_target ? 'rgba(0, 210, 106, 0.15)' : 'rgba(255, 152, 0, 0.15)'}; border: 1px solid ${item.max_pain_intel.algo_pin_target ? '#00d26a' : '#ff9800'}; color: ${item.max_pain_intel.algo_pin_target ? '#00d26a' : '#ff9800'}; font-size: 8px; margin-left: 3px;">${item.max_pain_intel.pin_safety_badge}</span>` : ''}
+              <div style="font-size: 8.5px; color: #bbb;">${item.recommended_strategy} &rarr; <b class="c-green">+${item.ann_yield}% Ann.</b></div>
+            </td>
+            <td><b class="c-green" style="font-size: 11px;">+${item.upfront_cash.toFixed(0)} CASH</b></td>
+            <td>
+              <button class="options-filter-btn" style="padding: 1px 5px; font-size: 9px; border-color: #ffd700; color: #ffd700;" onclick="selectCoveredCallItem('${item.ticker}', ${item.strike}, '${item.expiry}')">ROADMAP</button>
+              <button class="options-filter-btn" style="padding: 1px 5px; font-size: 9px; border-color: #00e5ff; color: #00e5ff;" onclick="viewChartFromOptions('${item.ticker}')">CHART</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+          return;
+        }
+
+        // Standard Wyckoff Long Setup rendering
         if (selectedOptionsTicker === item.ticker) {
           tr.style.backgroundColor = '#161320';
         }
@@ -3355,13 +3839,156 @@
     function selectOptionsCandidate(item) {
       if (!item) return;
       selectedOptionsTicker = item.ticker;
+      selectedOptionsStrike = item.strike || (item.optimal_call ? item.optimal_call.strike : null);
+      selectedOptionsExpiry = item.expiry || item.expiration;
 
       document.getElementById('wb-ticker').innerText = item.ticker;
       document.getElementById('wb-price').innerText = `$${item.stock_price.toFixed(2)}`;
-      document.getElementById('wb-expiry').innerText = `${item.expiration} (${item.dte} DTE)`;
-      document.getElementById('wb-pcr').innerText = `${item.pcr_vol || '--'}`;
+      document.getElementById('wb-expiry').innerText = `${item.expiry || item.expiration} (${item.dte} DTE)`;
+      document.getElementById('wb-pcr').innerText = `${item.pcr_vol || item.volume || '--'}`;
 
       const catBadge = document.getElementById('wb-cat-badge');
+      const statusBox = document.getElementById('wb-status-box');
+      const statusBadge = document.getElementById('wb-status-badge');
+      const statusDetail = document.getElementById('wb-status-detail');
+      const milestoneAlert = document.getElementById('wb-milestone-alert');
+      const pilotBtn = document.getElementById('wb-btn-pilot');
+
+      // --- COVERED CALL WORKBENCH RENDERING ---
+      if (item.category === 'COVERED_CALL') {
+        catBadge.innerText = `🛡️ COVERED CALL (${item.contracts_count}x CONTRACTS)`;
+        catBadge.className = 'strat-badge';
+        catBadge.style.background = 'rgba(255, 215, 0, 0.2)';
+        catBadge.style.borderColor = '#ffd700';
+        catBadge.style.color = '#ffd700';
+
+        statusBox.style.background = '#151206';
+        statusBox.style.borderColor = '#443510';
+        statusBox.style.borderLeftColor = '#ffd700';
+        statusBadge.innerHTML = `🛡️ PROTECTED LONG HOLDING (${item.shares_held} SHARES)`;
+        statusBadge.style.color = '#ffd700';
+        statusBadge.style.background = 'rgba(255, 215, 0, 0.15)';
+        statusBadge.style.borderColor = '#ffd700';
+        statusDetail.innerHTML = `Cost Basis: <b>$${item.cost_basis.toFixed(2)}</b> | Current Value: <b>$${(item.stock_price * item.shares_held).toFixed(2)}</b> | Covered Capacity: <b>${item.contracts_count} Contracts</b> (100 sh/ea)`;
+        milestoneAlert.innerHTML = `⚡ <b>INSTANT CASH CREDIT:</b> Selling ${item.contracts_count}x Call credits <b>+$${item.upfront_cash.toFixed(2)} cash</b> into buying power immediately.`;
+        milestoneAlert.style.color = 'var(--wsr-green)';
+
+        // Roadmap Steps for Covered Call
+        for (let m = 1; m <= 5; m++) {
+          const stepEl = document.getElementById(`step-ms-${m}`);
+          const tagEl = document.getElementById(`step-tag-${m}`);
+          if (!stepEl || !tagEl) continue;
+          stepEl.classList.remove('active');
+          stepEl.style.borderColor = '#222';
+          stepEl.style.borderLeftColor = '#ffd700';
+          stepEl.style.background = '#0d0d0d';
+        }
+
+        const ms = item.milestones || {};
+        if (ms.m1) {
+          const s1 = document.querySelector('#step-ms-1 .roadmap-step-header span:first-child');
+          const t1 = document.getElementById('step-tag-1');
+          const d1 = document.querySelector('#step-ms-1 div:last-child');
+          if (s1) s1.innerHTML = `<span style="color: #ffd700;">${ms.m1.title}</span>`;
+          if (t1) t1.innerHTML = `<span class="c-green" style="font-weight: 700;">${ms.m1.target}</span>`;
+          if (d1) d1.innerText = ms.m1.desc;
+        }
+        if (ms.m2) {
+          const s2 = document.querySelector('#step-ms-2 .roadmap-step-header span:first-child');
+          const t2 = document.getElementById('step-tag-2');
+          const d2 = document.querySelector('#step-ms-2 div:last-child');
+          if (s2) s2.innerHTML = `<span style="color: #00e5ff;">${ms.m2.title}</span>`;
+          if (t2) t2.innerHTML = `<span class="c-cyan" style="font-weight: 700;">FLOOR ${ms.m2.target}</span>`;
+          if (d2) d2.innerText = ms.m2.desc;
+        }
+        if (ms.m3) {
+          const s3 = document.querySelector('#step-ms-3 .roadmap-step-header span:first-child');
+          const t3 = document.getElementById('step-tag-3');
+          const d3 = document.getElementById('rm-desc-tier3');
+          if (s3) s3.innerHTML = `<span style="color: #00d26a;">${ms.m3.title}</span>`;
+          if (t3) t3.innerHTML = `<span class="c-green" style="font-weight: 700;">${ms.m3.target}</span>`;
+          if (d3) d3.innerText = ms.m3.desc;
+        }
+        if (ms.m4) {
+          const s4 = document.querySelector('#step-ms-4 .roadmap-step-header span:first-child');
+          const t4 = document.getElementById('step-tag-4');
+          const d4 = document.getElementById('rm-desc-tier4');
+          if (s4) s4.innerHTML = `<span style="color: #ff9800;">${ms.m4.title}</span>`;
+          if (t4) t4.innerHTML = `<span class="c-yellow" style="font-weight: 700;">TRIGGER ${ms.m4.target}</span>`;
+          if (d4) d4.innerText = ms.m4.desc;
+        }
+        if (ms.m5) {
+          const s5 = document.querySelector('#step-ms-5 .roadmap-step-header span:first-child');
+          const t5 = document.getElementById('step-tag-5');
+          const d5 = document.querySelector('#step-ms-5 div:last-child');
+          if (s5) s5.innerHTML = `<span style="color: #fff;">${ms.m5.title}</span>`;
+          if (t5) t5.innerHTML = `<span class="c-white" style="font-weight: 700;">${ms.m5.target}</span>`;
+          if (d5) d5.innerText = ms.m5.desc;
+        }
+
+        document.getElementById('wb-strat-name').innerText = `STRATEGY: COVERED CALL CASH HARVESTER (${item.flavor_title})`;
+        document.getElementById('wb-strat-desc').innerHTML = `${item.flavor_desc}<br>Instant upfront cash deposit: <b class="c-green">+$${item.upfront_cash.toFixed(2)}</b>. If called away at $${item.strike.toFixed(2)}, total cash delivered is <b class="c-white">$${item.called_cash.toFixed(2)}</b>.`;
+
+        // Dynamic Max Pain & Institutional Flow Box
+        const mpBox = document.getElementById('wb-max-pain-box');
+        if (mpBox) {
+          mpBox.style.display = 'block';
+          const mp = item.max_pain_intel;
+          if (mp) {
+            document.getElementById('wb-mp-val').innerText = `$${mp.max_pain.toFixed(2)}`;
+            document.getElementById('wb-gw-val').innerText = `$${mp.gamma_wall.toFixed(2)}`;
+            const pullEl = document.getElementById('wb-mp-pull');
+            if (pullEl) {
+              pullEl.innerText = `${mp.spot_dist_from_mp >= 0 ? '-' : '+'}$${Math.abs(mp.spot_dist_from_mp).toFixed(2)} (${mp.spot_dist_from_mp_pct >= 0 ? '-' : '+'}${Math.abs(mp.spot_dist_from_mp_pct).toFixed(1)}% gravity pull)`;
+              pullEl.className = mp.spot_dist_from_mp >= 0 ? 'c-red' : 'c-green';
+            }
+            document.getElementById('wb-mp-pcr').innerText = `${mp.put_call_ratio.toFixed(2)} (${mp.put_call_label})`;
+            document.getElementById('wb-mp-calloi').innerText = `${mp.call_oi.toLocaleString()}`;
+            document.getElementById('wb-mp-putoi').innerText = `${mp.put_oi.toLocaleString()}`;
+            const badgeEl = document.getElementById('wb-mp-badge');
+            if (badgeEl) {
+              badgeEl.innerText = mp.pin_safety_badge;
+              badgeEl.style.color = mp.algo_pin_target ? '#00d26a' : '#ff9800';
+              badgeEl.style.borderColor = mp.algo_pin_target ? '#00d26a' : '#ff9800';
+              badgeEl.style.background = mp.algo_pin_target ? 'rgba(0, 210, 106, 0.15)' : 'rgba(255, 152, 0, 0.15)';
+            }
+            const descEl = document.getElementById('wb-mp-explanation');
+            if (descEl) descEl.innerHTML = mp.pin_bias_desc;
+          }
+        }
+
+        // Call box
+        const call = item.optimal_call || {};
+        document.getElementById('wb-call-strike').innerText = `$${item.strike.toFixed(2)} CALL (${item.expiry})`;
+        document.getElementById('wb-call-mid').innerText = `$${item.mid.toFixed(2)}`;
+        document.getElementById('wb-call-cost').innerText = `+$${item.upfront_cash.toFixed(0)} CASH`;
+        document.getElementById('wb-call-delta').innerText = `${item.delta.toFixed(2)} (${item.keep_prob}% keep)`;
+        document.getElementById('wb-call-gamma').innerText = call.gamma ? call.gamma.toFixed(3) : '--';
+        document.getElementById('wb-call-iv').innerText = `${item.iv}%`;
+
+        // Spread box transformed into Liquidation summary
+        document.getElementById('wb-spread-strikes').innerText = `$${item.called_cash.toFixed(2)} TOTAL CASH`;
+        document.getElementById('wb-spread-debit').innerText = `$${(item.strike * item.contracts_count * 100).toFixed(0)}`;
+        document.getElementById('wb-spread-cost').innerText = `+$${item.upfront_cash.toFixed(0)} cash`;
+        const gainAboveCurrent = item.called_cash - (item.stock_price * item.contracts_count * 100);
+        document.getElementById('wb-spread-profit').innerText = `+$${gainAboveCurrent.toFixed(0)}`;
+        document.getElementById('wb-spread-ror').innerText = `+${((gainAboveCurrent / (item.stock_price * item.contracts_count * 100)) * 100).toFixed(1)}%`;
+
+        if (pilotBtn) {
+          pilotBtn.innerText = `⚡ EXECUTE COVERED CALL (${item.contracts_count}x @ $${item.mid.toFixed(2)} MID)`;
+          pilotBtn.style.borderColor = '#ffd700';
+          pilotBtn.style.color = '#ffd700';
+          pilotBtn.style.background = 'rgba(255, 215, 0, 0.15)';
+        }
+
+        simStockMove(currentSimMove);
+        return;
+      }
+
+      // --- STANDARD WYCKOFF LONG CANDIDATE RENDERING ---
+      const mpBoxNonCC = document.getElementById('wb-max-pain-box');
+      if (mpBoxNonCC) mpBoxNonCC.style.display = 'none';
+
       if (item.category === 'SWEET_SPOT_MIDCAP') {
         catBadge.innerText = '🎯 SWEET SPOT ($15-$75)';
         catBadge.className = 'strat-badge strat-tranche';
@@ -3370,13 +3997,7 @@
         catBadge.className = 'strat-badge strat-spread';
       }
 
-      // Update Live Trade Status Box
       const st = item.trade_status || {};
-      const statusBox = document.getElementById('wb-status-box');
-      const statusBadge = document.getElementById('wb-status-badge');
-      const statusDetail = document.getElementById('wb-status-detail');
-      const milestoneAlert = document.getElementById('wb-milestone-alert');
-
       if (st.is_active) {
         statusBox.style.background = '#09150d';
         statusBox.style.borderColor = '#1b4a24';
@@ -3401,7 +4022,6 @@
         milestoneAlert.style.color = '#666';
       }
 
-      // Update Roadmap Milestones Dynamic Highlighting
       const curMs = st.active_milestone || 0;
       for (let m = 1; m <= 5; m++) {
         const stepEl = document.getElementById(`step-ms-${m}`);
@@ -3429,7 +4049,6 @@
         }
       }
 
-      // Dynamic Wyckoff TR Ceiling & R Target Calculation for Milestone 4
       const entryP = st.entry_price || item.stock_price;
       const slP = st.stop_loss || (entryP * 0.985);
       const tpP = st.take_profit || (entryP + (Math.abs(entryP - slP) * 1.5));
@@ -3445,7 +4064,6 @@
         tag4El.innerText = `+${targetR}R (+100%)`;
       }
 
-      // Architecture Blueprint (Concentrated on 1 and 4)
       let stratTitle = '';
       if (item.category === 'SWEET_SPOT_MIDCAP' || item.recommended_strategy === 'STRATEGY_1_TRANCHE') {
         stratTitle = 'STRATEGY 1: 2-CONTRACT TRANCHE LADDER ($15-$75 MID-CAPS)';
@@ -3455,7 +4073,6 @@
       document.getElementById('wb-strat-name').innerText = stratTitle;
       document.getElementById('wb-strat-desc').innerText = item.strategy_description || '';
 
-      // Call Contract
       const call = item.optimal_call || {};
       document.getElementById('wb-call-strike').innerText = `$${call.strike ? call.strike.toFixed(2) : '--'} CALL`;
       document.getElementById('wb-call-mid').innerText = `$${call.mid ? call.mid.toFixed(2) : '0.00'}`;
@@ -3464,7 +4081,6 @@
       document.getElementById('wb-call-gamma').innerText = call.gamma ? call.gamma.toFixed(4) : '--';
       document.getElementById('wb-call-iv').innerText = call.iv ? `${call.iv.toFixed(0)}%` : '--';
 
-      // Spread Contract
       const sp = item.vertical_spread;
       if (sp) {
         document.getElementById('wb-spread-strikes').innerText = `$${sp.long_strike}C / $${sp.short_strike}C`;
@@ -3480,11 +4096,16 @@
         document.getElementById('wb-spread-ror').innerText = '--';
       }
 
-      // Hard stop loss calculation (-35% option premium)
       const stopPrice = call.mid ? (call.mid * 0.65).toFixed(2) : '--';
       document.getElementById('rm-stop-loss').innerText = stopPrice;
 
-      // Update Payoff Sim
+      if (pilotBtn) {
+        pilotBtn.innerText = '⚡ EXECUTE PILOT (2x CALLS @ MID)';
+        pilotBtn.style.borderColor = '#00d26a';
+        pilotBtn.style.color = '#00d26a';
+        pilotBtn.style.background = 'rgba(0, 210, 106, 0.15)';
+      }
+
       simStockMove(currentSimMove);
     }
 
@@ -3528,6 +4149,58 @@
         alert('Please select an options candidate from the table first.');
         return;
       }
+
+      // Check if this is a Covered Call
+      const ccItem = (rawCoveredCallsData.setups || []).find(d => d.ticker === selectedOptionsTicker && Math.abs(d.strike - selectedOptionsStrike) < 0.01 && d.expiry === selectedOptionsExpiry)
+                  || (rawCoveredCallsData.setups || []).find(d => d.ticker === selectedOptionsTicker);
+
+      if (currentOptFilter === 'COVERED' || (ccItem && selectedOptionsStrike)) {
+        const item = ccItem;
+        if (!item) {
+          alert("No covered call selected.");
+          return;
+        }
+        const callSym = (item.optimal_call && item.optimal_call.symbol) 
+          || `${item.ticker}${item.expiry.replace(/-/g, '').slice(2)}C${String(Math.round(item.strike * 1000)).padStart(8, '0')}`;
+        const mid = item.mid || 0.06;
+        const totalCash = item.upfront_cash || (mid * item.contracts_count * 100);
+
+        if (!confirm(`🛡️ CONFIRM COVERED CALL ORDER:\n\nSell to Open ${item.contracts_count} contracts of ${item.ticker} ($${item.strike.toFixed(2)} Call exp ${item.expiry}) at Mid-Price $${mid.toFixed(2)} on Public.com?\n\n💰 Instant Cash Deposited: +$${totalCash.toFixed(2)}\n🤖 Covered Call Guardian will AUTOMATICALLY manage 50% take-profit and roll defense to preserve all ${item.shares_held} shares!`)) {
+          return;
+        }
+
+        const btn = document.getElementById('wb-btn-pilot');
+        const prevText = btn ? btn.innerText : '';
+        if (btn) btn.innerText = 'TRANSMITTING SELL ORDER...';
+        try {
+          const res = await fetch('/api/order/sell_covered_call', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              ticker: item.ticker,
+              symbol: callSym,
+              strike: item.strike,
+              expiry: item.expiry,
+              quantity: item.contracts_count,
+              limit_price: mid
+            })
+          });
+          const data = await res.json();
+          if (data.success) {
+            alert(`✓ COVERED CALL EXECUTED!\n\nContract: ${callSym}\nSize: ${item.contracts_count} Contracts\nInstant Cash Deposited: +$${totalCash.toFixed(2)}\nStatus: ${data.order.status}\n\n🤖 Automated Covered Call Guardian is ARMED! It will auto-close at 50% decay (Milestone 3) and auto-roll up-and-out if stock surges (Milestone 4)!`);
+            fetchOptionsScanner();
+          } else {
+            alert('Order error: ' + (data.detail || JSON.stringify(data)));
+          }
+        } catch (err) {
+          alert('Execution error: ' + err);
+        } finally {
+          if (btn) btn.innerText = prevText;
+        }
+        return;
+      }
+
+      // Normal long options pilot order
       const item = rawOptionsData.find(d => d.ticker === selectedOptionsTicker);
       if (!item || !item.optimal_call) {
         alert('No optimal call contract found for ' + selectedOptionsTicker);
