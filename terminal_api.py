@@ -740,10 +740,12 @@ def get_evidence(ticker: str, timeframe: str = "5m"):
 @app.get("/api/flow/{ticker}")
 def get_flow(ticker: str):
     """Fetches real-time institutional options flow & quote microstructure."""
-    flow = get_options_flow(ticker.upper())
-    quote = get_public_quotes(ticker.upper())
+    sym = ticker.upper()
+    quote = get_public_quotes(sym)
+    curr_price = quote.get('last') if quote else None
+    flow = get_options_flow(sym, curr_price=curr_price)
     return {
-        "ticker": ticker.upper(),
+        "ticker": sym,
         "flow": flow,
         "quote": quote
     }

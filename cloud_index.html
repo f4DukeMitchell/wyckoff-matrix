@@ -1090,16 +1090,50 @@
     <div class="pane" id="pane-flow">
       <div class="pane-header">
         <span id="flow-title">OPTIONS FLOW INTEL</span>
-        <span class="c-cyan">GAMMA WALL</span>
+        <span id="flow-expiry-tag" class="c-cyan" style="font-size: 9px; font-weight: bold;">EXP: --</span>
       </div>
-      <div class="pane-content" style="padding: 8px;">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px;">
-          <div>P/C RATIO: <b id="flow-pcr" class="c-yellow">--</b></div>
+      <div class="pane-content" style="padding: 6px 8px; font-size: 10px; overflow-y: auto;">
+        <!-- Top Metrics Grid -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; margin-bottom: 6px;">
+          <div>P/C RATIO (OI): <b id="flow-pcr" class="c-yellow">--</b></div>
           <div>SENTIMENT: <b id="flow-sent" class="c-green">--</b></div>
+          <div>VOL P/C RATIO: <b id="flow-vol-pcr" class="c-cyan">--</b></div>
+          <div>ATM IV: <b id="flow-iv" class="c-yellow">--</b></div>
           <div>GAMMA WALL: <b id="flow-gw" class="c-white">--</b></div>
           <div>MAX PAIN: <b id="flow-mp" class="c-muted">--</b></div>
-          <div>CALL OI: <b id="flow-calls" class="c-green">--</b></div>
-          <div>PUT OI: <b id="flow-puts" class="c-red">--</b></div>
+          <div>EXPECTED MOVE: <b id="flow-em" class="c-orange">--</b></div>
+          <div>ORDER BOOK: <b id="flow-book-imbalance" class="c-cyan">--</b></div>
+        </div>
+
+        <!-- Open Interest Bias Bar -->
+        <div style="margin-bottom: 6px; padding: 4px; background: rgba(255,255,255,0.02); border: 1px solid #222; border-radius: 3px;">
+          <div style="display: flex; justify-content: space-between; font-size: 9px; margin-bottom: 2px;">
+            <span>CALL OI: <b id="flow-calls" class="c-green">--</b> (<span id="flow-call-pct">--%</span>)</span>
+            <span>PUT OI: <b id="flow-puts" class="c-red">--</b> (<span id="flow-put-pct">--%</span>)</span>
+          </div>
+          <div style="height: 5px; width: 100%; background: #331111; border-radius: 2px; overflow: hidden; display: flex;">
+            <div id="flow-call-bar" style="width: 50%; background: var(--wsr-green, #00e676); height: 100%;"></div>
+            <div id="flow-put-bar" style="width: 50%; background: var(--wsr-red, #ff5252); height: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- Institutional Strike Concentrations (Top Walls) -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
+          <div style="background: rgba(0, 230, 118, 0.04); border-left: 2px solid #00e676; padding: 3px 5px; border-radius: 2px;">
+            <div style="font-size: 8.5px; font-weight: bold; color: #00e676; margin-bottom: 2px;">CALL CEILINGS (RESISTANCE)</div>
+            <div id="flow-top-calls" style="font-size: 9px; line-height: 1.35; color: #ccc;">--</div>
+          </div>
+          <div style="background: rgba(255, 82, 82, 0.04); border-left: 2px solid #ff5252; padding: 3px 5px; border-radius: 2px;">
+            <div style="font-size: 8.5px; font-weight: bold; color: #ff5252; margin-bottom: 2px;">PUT FLOORS (SUPPORT)</div>
+            <div id="flow-top-puts" style="font-size: 9px; line-height: 1.35; color: #ccc;">--</div>
+          </div>
+        </div>
+
+        <!-- Order Book & Microstructure Strip -->
+        <div style="border-top: 1px solid #222; padding-top: 4px; display: flex; justify-content: space-between; font-size: 8.5px; color: #888; flex-wrap: wrap; gap: 4px;">
+          <div>BID/ASK: <b id="flow-bid-ask" class="c-white">--</b></div>
+          <div>SPREAD: <b id="flow-spread" class="c-yellow">--</b></div>
+          <div>DAY VOL: <b id="flow-equity-vol" class="c-cyan">--</b></div>
         </div>
       </div>
     </div>
@@ -2757,17 +2791,152 @@
 
     // --- LOAD OPTIONS FLOW ---
     async function loadOptionsFlow(ticker) {
-      document.getElementById('flow-title').innerText = `${ticker} FLOW INTEL`;
+      const sym = (ticker || '').toUpperCase();
+      const titleEl = document.getElementById('flow-title');
+      if (titleEl) titleEl.innerText = `${sym} FLOW INTEL`;
       try {
-        const res = await fetch(`/api/flow/${ticker}`);
+        const res = await fetch(`/api/flow/${sym}`);
         const data = await res.json();
         const f = data.flow || {};
-        document.getElementById('flow-pcr').innerText = f.put_call_ratio ? `${f.put_call_ratio} (${f.put_call_label || ''})` : '--';
-        document.getElementById('flow-sent').innerText = f.net_sentiment || '--';
-        document.getElementById('flow-gw').innerText = f.gamma_wall ? `$${f.gamma_wall}` : '--';
-        document.getElementById('flow-mp').innerText = f.max_pain ? `$${f.max_pain}` : '--';
-        document.getElementById('flow-calls').innerText = f.total_call_oi ? f.total_call_oi.toLocaleString() : '--';
-        document.getElementById('flow-puts').innerText = f.total_put_oi ? f.total_put_oi.toLocaleString() : '--';
+        const q = data.quote || {};
+
+        // Expiry Tag
+        const expTag = document.getElementById('flow-expiry-tag');
+        if (expTag) {
+          expTag.innerText = f.nearest_expiry && f.nearest_expiry !== 'N/A' 
+            ? `EXP: ${f.nearest_expiry} (${f.dte || '--'} DTE)` 
+            : 'EXP: --';
+        }
+
+        // P/C Ratio (OI)
+        const pcrEl = document.getElementById('flow-pcr');
+        if (pcrEl) {
+          pcrEl.innerText = f.put_call_ratio ? `${f.put_call_ratio} (${f.put_call_label || ''})` : '--';
+          pcrEl.className = f.put_call_ratio < 0.7 ? 'c-green' : (f.put_call_ratio > 1.2 ? 'c-red' : 'c-yellow');
+        }
+
+        // Sentiment
+        const sentEl = document.getElementById('flow-sent');
+        if (sentEl) {
+          sentEl.innerText = f.net_sentiment || '--';
+          sentEl.className = f.net_sentiment === 'BULLISH' ? 'c-green' : (f.net_sentiment === 'BEARISH' ? 'c-red' : 'c-yellow');
+        }
+
+        // Volume P/C Ratio
+        const volPcrEl = document.getElementById('flow-vol-pcr');
+        if (volPcrEl) {
+          if (f.vol_put_call_ratio !== undefined && f.vol_put_call_ratio > 0) {
+            const vLabel = f.vol_put_call_ratio < 0.7 ? 'BULLISH' : (f.vol_put_call_ratio > 1.2 ? 'BEARISH' : 'NEUTRAL');
+            volPcrEl.innerText = `${f.vol_put_call_ratio} (${vLabel})`;
+            volPcrEl.className = f.vol_put_call_ratio < 0.7 ? 'c-green' : (f.vol_put_call_ratio > 1.2 ? 'c-red' : 'c-cyan');
+          } else {
+            volPcrEl.innerText = '--';
+          }
+        }
+
+        // ATM IV
+        const ivEl = document.getElementById('flow-iv');
+        if (ivEl) {
+          ivEl.innerText = f.atm_iv ? `${(f.atm_iv * 100).toFixed(1)}%` : '--';
+        }
+
+        // Expected Move
+        const emEl = document.getElementById('flow-em');
+        if (emEl) {
+          emEl.innerText = f.expected_move ? `±$${f.expected_move.toFixed(2)} (±${f.expected_move_pct}%)` : '--';
+        }
+
+        // Gamma Wall & Distance
+        const gwEl = document.getElementById('flow-gw');
+        if (gwEl) {
+          if (f.gamma_wall) {
+            const dist = f.dist_gamma_wall !== undefined && f.dist_gamma_wall !== 0
+              ? ` (${f.dist_gamma_wall > 0 ? '+' : ''}$${f.dist_gamma_wall.toFixed(1)})`
+              : '';
+            gwEl.innerText = `$${f.gamma_wall}${dist}`;
+          } else {
+            gwEl.innerText = '--';
+          }
+        }
+
+        // Max Pain & Distance
+        const mpEl = document.getElementById('flow-mp');
+        if (mpEl) {
+          if (f.max_pain) {
+            const dist = f.dist_max_pain !== undefined && f.dist_max_pain !== 0
+              ? ` (${f.dist_max_pain > 0 ? '+' : ''}$${f.dist_max_pain.toFixed(1)})`
+              : '';
+            mpEl.innerText = `$${f.max_pain}${dist}`;
+          } else {
+            mpEl.innerText = '--';
+          }
+        }
+
+        // OI Breakdown & Bars
+        const callOiEl = document.getElementById('flow-calls');
+        const putOiEl = document.getElementById('flow-puts');
+        const callPctEl = document.getElementById('flow-call-pct');
+        const putPctEl = document.getElementById('flow-put-pct');
+        const callBar = document.getElementById('flow-call-bar');
+        const putBar = document.getElementById('flow-put-bar');
+
+        const callOi = f.total_call_oi || 0;
+        const putOi = f.total_put_oi || 0;
+        const callPct = f.call_oi_pct || 50.0;
+        const putPct = f.put_oi_pct || 50.0;
+
+        if (callOiEl) callOiEl.innerText = callOi ? callOi.toLocaleString() : '--';
+        if (putOiEl) putOiEl.innerText = putOi ? putOi.toLocaleString() : '--';
+        if (callPctEl) callPctEl.innerText = `${callPct}%`;
+        if (putPctEl) putPctEl.innerText = `${putPct}%`;
+        if (callBar) callBar.style.width = `${callPct}%`;
+        if (putBar) putBar.style.width = `${putPct}%`;
+
+        // Top Strike Concentrations
+        const topCallsEl = document.getElementById('flow-top-calls');
+        if (topCallsEl) {
+          if (f.top_calls && f.top_calls.length > 0) {
+            topCallsEl.innerHTML = f.top_calls.map(c => 
+              `<div><b>$${c.strike}</b> &bull; ${c.oi.toLocaleString()} OI <span class="c-muted">(${c.vol.toLocaleString()} vol)</span></div>`
+            ).join('');
+          } else {
+            topCallsEl.innerText = 'No call concentrations';
+          }
+        }
+
+        const topPutsEl = document.getElementById('flow-top-puts');
+        if (topPutsEl) {
+          if (f.top_puts && f.top_puts.length > 0) {
+            topPutsEl.innerHTML = f.top_puts.map(p => 
+              `<div><b>$${p.strike}</b> &bull; ${p.oi.toLocaleString()} OI <span class="c-muted">(${p.vol.toLocaleString()} vol)</span></div>`
+            ).join('');
+          } else {
+            topPutsEl.innerText = 'No put concentrations';
+          }
+        }
+
+        // Microstructure & Order Book
+        const bookEl = document.getElementById('flow-book-imbalance');
+        if (bookEl) {
+          bookEl.innerText = q.imbalance_label || '--';
+          bookEl.className = (q.imbalance_label && q.imbalance_label.includes('BUY')) ? 'c-green' : ((q.imbalance_label && q.imbalance_label.includes('SELL')) ? 'c-red' : 'c-cyan');
+        }
+
+        const bidAskEl = document.getElementById('flow-bid-ask');
+        if (bidAskEl) {
+          bidAskEl.innerText = (q.bid && q.ask) ? `$${q.bid.toFixed(2)} x ${q.bid_size} | $${q.ask.toFixed(2)} x ${q.ask_size}` : '--';
+        }
+
+        const spreadEl = document.getElementById('flow-spread');
+        if (spreadEl) {
+          spreadEl.innerText = q.spread_dollar ? `$${q.spread_dollar.toFixed(2)} (${q.spread_width_pct}%)` : '--';
+        }
+
+        const volEl = document.getElementById('flow-equity-vol');
+        if (volEl) {
+          volEl.innerText = q.day_volume ? `${(q.day_volume / 1000).toFixed(1)}K shs` : '--';
+        }
+
       } catch (e) {
         console.error("Error loading flow:", e);
       }
