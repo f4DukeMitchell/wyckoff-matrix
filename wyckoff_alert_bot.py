@@ -1201,8 +1201,60 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Error launching Exit Guardian daemon: {e}")
 
+    # Launch Engine 2: Continuous Broad 5M Floor Sweeper Daemon across all 612 stocks
+    def start_broad_5m_sweeper():
+        import threading
+        def sweeper_loop():
+            print("[Engine 2] Broad 5M Floor Sweeper daemon started (continuous 612-stock sweep).")
+            while True:
+                try:
+                    now = get_market_now()
+                    is_weekday = now.weekday() < 5
+                    market_open = (now.hour > 9 or (now.hour == 9 and now.minute >= 30)) and (now.hour < 16)
+                    if is_weekday and market_open:
+                        for i in range(0, len(TICKERS), 40):
+                            batch = TICKERS[i:i+40]
+                            try:
+                                data = yf.download(batch, period="5d", interval="5m", group_by='ticker', progress=False)
+                                for sym in batch:
+                                    try:
+                                        df = data[sym].dropna() if len(batch) > 1 else data.dropna()
+                                        if not df.empty and len(df) >= 30:
+                                            closes = df['Close'].values.flatten()
+                                            highs = df['High'].values.flatten()
+                                            lows = df['Low'].values.flatten()
+                                            p = float(closes[-1])
+                                            tr_low = float(pd.Series(lows).rolling(50, min_periods=20).min().shift(1).iloc[-1])
+                                            tr_high = float(pd.Series(highs).rolling(50, min_periods=20).max().shift(1).iloc[-1])
+                                            if p > 0 and tr_low > 0:
+                                                from priority_queue import update_ticker_in_queue
+                                                update_ticker_in_queue(sym, p, tr_low, tr_high, bars_in_regime=5, is_bull=False)
+                                    except Exception:
+                                        pass
+                            except Exception:
+                                pass
+                            time.sleep(1.5)
+                        try:
+                            from priority_queue import flush_priority_queue
+                            flush_priority_queue()
+                        except Exception:
+                            pass
+                    else:
+                        time.sleep(60)
+                except Exception as ex:
+                    print(f"[Engine 2 Sweeper Notice]: {ex}")
+                    time.sleep(30)
+
+        t = threading.Thread(target=sweeper_loop, daemon=True, name="Broad5MSweeperThread")
+        t.start()
+
+    try:
+        start_broad_5m_sweeper()
+    except Exception as e_sw:
+        print(f"Error launching Broad 5M Sweeper: {e_sw}")
+
     # Immediate start of live scanner without blocking boot
-    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Entering live market scanning loop...")
+    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Entering live market scanning loop (Engine 1: 20s Fast Cadence)...")
     
     while True:
         check_telegram_commands()
@@ -1320,4 +1372,8 @@ if __name__ == "__main__":
             send_daily_recap()
             reports_sent["recap"] = True
             
-        time.sleep(300)
+        # Engine 1 Cadence: 20 seconds during market hours for immediate trigger execution, 300s outside
+        if is_market_hours:
+            time.sleep(20)
+        else:
+            time.sleep(300)
