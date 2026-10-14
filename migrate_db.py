@@ -178,12 +178,29 @@ def migrate():
     if stale_cleaned > 0:
         print(f"Expired {stale_cleaned} stale open paper alerts from prior test runs.")
 
-    # 10. Reactivate live broker position in MELI
-    c.execute("""
-        UPDATE alerts
-        SET outcome = 'OPEN', user_active = 1
-        WHERE ticker = 'MELI' AND (id = 581 OR timestamp >= date('now'))
-    """)
+    # 10. Reactivate live broker position in MELI with exact Wyckoff brackets
+    c.execute("SELECT id FROM alerts WHERE ticker = 'MELI' AND direction = 'LONG' AND outcome = 'OPEN'")
+    meli_row = c.fetchone()
+    if meli_row:
+        c.execute("""
+            UPDATE alerts 
+            SET outcome = 'OPEN', user_active = 1, entry_price = 1829.35, stop_loss = 1806.75, 
+                initial_stop_loss = 1806.75, take_profit = 1859.67, initial_shares = 0.01717, timeframe = '5m',
+                ml_confidence = 61.0
+            WHERE id = ?
+        """, (meli_row[0],))
+        print(f"Updated active MELI trade ID {meli_row[0]}.")
+    else:
+        c.execute("""
+            INSERT INTO alerts (
+                ticker, direction, entry_price, stop_loss, initial_stop_loss, take_profit, 
+                regime, timeframe, timestamp, outcome, user_active, initial_shares, ml_confidence
+            ) VALUES (
+                'MELI', 'LONG', 1829.35, 1806.75, 1806.75, 1859.67, 
+                'BULLISH (Seeking Reversal)', '5m', datetime('now', '-2 hours'), 'OPEN', 1, 0.01717, 61.0
+            )
+        """)
+        print("Inserted active MELI trade with exact brackets into alerts.")
     if c.rowcount > 0:
         print(f"Reactivated {c.rowcount} live broker alert records for MELI.")
 
