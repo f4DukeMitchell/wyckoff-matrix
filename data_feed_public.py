@@ -35,9 +35,13 @@ def parse_bars_to_df(response):
         return pd.DataFrame()
         
     sessions = []
-    if getattr(response, 'regular_market', None) and response.regular_market.bars:
-        sessions.extend(response.regular_market.bars)
-    elif getattr(response, 'bars', None) and response.bars:
+    # Include pre-market (4:00 AM - 9:30 AM EST), regular market, and after-market sessions
+    for session_attr in ['pre_market', 'regular_market', 'after_market']:
+        s = getattr(response, session_attr, None)
+        if s and getattr(s, 'bars', None):
+            sessions.extend(s.bars)
+            
+    if not sessions and getattr(response, 'bars', None) and response.bars:
         sessions.extend(response.bars)
         
     if not sessions:
@@ -58,6 +62,7 @@ def parse_bars_to_df(response):
     if not df.empty:
         df.set_index('Date', inplace=True)
         df.sort_index(inplace=True)
+        df = df[~df.index.duplicated(keep='last')]
     return df
 
 async def fetch_ticker_bars(client, ticker, interval='5m', delay_ms=0.08):
@@ -68,9 +73,22 @@ async def fetch_ticker_bars(client, ticker, interval='5m', delay_ms=0.08):
     agg, period = AGG_MAP[interval]
     try:
         res = await client.get_bars(ticker, period=period, aggregation=agg)
+        df = parse_bars_to_df(res)
+
+        # Supplement with DAY period on 5m to ensure active pre-market candles (7:00 AM+) are merged
+        if interval == '5m' and period == BarPeriod.WEEK:
+            try:
+                res_day = await client.get_bars(ticker, period=BarPeriod.DAY, aggregation=agg)
+                df_day = parse_bars_to_df(res_day)
+                if not df_day.empty:
+                    df = pd.concat([df, df_day])
+                    df = df[~df.index.duplicated(keep='last')].sort_index()
+            except Exception:
+                pass
+
         if delay_ms > 0:
             await asyncio.sleep(delay_ms)
-        return ticker, parse_bars_to_df(res)
+        return ticker, df
     except Exception as e:
         if delay_ms > 0:
             await asyncio.sleep(delay_ms)
@@ -99,6 +117,18 @@ def get_public_bars_sync(ticker, interval='5m'):
         client = get_client()
         res = client.get_bars(ticker.upper(), period=period, aggregation=agg)
         df = parse_bars_to_df(res)
+
+        # Merge DAY bars on 5m to include today's pre-market session
+        if interval == '5m' and period == BarPeriod.WEEK:
+            try:
+                res_day = client.get_bars(ticker.upper(), period=BarPeriod.DAY, aggregation=agg)
+                df_day = parse_bars_to_df(res_day)
+                if not df_day.empty:
+                    df = pd.concat([df, df_day])
+                    df = df[~df.index.duplicated(keep='last')].sort_index()
+            except Exception:
+                pass
+
         if not df.empty:
             return df
     except Exception as e:

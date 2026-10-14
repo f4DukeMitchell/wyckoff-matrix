@@ -75,7 +75,16 @@ def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, reg
         "1d": "1 - 3 Months"
     }
     
+    try:
+        import zoneinfo
+        now_et = datetime.datetime.now(zoneinfo.ZoneInfo("America/New_York"))
+    except Exception:
+        now_et = datetime.datetime.now()
+    is_pre = (now_et.hour < 9) or (now_et.hour == 9 and now_et.minute < 30)
+
     trade_style = styles.get(timeframe, "Unknown")
+    if is_pre and timeframe in ["1m", "5m"]:
+        trade_style += " [PRE-MARKET 7AM SETUP]"
     exp_time = expected_times.get(timeframe, "Unknown")
     
     try:

@@ -1260,13 +1260,14 @@ if __name__ == "__main__":
         check_telegram_commands()
         
         now = get_market_now()
-        # Market Hours check (Mon-Fri 9:30 AM - 4:00 PM EST)
+        # Market Hours & Pre-Market Setup Tracking:
+        # Pre-Market 5M Fast Queue setup tracking runs Mon-Fri 7:00 AM - 5:00 PM EST
         is_weekday = now.weekday() < 5
-        market_open = (now.hour > 9 or (now.hour == 9 and now.minute >= 30)) and (now.hour < 16)
-        is_market_hours = is_weekday and market_open
+        is_scanning_hours = is_weekday and (7 <= now.hour < 17)
+        is_regular_market = is_weekday and ((now.hour > 9 or (now.hour == 9 and now.minute >= 30)) and (now.hour < 16))
 
-        if is_market_hours:
-            # 1. 5m Fast Queue scanned EVERY cycle (~120-150 tickers in ~25s)
+        if is_scanning_hours:
+            # 1. 5m Fast Queue scanned EVERY cycle (~120-150 tickers in ~25s) starting at 7:00 AM EST!
             scan_market('5m', '5d', 200)
 
             # 2. 15m wide-net sweep (full 612 tickers) on 15m candle closes (:00, :15, :30, :45)
@@ -1281,14 +1282,14 @@ if __name__ == "__main__":
                     if m != current_quarter:
                         reports_sent[f"m15_{m}"] = False
 
-            # 2. 1h scanned at the top of each hour (between :00 and :10)
+            # 3. 1h scanned at the top of each hour (between :00 and :10)
             if now.minute < 10 and not reports_sent.get("hourly_1h_scanned", False):
                 scan_market('1h', '60d', 100)
                 reports_sent["hourly_1h_scanned"] = True
             elif now.minute >= 10:
                 reports_sent["hourly_1h_scanned"] = False
 
-            # 3. 1d scanned 3x a day: Open (9:35am), Midday (1:00pm), Close (3:45pm)
+            # 4. 1d scanned 3x a day: Open (9:35am), Midday (1:00pm), Close (3:45pm)
             is_open_scan = (now.hour == 9 and 35 <= now.minute < 45 and not reports_sent.get("daily_open", False))
             is_mid_scan  = (now.hour == 13 and now.minute < 15 and not reports_sent.get("daily_mid", False))
             is_close_scan = (now.hour == 15 and 45 <= now.minute < 58 and not reports_sent.get("daily_close", False))
@@ -1303,7 +1304,7 @@ if __name__ == "__main__":
                 scan_market('1d', '2y', 100)
                 reports_sent["daily_close"] = True
         else:
-            print(f"[{now.strftime('%H:%M:%S')}] Outside market hours (Mon-Fri 9:30am-4:00pm EST). Scan paused.")
+            print(f"[{now.strftime('%H:%M:%S')}] Outside scanning hours (Mon-Fri 7:00am-5:00pm EST). Scan paused.")
         
         if TELEGRAM_ENABLED:
             try:
@@ -1372,8 +1373,8 @@ if __name__ == "__main__":
             send_daily_recap()
             reports_sent["recap"] = True
             
-        # Engine 1 Cadence: 20 seconds during market hours for immediate trigger execution, 300s outside
-        if is_market_hours:
+        # Engine 1 Cadence: 20 seconds during active scanning hours (7:00 AM - 5:00 PM EST), 300s outside
+        if is_scanning_hours:
             time.sleep(20)
         else:
             time.sleep(300)
