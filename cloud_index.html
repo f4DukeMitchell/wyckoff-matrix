@@ -898,6 +898,85 @@
       justify-content: space-between;
       align-items: center;
     }
+
+    /* MULTI-CHART MATRIX VIEW */
+    #charts-page-grid {
+      flex: 1;
+      display: none;
+      flex-direction: column;
+      background: #080808;
+      overflow: hidden;
+      height: calc(100vh - 44px);
+    }
+    .multi-charts-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      background: #0d0d0d;
+      border-bottom: 1px solid var(--wsr-border);
+      flex-wrap: wrap;
+      gap: 8px;
+      z-index: 10;
+      box-sizing: border-box;
+      min-height: 38px;
+    }
+    .multi-charts-grid {
+      flex: 1;
+      display: grid;
+      gap: 2px;
+      background: var(--wsr-border);
+      overflow: hidden;
+      position: relative;
+      width: 100%;
+      height: calc(100% - 38px);
+      box-sizing: border-box;
+    }
+    .multi-charts-grid.layout-1 {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr;
+    }
+    .multi-charts-grid.layout-2 {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr;
+    }
+    .multi-charts-grid.layout-4 {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+    }
+    .multi-chart-card {
+      background: #070707;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid #181818;
+      box-sizing: border-box;
+    }
+    .multi-chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 8px;
+      background: #0d0d0d;
+      border-bottom: 1px solid #1a1a1a;
+      font-size: 11px;
+      flex-wrap: nowrap;
+      gap: 6px;
+      user-select: none;
+      height: 30px;
+      min-height: 30px;
+      box-sizing: border-box;
+    }
+    .multi-chart-canvas-box {
+      flex: 1;
+      min-height: 0;
+      min-width: 0;
+      position: relative;
+      width: 100%;
+      height: calc(100% - 30px);
+      overflow: hidden;
+    }
   </style>
 </head>
 <body>
@@ -907,6 +986,7 @@
     <div class="brand">WSR TERMINAL // v12.0</div>
     <div class="view-tabs">
       <button id="tab-terminal" class="view-tab active" onclick="switchView('terminal')">📊 TRADING</button>
+      <button id="tab-charts" class="view-tab" onclick="switchView('charts')" style="border-color: #00d26a; color: #00ff88;" title="Multi-Chart Matrix: Toggle 1, 2, or 4 Charts with individual ticker & timeframe selection">📈 CHARTS</button>
       <button id="tab-mllab" class="view-tab" onclick="switchView('mllab')">🧠 AI / ML LAB</button>
       <button id="tab-options" class="view-tab" onclick="switchView('options')" style="border-color: #a855f7; color: #c084fc;" title="Dedicated Options Matrix: Real-time 0.65 Delta Weekly Calls & Multi-Tranche Exits">⚡ OPTIONS MATRIX</button>
       <button id="tab-paper" class="view-tab" onclick="switchView('paper')" style="border-color: #00e5ff; color: #00e5ff;" title="AI Learning Model Simulated Paper Trades (Air-gapped from live broker trades)">🤖 ML PAPER LAB</button>
@@ -1922,6 +2002,144 @@
 
   </div>
 
+  <!-- DEDICATED MULTI-CHART MATRIX VIEW -->
+  <div id="charts-page-grid">
+    <!-- Top Multi-Chart Toolbar -->
+    <div class="multi-charts-toolbar">
+      <!-- Left: Layout Selectors -->
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="font-weight: 700; color: #00e5ff; font-size: 11px; letter-spacing: 0.5px;">LAYOUT:</span>
+        <button id="btn-chart-layout-1" class="term-btn" onclick="setMultiChartLayout(1)" style="padding: 3px 10px; font-weight: bold; border-color: #444;">🔲 1 CHART</button>
+        <button id="btn-chart-layout-2" class="term-btn" onclick="setMultiChartLayout(2)" style="padding: 3px 10px; font-weight: bold; border-color: #444;">⏸️ 2 CHARTS</button>
+        <button id="btn-chart-layout-4" class="term-btn active-tf" onclick="setMultiChartLayout(4)" style="padding: 3px 10px; font-weight: bold; background: var(--wsr-orange); color: #000; border-color: var(--wsr-orange);">⊞ 4 CHARTS</button>
+      </div>
+
+      <!-- Center: Quick Presets -->
+      <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+        <span style="font-size: 10px; color: #777;">PRESETS:</span>
+        <button class="term-btn" onclick="applyMultiChartPreset('POSITIONS')" style="font-size: 9.5px; padding: 2px 8px; border-color: #00d26a; color: #00ff88;" title="Load live active positions from broker">🚀 LIVE BROKER POSITIONS</button>
+        <button class="term-btn" onclick="applyMultiChartPreset('RADAR')" style="font-size: 9.5px; padding: 2px 8px; border-color: #ffd700; color: #ffd700;" title="Load top coiled stocks from 5M priority queue">⚡ 5M QUEUE RADAR</button>
+        <button class="term-btn" onclick="applyMultiChartPreset('INDEX')" style="font-size: 9.5px; padding: 2px 8px; border-color: #a855f7; color: #c084fc;" title="Load SPY, QQQ, IWM, DIA">🌐 MAJOR INDICES</button>
+        <button class="term-btn" onclick="applyMultiChartPreset('TECH')" style="font-size: 9.5px; padding: 2px 8px; border-color: #00e5ff; color: #00e5ff;" title="Load NVDA, TSLA, AMD, AAPL">💻 MEGA-CAP TECH</button>
+      </div>
+
+      <!-- Right: Actions -->
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <button class="term-btn" onclick="refreshAllMultiCharts()" style="font-size: 10px; padding: 3px 10px; border-color: var(--wsr-yellow); color: var(--wsr-yellow);">🔄 SYNC REFRESH</button>
+      </div>
+    </div>
+
+    <!-- Multi-Chart Grid (1, 2, or 4 Slots) -->
+    <div id="multi-charts-wrapper" class="multi-charts-grid layout-4">
+      <!-- SLOT 0 -->
+      <div class="multi-chart-card" id="multi-slot-0">
+        <div class="multi-chart-header">
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <span style="background: #222; color: #00e5ff; padding: 1px 5px; border-radius: 2px; font-weight: bold; font-size: 10px;">#1</span>
+            <input type="text" id="slot-sym-0" value="MELI" list="ticker-datalist" onkeydown="if(event.key==='Enter') updateSlotTicker(0, this.value)" style="width: 65px; background: #000; border: 1px solid #444; color: #00ff88; font-weight: bold; font-family: inherit; font-size: 11px; padding: 1px 5px; text-transform: uppercase;">
+            <button class="term-btn" onclick="updateSlotTicker(0, document.getElementById('slot-sym-0').value)" style="padding: 1px 5px; font-size: 9px;">GO</button>
+            <div style="display: flex; gap: 2px; margin-left: 2px;">
+              <button class="term-btn slot-tf-btn" data-slot="0" data-tf="1m" onclick="updateSlotTF(0, '1m')">1M</button>
+              <button class="term-btn slot-tf-btn" data-slot="0" data-tf="5m" onclick="updateSlotTF(0, '5m')">5M</button>
+              <button class="term-btn slot-tf-btn" data-slot="0" data-tf="15m" onclick="updateSlotTF(0, '15m')">15M</button>
+              <button class="term-btn slot-tf-btn" data-slot="0" data-tf="1h" onclick="updateSlotTF(0, '1h')">1H</button>
+              <button class="term-btn slot-tf-btn" data-slot="0" data-tf="1d" onclick="updateSlotTF(0, '1d')">1D</button>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span id="slot-meta-0" style="font-size: 9.5px; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></span>
+            <button class="term-btn" id="slot-solo-btn-0" onclick="toggleSoloSlot(0)" style="padding: 1px 5px; font-size: 9px; color: #00e5ff; border-color: rgba(0,229,255,0.4);" title="Toggle solo fullscreen">🔲 SOLO</button>
+          </div>
+        </div>
+        <div class="multi-chart-canvas-box" id="slot-canvas-0"></div>
+      </div>
+
+      <!-- SLOT 1 -->
+      <div class="multi-chart-card" id="multi-slot-1">
+        <div class="multi-chart-header">
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <span style="background: #222; color: #00e5ff; padding: 1px 5px; border-radius: 2px; font-weight: bold; font-size: 10px;">#2</span>
+            <input type="text" id="slot-sym-1" value="NXPI" list="ticker-datalist" onkeydown="if(event.key==='Enter') updateSlotTicker(1, this.value)" style="width: 65px; background: #000; border: 1px solid #444; color: #00ff88; font-weight: bold; font-family: inherit; font-size: 11px; padding: 1px 5px; text-transform: uppercase;">
+            <button class="term-btn" onclick="updateSlotTicker(1, document.getElementById('slot-sym-1').value)" style="padding: 1px 5px; font-size: 9px;">GO</button>
+            <div style="display: flex; gap: 2px; margin-left: 2px;">
+              <button class="term-btn slot-tf-btn" data-slot="1" data-tf="1m" onclick="updateSlotTF(1, '1m')">1M</button>
+              <button class="term-btn slot-tf-btn" data-slot="1" data-tf="5m" onclick="updateSlotTF(1, '5m')">5M</button>
+              <button class="term-btn slot-tf-btn" data-slot="1" data-tf="15m" onclick="updateSlotTF(1, '15m')">15M</button>
+              <button class="term-btn slot-tf-btn" data-slot="1" data-tf="1h" onclick="updateSlotTF(1, '1h')">1H</button>
+              <button class="term-btn slot-tf-btn" data-slot="1" data-tf="1d" onclick="updateSlotTF(1, '1d')">1D</button>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span id="slot-meta-1" style="font-size: 9.5px; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></span>
+            <button class="term-btn" id="slot-solo-btn-1" onclick="toggleSoloSlot(1)" style="padding: 1px 5px; font-size: 9px; color: #00e5ff; border-color: rgba(0,229,255,0.4);" title="Toggle solo fullscreen">🔲 SOLO</button>
+          </div>
+        </div>
+        <div class="multi-chart-canvas-box" id="slot-canvas-1"></div>
+      </div>
+
+      <!-- SLOT 2 -->
+      <div class="multi-chart-card" id="multi-slot-2">
+        <div class="multi-chart-header">
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <span style="background: #222; color: #00e5ff; padding: 1px 5px; border-radius: 2px; font-weight: bold; font-size: 10px;">#3</span>
+            <input type="text" id="slot-sym-2" value="WULF" list="ticker-datalist" onkeydown="if(event.key==='Enter') updateSlotTicker(2, this.value)" style="width: 65px; background: #000; border: 1px solid #444; color: #00ff88; font-weight: bold; font-family: inherit; font-size: 11px; padding: 1px 5px; text-transform: uppercase;">
+            <button class="term-btn" onclick="updateSlotTicker(2, document.getElementById('slot-sym-2').value)" style="padding: 1px 5px; font-size: 9px;">GO</button>
+            <div style="display: flex; gap: 2px; margin-left: 2px;">
+              <button class="term-btn slot-tf-btn" data-slot="2" data-tf="1m" onclick="updateSlotTF(2, '1m')">1M</button>
+              <button class="term-btn slot-tf-btn" data-slot="2" data-tf="5m" onclick="updateSlotTF(2, '5m')">5M</button>
+              <button class="term-btn slot-tf-btn" data-slot="2" data-tf="15m" onclick="updateSlotTF(2, '15m')">15M</button>
+              <button class="term-btn slot-tf-btn" data-slot="2" data-tf="1h" onclick="updateSlotTF(2, '1h')">1H</button>
+              <button class="term-btn slot-tf-btn" data-slot="2" data-tf="1d" onclick="updateSlotTF(2, '1d')">1D</button>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span id="slot-meta-2" style="font-size: 9.5px; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></span>
+            <button class="term-btn" id="slot-solo-btn-2" onclick="toggleSoloSlot(2)" style="padding: 1px 5px; font-size: 9px; color: #00e5ff; border-color: rgba(0,229,255,0.4);" title="Toggle solo fullscreen">🔲 SOLO</button>
+          </div>
+        </div>
+        <div class="multi-chart-canvas-box" id="slot-canvas-2"></div>
+      </div>
+
+      <!-- SLOT 3 -->
+      <div class="multi-chart-card" id="multi-slot-3">
+        <div class="multi-chart-header">
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <span style="background: #222; color: #00e5ff; padding: 1px 5px; border-radius: 2px; font-weight: bold; font-size: 10px;">#4</span>
+            <input type="text" id="slot-sym-3" value="SPY" list="ticker-datalist" onkeydown="if(event.key==='Enter') updateSlotTicker(3, this.value)" style="width: 65px; background: #000; border: 1px solid #444; color: #00ff88; font-weight: bold; font-family: inherit; font-size: 11px; padding: 1px 5px; text-transform: uppercase;">
+            <button class="term-btn" onclick="updateSlotTicker(3, document.getElementById('slot-sym-3').value)" style="padding: 1px 5px; font-size: 9px;">GO</button>
+            <div style="display: flex; gap: 2px; margin-left: 2px;">
+              <button class="term-btn slot-tf-btn" data-slot="3" data-tf="1m" onclick="updateSlotTF(3, '1m')">1M</button>
+              <button class="term-btn slot-tf-btn" data-slot="3" data-tf="5m" onclick="updateSlotTF(3, '5m')">5M</button>
+              <button class="term-btn slot-tf-btn" data-slot="3" data-tf="15m" onclick="updateSlotTF(3, '15m')">15M</button>
+              <button class="term-btn slot-tf-btn" data-slot="3" data-tf="1h" onclick="updateSlotTF(3, '1h')">1H</button>
+              <button class="term-btn slot-tf-btn" data-slot="3" data-tf="1d" onclick="updateSlotTF(3, '1d')">1D</button>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span id="slot-meta-3" style="font-size: 9.5px; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></span>
+            <button class="term-btn" id="slot-solo-btn-3" onclick="toggleSoloSlot(3)" style="padding: 1px 5px; font-size: 9px; color: #00e5ff; border-color: rgba(0,229,255,0.4);" title="Toggle solo fullscreen">🔲 SOLO</button>
+          </div>
+        </div>
+        <div class="multi-chart-canvas-box" id="slot-canvas-3"></div>
+      </div>
+    </div>
+  </div>
+
+  <datalist id="ticker-datalist">
+    <option value="SPY"></option>
+    <option value="QQQ"></option>
+    <option value="IWM"></option>
+    <option value="DIA"></option>
+    <option value="NVDA"></option>
+    <option value="TSLA"></option>
+    <option value="AMD"></option>
+    <option value="AAPL"></option>
+    <option value="MSFT"></option>
+    <option value="MELI"></option>
+    <option value="NXPI"></option>
+    <option value="WULF"></option>
+  </datalist>
+
   <!-- HELP MODAL (F1) -->
   <div id="help-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 99999; backdrop-filter: blur(4px);">
     <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 560px; max-width: 90%; background: #0d0d0d; border: 1px solid var(--wsr-border); box-shadow: 0 10px 40px rgba(0,0,0,0.9); padding: 24px; font-family: 'Consolas', monospace; color: #eee;">
@@ -1938,6 +2156,7 @@
         <tr style="border-bottom: 1px solid #222;"><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700;">F6</td><td style="padding: 8px 4px;">Toggle AI / ML Retraining Lab</td></tr>
         <tr style="border-bottom: 1px solid #222;"><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700;">F7</td><td style="padding: 8px 4px;">Toggle Options Matrix View</td></tr>
         <tr style="border-bottom: 1px solid #222;"><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700;">F8</td><td style="padding: 8px 4px;">Toggle ML Paper Lab (All Signals & Outcomes)</td></tr>
+        <tr style="border-bottom: 1px solid #222;"><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700;">F9</td><td style="padding: 8px 4px;">Toggle Multi-Chart Matrix (1, 2, or 4 Charts)</td></tr>
         <tr><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700;">ESC</td><td style="padding: 8px 4px;">Clear Command Input / Close Modals</td></tr>
       </table>
       <div style="margin-top: 18px; text-align: right;">
@@ -1954,9 +2173,10 @@
       <span class="fn-key" style="cursor:pointer;" onclick="focusChartInput()"><b>F3</b> CHART</span>
       <span class="fn-key" style="cursor:pointer;" onclick="triggerPositionsView()"><b>F4</b> POSITIONS</span>
       <span class="fn-key" style="cursor:pointer;" onclick="handleManualRefresh()"><b>F5</b> REFRESH</span>
-      <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'terminal' ? 'mllab' : 'terminal')"><b>F6</b> ML LAB</span>
+      <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'mllab' ? 'terminal' : 'mllab')"><b>F6</b> ML LAB</span>
       <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'options' ? 'terminal' : 'options')"><b>F7</b> OPTIONS</span>
       <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'paper' ? 'terminal' : 'paper')"><b>F8</b> PAPER LAB</span>
+      <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'charts' ? 'terminal' : 'charts')"><b>F9</b> CHARTS</span>
       <span class="fn-key" style="cursor:pointer;" onclick="handleEscClear()"><b>ESC</b> CLEAR</span>
     </div>
     <div>
@@ -3375,6 +3595,14 @@
         // Live Telegram Alerts Table (Last 5)
         rawTelegramAlertsData = data.telegram_alerts || [];
         renderTelegramAlertsTable();
+
+        // Multi-chart datalist and price line sync
+        updateTickerDatalist();
+        if (currentView === 'charts' && multiChartsInitialized) {
+          multiChartSlots.forEach(slot => {
+            updateSlotPriceLines(slot, slot.ticker);
+          });
+        }
       } catch (e) {
         console.error("State refresh error:", e);
       }
@@ -3702,7 +3930,9 @@
       const mlGrid = document.getElementById('ml-lab-grid');
       const optGrid = document.getElementById('options-matrix-grid');
       const paperGrid = document.getElementById('paper-lab-grid');
+      const chartsGrid = document.getElementById('charts-page-grid');
       const tabTerm = document.getElementById('tab-terminal');
+      const tabCharts = document.getElementById('tab-charts');
       const tabML = document.getElementById('tab-mllab');
       const tabOpt = document.getElementById('tab-options');
       const tabPaper = document.getElementById('tab-paper');
@@ -3711,12 +3941,18 @@
       mlGrid.style.display = 'none';
       if (optGrid) optGrid.style.display = 'none';
       if (paperGrid) paperGrid.style.display = 'none';
+      if (chartsGrid) chartsGrid.style.display = 'none';
       tabTerm.classList.remove('active');
+      if (tabCharts) tabCharts.classList.remove('active');
       tabML.classList.remove('active');
       if (tabOpt) tabOpt.classList.remove('active');
       if (tabPaper) tabPaper.classList.remove('active');
 
-      if (view === 'mllab') {
+      if (view === 'charts') {
+        if (chartsGrid) chartsGrid.style.display = 'flex';
+        if (tabCharts) tabCharts.classList.add('active');
+        initMultiCharts();
+      } else if (view === 'mllab') {
         mlGrid.style.display = 'flex';
         tabML.classList.add('active');
         fetchMLOverview();
@@ -5059,6 +5295,442 @@
       }).join('');
     }
 
+    // ==========================================
+    // --- MULTI-CHART MATRIX STATE & ENGINE ---
+    // ==========================================
+    const multiChartSlots = [
+      { index: 0, ticker: 'MELI', interval: '5m', chart: null, candleSeries: null, rhSeries: null, rlSeries: null, stSeries: null, vwapSeries: null, priceLines: [], ro: null },
+      { index: 1, ticker: 'NXPI', interval: '5m', chart: null, candleSeries: null, rhSeries: null, rlSeries: null, stSeries: null, vwapSeries: null, priceLines: [], ro: null },
+      { index: 2, ticker: 'WULF', interval: '5m', chart: null, candleSeries: null, rhSeries: null, rlSeries: null, stSeries: null, vwapSeries: null, priceLines: [], ro: null },
+      { index: 3, ticker: 'SPY', interval: '5m', chart: null, candleSeries: null, rhSeries: null, rlSeries: null, stSeries: null, vwapSeries: null, priceLines: [], ro: null }
+    ];
+    let currentChartsLayout = 4;
+    let previousMultiLayout = 4;
+    let multiChartsInitialized = false;
+    let soloSlotIndex = null;
+
+    function createSingleSlotChart(containerId, interval) {
+      const container = document.getElementById(containerId);
+      if (!container) return null;
+      const chartInstance = LightweightCharts.createChart(container, {
+        layout: {
+          background: { color: '#070707' },
+          textColor: '#888888',
+          fontFamily: "'IBM Plex Mono', monospace"
+        },
+        grid: {
+          vertLines: { color: '#141414' },
+          horzLines: { color: '#141414' }
+        },
+        localization: {
+          locale: 'en-US',
+          dateFormat: 'yyyy-MM-dd',
+          timeFormatter: (time) => {
+            if (!time) return '';
+            const tMs = typeof time === 'number'
+              ? time * 1000
+              : (time.year ? Date.UTC(time.year, time.month - 1, time.day) : new Date(time).getTime());
+            const d = new Date(tMs);
+            if (interval === '1d') {
+              return d.toLocaleDateString('en-US', {
+                timeZone: 'America/New_York',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+              });
+            }
+            return d.toLocaleString('en-US', {
+              timeZone: 'America/New_York',
+              month: 'short',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true
+            }) + ' EST';
+          }
+        },
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: false,
+          borderColor: '#222222',
+          tickMarkFormatter: (time, tickMarkType) => {
+            if (!time) return '';
+            const tMs = typeof time === 'number'
+              ? time * 1000
+              : (time.year ? Date.UTC(time.year, time.month - 1, time.day) : new Date(time).getTime());
+            const d = new Date(tMs);
+            if (tickMarkType === 0) return d.toLocaleDateString('en-US', { timeZone: 'America/New_York', year: 'numeric' });
+            if (tickMarkType === 1) return d.toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short' });
+            if (tickMarkType === 2) return d.toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' });
+            return d.toLocaleTimeString('en-US', {
+              timeZone: 'America/New_York',
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true
+            });
+          }
+        },
+        rightPriceScale: {
+          visible: true,
+          borderColor: '#222222',
+          scaleMargins: { top: 0.08, bottom: 0.08 },
+          alignLabels: true,
+          borderVisible: true,
+          entireTextOnly: false,
+          minimumWidth: 65
+        }
+      });
+
+      const candleSeries = chartInstance.addCandlestickSeries({
+        upColor: '#00d26a',
+        downColor: '#ff3b30',
+        borderUpColor: '#00d26a',
+        borderDownColor: '#ff3b30',
+        wickUpColor: '#00d26a',
+        wickDownColor: '#ff3b30'
+      });
+
+      const rhSeries = chartInstance.addLineSeries({
+        color: '#ff8c00',
+        lineWidth: 1,
+        lineStyle: 2,
+        title: 'TR HIGH'
+      });
+
+      const rlSeries = chartInstance.addLineSeries({
+        color: '#00c8ff',
+        lineWidth: 1,
+        lineStyle: 2,
+        title: 'TR LOW'
+      });
+
+      const stSeries = chartInstance.addLineSeries({
+        color: '#ffd400',
+        lineWidth: 2,
+        title: 'SUPERTREND'
+      });
+
+      const vwapSeries = chartInstance.addLineSeries({
+        color: '#9933ff',
+        lineWidth: 1,
+        title: 'VWAP'
+      });
+
+      return { chart: chartInstance, candleSeries, rhSeries, rlSeries, stSeries, vwapSeries };
+    }
+
+    function updateSlotPriceLines(slot, ticker) {
+      if (!slot.candleSeries) return;
+      if (slot.priceLines && slot.priceLines.length > 0) {
+        slot.priceLines.forEach(l => {
+          try { slot.candleSeries.removePriceLine(l); } catch(e){}
+        });
+      }
+      slot.priceLines = [];
+
+      const sym = (ticker || slot.ticker || '').toUpperCase();
+      const pos = (rawPositionsData || []).find(p => (p.ticker || '').toUpperCase() === sym);
+      if (!pos || !pos.entry_price) return;
+
+      const entry = parseFloat(pos.entry_price);
+      const sl = parseFloat(pos.stop_loss);
+      const tp = parseFloat(pos.take_profit);
+
+      if (entry > 0) {
+        slot.priceLines.push(slot.candleSeries.createPriceLine({
+          price: entry,
+          color: '#00e5ff',
+          lineWidth: 2,
+          axisLabelVisible: true,
+          title: `ENTRY $${entry.toFixed(2)}`
+        }));
+      }
+      if (sl > 0) {
+        slot.priceLines.push(slot.candleSeries.createPriceLine({
+          price: sl,
+          color: pos.breakeven_set ? '#ffd400' : '#ff3b30',
+          lineWidth: 2,
+          lineStyle: 2,
+          axisLabelVisible: true,
+          title: `${pos.breakeven_set ? '[BE] STOP' : 'STOP'} $${sl.toFixed(2)}`
+        }));
+      }
+      if (tp > 0) {
+        slot.priceLines.push(slot.candleSeries.createPriceLine({
+          price: tp,
+          color: '#00d26a',
+          lineWidth: 1,
+          lineStyle: 1,
+          axisLabelVisible: true,
+          title: `TARGET $${tp.toFixed(2)}`
+        }));
+      }
+    }
+
+    async function loadSlotChartData(slotIdx, ticker, interval) {
+      const slot = multiChartSlots[slotIdx];
+      if (!slot) return;
+      if (ticker) slot.ticker = ticker.trim().toUpperCase();
+      if (interval) slot.interval = interval;
+
+      const symInp = document.getElementById(`slot-sym-${slotIdx}`);
+      if (symInp) symInp.value = slot.ticker;
+
+      document.querySelectorAll(`.slot-tf-btn[data-slot="${slotIdx}"]`).forEach(btn => {
+        if (btn.getAttribute('data-tf') === slot.interval) {
+          btn.style.background = 'var(--wsr-orange)';
+          btn.style.color = '#000';
+          btn.style.fontWeight = 'bold';
+        } else {
+          btn.style.background = 'transparent';
+          btn.style.color = '#888';
+          btn.style.fontWeight = 'normal';
+        }
+      });
+
+      const metaEl = document.getElementById(`slot-meta-${slotIdx}`);
+      if (metaEl) {
+        metaEl.innerHTML = `<span style="color:var(--wsr-yellow); font-size:9.5px;">[SYNCING ${slot.ticker} ${slot.interval.toUpperCase()}...]</span>`;
+      }
+
+      try {
+        const res = await fetch(`/api/bars/${slot.ticker}?interval=${slot.interval}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        if (data.bars && data.bars.length > 0) {
+          slot.candleSeries.setData(data.bars);
+          if (data.range_high) slot.rhSeries.setData(data.range_high);
+          if (data.range_low) slot.rlSeries.setData(data.range_low);
+          if (data.supertrend) slot.stSeries.setData(data.supertrend);
+          if (data.vwap) slot.vwapSeries.setData(data.vwap);
+          if (data.markers && data.markers.length > 0) {
+            slot.candleSeries.setMarkers(data.markers);
+          } else {
+            slot.candleSeries.setMarkers([]);
+          }
+
+          updateSlotPriceLines(slot, slot.ticker);
+          slot.chart.timeScale().fitContent();
+
+          const lastBar = data.bars[data.bars.length - 1];
+          const prevBar = data.bars.length > 1 ? data.bars[data.bars.length - 2] : lastBar;
+          const chg = lastBar.close - prevBar.close;
+          const chgPct = prevBar.close > 0 ? (chg / prevBar.close) * 100 : 0;
+          const chgColor = chg >= 0 ? '#00d26a' : '#ff3b30';
+          const chgSign = chg >= 0 ? '+' : '';
+
+          if (metaEl) {
+            metaEl.innerHTML = `LAST: <b style="color: #fff;">$${lastBar.close.toFixed(2)}</b> <span style="color: ${chgColor};">(${chgSign}${chgPct.toFixed(2)}%)</span> <span style="color: #666; font-size: 9px; margin-left: 4px;">(${data.bars.length} BARS)</span>`;
+          }
+        } else {
+          if (metaEl) metaEl.innerHTML = `<span style="color:var(--wsr-orange); font-size:9.5px;">[NO BARS RETURNED]</span>`;
+        }
+      } catch (err) {
+        if (metaEl) metaEl.innerHTML = `<span style="color:var(--wsr-red); font-size:9.5px;">[ERROR: ${err.message}]</span>`;
+      }
+    }
+
+    function initMultiCharts() {
+      if (!multiChartsInitialized) {
+        multiChartSlots.forEach(slot => {
+          const containerId = `slot-canvas-${slot.index}`;
+          const res = createSingleSlotChart(containerId, slot.interval);
+          if (res) {
+            slot.chart = res.chart;
+            slot.candleSeries = res.candleSeries;
+            slot.rhSeries = res.rhSeries;
+            slot.rlSeries = res.rlSeries;
+            slot.stSeries = res.stSeries;
+            slot.vwapSeries = res.vwapSeries;
+
+            const container = document.getElementById(containerId);
+            if (window.ResizeObserver && container) {
+              slot.ro = new ResizeObserver(() => {
+                if (container.clientWidth > 0 && container.clientHeight > 0 && slot.chart) {
+                  slot.chart.resize(container.clientWidth, container.clientHeight);
+                }
+              });
+              slot.ro.observe(container);
+            }
+          }
+        });
+
+        // Seed with current live positions if available
+        if (rawPositionsData && rawPositionsData.length > 0) {
+          const liveTickers = rawPositionsData.map(p => (p.ticker || '').toUpperCase()).filter(t => t && !t.includes('C00') && !t.includes('P00'));
+          if (liveTickers[0]) multiChartSlots[0].ticker = liveTickers[0];
+          if (liveTickers[1]) multiChartSlots[1].ticker = liveTickers[1];
+          if (liveTickers[2]) multiChartSlots[2].ticker = liveTickers[2];
+        }
+
+        setMultiChartLayout(currentChartsLayout);
+        multiChartsInitialized = true;
+
+        multiChartSlots.forEach(s => {
+          loadSlotChartData(s.index, s.ticker, s.interval);
+        });
+      } else {
+        setTimeout(() => {
+          for (let i = 0; i < currentChartsLayout; i++) {
+            const s = multiChartSlots[i];
+            const c = document.getElementById(`slot-canvas-${s.index}`);
+            if (c && s.chart && c.clientWidth > 0 && c.clientHeight > 0) {
+              s.chart.resize(c.clientWidth, c.clientHeight);
+              s.chart.timeScale().fitContent();
+            }
+          }
+        }, 60);
+      }
+    }
+
+    function setMultiChartLayout(num) {
+      currentChartsLayout = num;
+      soloSlotIndex = null;
+      const grid = document.getElementById('multi-charts-wrapper');
+      if (!grid) return;
+
+      grid.classList.remove('layout-1', 'layout-2', 'layout-4');
+      grid.classList.add(`layout-${num}`);
+
+      [1, 2, 4].forEach(n => {
+        const btn = document.getElementById(`btn-chart-layout-${n}`);
+        if (btn) {
+          if (n === num) {
+            btn.style.background = 'var(--wsr-orange)';
+            btn.style.color = '#000';
+            btn.style.fontWeight = 'bold';
+            btn.style.borderColor = 'var(--wsr-orange)';
+          } else {
+            btn.style.background = 'transparent';
+            btn.style.color = '#888';
+            btn.style.fontWeight = 'normal';
+            btn.style.borderColor = '#444';
+          }
+        }
+      });
+
+      for (let i = 0; i < 4; i++) {
+        const card = document.getElementById(`multi-slot-${i}`);
+        const soloBtn = document.getElementById(`slot-solo-btn-${i}`);
+        if (soloBtn) soloBtn.innerText = '🔲 SOLO';
+        if (card) {
+          card.style.display = (i < num) ? 'flex' : 'none';
+        }
+      }
+
+      setTimeout(() => {
+        for (let i = 0; i < num; i++) {
+          const s = multiChartSlots[i];
+          const c = document.getElementById(`slot-canvas-${i}`);
+          if (s && s.chart && c && c.clientWidth > 0 && c.clientHeight > 0) {
+            s.chart.resize(c.clientWidth, c.clientHeight);
+            s.chart.timeScale().fitContent();
+          }
+        }
+      }, 60);
+    }
+
+    function toggleSoloSlot(slotIdx) {
+      if (soloSlotIndex === slotIdx) {
+        soloSlotIndex = null;
+        setMultiChartLayout(previousMultiLayout || 4);
+        return;
+      }
+
+      previousMultiLayout = currentChartsLayout;
+      soloSlotIndex = slotIdx;
+
+      const grid = document.getElementById('multi-charts-wrapper');
+      if (grid) {
+        grid.classList.remove('layout-1', 'layout-2', 'layout-4');
+        grid.classList.add('layout-1');
+      }
+
+      for (let i = 0; i < 4; i++) {
+        const card = document.getElementById(`multi-slot-${i}`);
+        const soloBtn = document.getElementById(`slot-solo-btn-${i}`);
+        if (card) {
+          if (i === slotIdx) {
+            card.style.display = 'flex';
+            if (soloBtn) soloBtn.innerText = '⊞ RESTORE';
+          } else {
+            card.style.display = 'none';
+            if (soloBtn) soloBtn.innerText = '🔲 SOLO';
+          }
+        }
+      }
+
+      setTimeout(() => {
+        const s = multiChartSlots[slotIdx];
+        const c = document.getElementById(`slot-canvas-${slotIdx}`);
+        if (s && s.chart && c && c.clientWidth > 0 && c.clientHeight > 0) {
+          s.chart.resize(c.clientWidth, c.clientHeight);
+          s.chart.timeScale().fitContent();
+        }
+      }, 60);
+    }
+
+    function updateSlotTicker(slotIdx, val) {
+      if (!val) return;
+      loadSlotChartData(slotIdx, val.trim().toUpperCase(), multiChartSlots[slotIdx].interval);
+    }
+
+    function updateSlotTF(slotIdx, tf) {
+      loadSlotChartData(slotIdx, multiChartSlots[slotIdx].ticker, tf);
+    }
+
+    function applyMultiChartPreset(preset) {
+      let tickers = ['MELI', 'NXPI', 'WULF', 'SPY'];
+      if (preset === 'POSITIONS') {
+        const pos = (rawPositionsData || []).map(p => (p.ticker || '').toUpperCase()).filter(t => t && !t.includes('C00') && !t.includes('P00'));
+        tickers = [
+          pos[0] || 'MELI',
+          pos[1] || 'NXPI',
+          pos[2] || 'WULF',
+          pos[3] || 'NVDA'
+        ];
+      } else if (preset === 'RADAR') {
+        const q = (rawPriorityQueueData || []).map(item => item.ticker).filter(Boolean);
+        tickers = [
+          q[0] || 'NVDA',
+          q[1] || 'TSLA',
+          q[2] || 'AMD',
+          q[3] || 'META'
+        ];
+      } else if (preset === 'INDEX') {
+        tickers = ['SPY', 'QQQ', 'IWM', 'DIA'];
+      } else if (preset === 'TECH') {
+        tickers = ['NVDA', 'TSLA', 'AMD', 'AAPL'];
+      }
+
+      for (let i = 0; i < 4; i++) {
+        if (tickers[i]) {
+          loadSlotChartData(i, tickers[i], multiChartSlots[i].interval);
+        }
+      }
+    }
+
+    function refreshAllMultiCharts() {
+      for (let i = 0; i < currentChartsLayout; i++) {
+        const slot = multiChartSlots[i];
+        if (slot) {
+          loadSlotChartData(i, slot.ticker, slot.interval);
+        }
+      }
+    }
+
+    function updateTickerDatalist() {
+      const dl = document.getElementById('ticker-datalist');
+      if (!dl) return;
+      const set = new Set(['SPY', 'QQQ', 'IWM', 'DIA', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'AMD', 'META', 'AMZN', 'GOOGL', 'MELI', 'NXPI', 'WULF']);
+      (rawPositionsData || []).forEach(p => { if (p.ticker) set.add(p.ticker.toUpperCase()); });
+      (rawPriorityQueueData || []).forEach(q => { if (q.ticker) set.add(q.ticker.toUpperCase()); });
+      (rawScannerData || []).forEach(s => { if (s.ticker) set.add(s.ticker.toUpperCase()); });
+
+      dl.innerHTML = Array.from(set).map(t => `<option value="${t}"></option>`).join('');
+    }
+
     // --- KEYBOARD SHORTCUT HELPER FUNCTIONS ---
     function toggleHelpModal() {
       const modal = document.getElementById('help-modal');
@@ -5129,6 +5801,9 @@
       } else if (e.key === 'F8') {
         e.preventDefault();
         switchView(currentView === 'paper' ? 'terminal' : 'paper');
+      } else if (e.key === 'F9') {
+        e.preventDefault();
+        switchView(currentView === 'charts' ? 'terminal' : 'charts');
       }
     });
 
@@ -5138,7 +5813,9 @@
       if (e.key === 'Enter') {
         const val = cmdInput.value.trim().toUpperCase();
         cmdInput.value = '';
-        if (val === 'OPTIONS' || val === '/OPTIONS' || val === 'OPT' || val === 'MATRIX') {
+        if (val === 'CHARTS' || val === '/CHARTS' || val === 'MULTI' || val === '4CHART' || val === '2CHART') {
+          switchView('charts');
+        } else if (val === 'OPTIONS' || val === '/OPTIONS' || val === 'OPT' || val === 'MATRIX') {
           switchView('options');
         } else if (val === 'PAPER' || val === '/PAPER' || val === 'GHOST' || val === 'SIM') {
           switchView('paper');
