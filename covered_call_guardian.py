@@ -185,6 +185,18 @@ def run_covered_call_cycle():
                 new_expiry = None
                 new_mid = 0.08
 
+                # Max Pain Pin Shelter Check: Ensure rolled strike sits above institutional pin wall
+                try:
+                    from options_flow import get_options_flow
+                    flow_res = get_options_flow(sym)
+                    curr_mp = float(flow_res.get('max_pain') or 0.0)
+                    if curr_mp > 0:
+                        min_sheltered = curr_mp + (0.80 if sym == "AMC" else 2.50)
+                        if new_strike < min_sheltered:
+                            new_strike = min_sheltered
+                except Exception:
+                    pass
+
                 try:
                     exps = ticker_obj.options[:6]
                     today = datetime.date.today()

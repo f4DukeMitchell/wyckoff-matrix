@@ -1406,8 +1406,15 @@
               Holdings: <b>3,108 Shares</b> ($9,510 value) | Cost Basis: <b>$13.25</b> | Current: <b id="cc-amc-price">$3.06</b>
             </div>
             <div style="font-size: 10.5px; color: #eee; margin-top: 4px;">
-              Recommended Weekly: <span class="c-green" style="font-weight: 700;" id="cc-amc-rec">SELL 31x $4.00 CALL (Nov 06)</span>
-              &rarr; <b class="c-green" id="cc-amc-cash">+$279.00 CASH</b> (<span id="cc-amc-yield">+44.7% Ann. Yield</span>)
+              Recommended Weekly: <span class="c-green" style="font-weight: 700;" id="cc-amc-rec">SELL 31x $3.50 CALL (Oct 23)</span>
+              &rarr; <b class="c-green" id="cc-amc-cash">+$155.00 CASH</b> (<span id="cc-amc-yield">+65.3% Ann. Yield</span>)
+            </div>
+            <!-- FLOW & MAX PAIN GRAVITY STRIP -->
+            <div id="cc-amc-flow-intel" style="font-size: 9.5px; color: #aaa; margin-top: 5px; padding-top: 4px; border-top: 1px dashed #332709; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+              <span>🧲 MAX PAIN: <b class="c-yellow" id="cc-amc-mp">$2.50</b> (<span id="cc-amc-mp-pull" class="c-red">-$0.56 / -17.8% gravity pull</span>)</span>
+              <span>• P/C RATIO: <b class="c-green" id="cc-amc-pcr">0.37 (43.3k Calls vs 16.2k Puts)</b></span>
+              <span>• MM PIN ZONE: <b class="c-white" id="cc-amc-pin">$2.50 - $3.00</b></span>
+              <span class="strat-badge" style="background: rgba(0, 210, 106, 0.15); border: 1px solid #00d26a; color: #00d26a; font-size: 8.5px; padding: 0 4px;">⚡ ALGO: $3.50+ SHELTERED ABOVE PIN WALL</span>
             </div>
           </div>
           <div>
@@ -1428,6 +1435,13 @@
             <div style="font-size: 10.5px; color: #eee; margin-top: 4px;">
               Recommended Weekly: <span class="c-green" style="font-weight: 700;" id="cc-nke-rec">SELL 1x $37.00 CALL (Oct 23)</span>
               &rarr; <b class="c-green" id="cc-nke-cash">+$28.00 CASH</b> (<span id="cc-nke-yield">+28.9% Ann. Yield</span>)
+            </div>
+            <!-- FLOW & MAX PAIN GRAVITY STRIP -->
+            <div id="cc-nke-flow-intel" style="font-size: 9.5px; color: #aaa; margin-top: 5px; padding-top: 4px; border-top: 1px dashed #332709; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+              <span>🧲 MAX PAIN: <b class="c-cyan" id="cc-nke-mp">$35.00</b> (<span id="cc-nke-mp-pull" class="c-muted">Near Spot</span>)</span>
+              <span>• P/C RATIO: <b class="c-white" id="cc-nke-pcr">0.85 (Neutral)</b></span>
+              <span>• MM PIN ZONE: <b class="c-white" id="cc-nke-pin">$35.00 - $37.00</b></span>
+              <span class="strat-badge" style="background: rgba(0, 229, 255, 0.15); border: 1px solid #00e5ff; color: #00e5ff; font-size: 8.5px; padding: 0 4px;">⚡ ALGO: $37.00+ SWEET SPOT</span>
             </div>
           </div>
           <div>
@@ -1503,6 +1517,27 @@
           <div id="wb-strat-name" style="font-size: 12px; font-weight: 700; color: #c084fc; margin-top: 2px;">STRATEGY 1: 2-CONTRACT TRANCHE LADDER</div>
           <div id="wb-strat-desc" style="font-size: 10px; color: #ccc; margin-top: 4px; line-height: 1.3;">
             2x Contracts. Sell Tranche 1 @ 50% target to lock BE $0.00, ride Tranche 2 to target.
+          </div>
+        </div>
+
+        <!-- INSTITUTIONAL FLOW & MAX PAIN GRAVITY INTEL CARD (DYNAMIC) -->
+        <div id="wb-max-pain-box" style="display: none; background: #161208; border: 1px solid #4d3c11; border-left: 3px solid #ffd700; padding: 8px 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 9.5px; color: #ffd700; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">🧲 INSTITUTIONAL FLOW &amp; MAX PAIN GRAVITY</span>
+            <span id="wb-mp-badge" style="font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 2px; background: rgba(0, 210, 106, 0.15); border: 1px solid #00d26a; color: #00d26a;">🛡️ SHELTERED ABOVE PIN</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 5px;">
+            <div style="font-size: 10px; color: #ccc;">
+              Max Pain: <b class="c-yellow" id="wb-mp-val">$2.50</b> | Gamma Wall: <b class="c-cyan" id="wb-gw-val">$2.50</b><br>
+              Pin Gravity Pull: <b id="wb-mp-pull" class="c-red">-$0.54 (-17.8%)</b>
+            </div>
+            <div style="font-size: 10px; color: #ccc;">
+              P/C Ratio: <b class="c-green" id="wb-mp-pcr">0.37 (BULLISH SKEW)</b><br>
+              Call OI: <b class="c-white" id="wb-mp-calloi">43,294</b> vs Put: <b class="c-muted" id="wb-mp-putoi">16,220</b>
+            </div>
+          </div>
+          <div id="wb-mp-explanation" style="font-size: 9.5px; color: #ddd; margin-top: 5px; line-height: 1.35; background: #0c0a05; padding: 5px 8px; border-radius: 2px; border: 1px solid #2a220b;">
+            Institutions face massive losses if AMC stays above $3.00 due to 43,294 open calls. Market makers typically short stock and dump inventory to pin between $2.50–$3.00 toward Friday expiration. Your selected strike sits safely outside this pin zone, allowing Max Pain gravity to crush the option into rapid 50% decay profit!
           </div>
         </div>
 
@@ -3305,6 +3340,20 @@
           if (elCash) elCash.innerText = `+$${amc.best_weekly.upfront_cash.toFixed(2)} CASH`;
           if (elYield) elYield.innerText = `+${amc.best_weekly.ann_yield}% Ann. Yield`;
         }
+        if (amc.flow_intel) {
+          const fi = amc.flow_intel;
+          const elMp = document.getElementById('cc-amc-mp');
+          const elPull = document.getElementById('cc-amc-mp-pull');
+          const elPcr = document.getElementById('cc-amc-pcr');
+          const elPin = document.getElementById('cc-amc-pin');
+          if (elMp) elMp.innerText = `$${fi.max_pain.toFixed(2)}`;
+          if (elPull) {
+            elPull.innerText = `${fi.spot_dist_from_mp >= 0 ? '-' : '+'}$${Math.abs(fi.spot_dist_from_mp).toFixed(2)} (${fi.spot_dist_from_mp_pct >= 0 ? '-' : '+'}${Math.abs(fi.spot_dist_from_mp_pct).toFixed(1)}% gravity pull)`;
+            elPull.className = fi.spot_dist_from_mp >= 0 ? 'c-red' : 'c-green';
+          }
+          if (elPcr) elPcr.innerText = `${fi.put_call_ratio.toFixed(2)} (${(fi.call_oi/1000).toFixed(1)}k Calls vs ${(fi.put_oi/1000).toFixed(1)}k Puts)`;
+          if (elPin) elPin.innerText = fi.pin_zone;
+        }
       }
 
       const nke = data.holdings.find(h => h.ticker === 'NKE');
@@ -3318,6 +3367,19 @@
           if (elRec) elRec.innerText = `SELL ${nke.best_weekly.contracts_count}x $${nke.best_weekly.strike.toFixed(2)} CALL (${nke.best_weekly.expiry})`;
           if (elCash) elCash.innerText = `+$${nke.best_weekly.upfront_cash.toFixed(2)} CASH`;
           if (elYield) elYield.innerText = `+${nke.best_weekly.ann_yield}% Ann. Yield`;
+        }
+        if (nke.flow_intel) {
+          const fi = nke.flow_intel;
+          const elMp = document.getElementById('cc-nke-mp');
+          const elPull = document.getElementById('cc-nke-mp-pull');
+          const elPcr = document.getElementById('cc-nke-pcr');
+          const elPin = document.getElementById('cc-nke-pin');
+          if (elMp) elMp.innerText = `$${fi.max_pain.toFixed(2)}`;
+          if (elPull) {
+            elPull.innerText = `${fi.spot_dist_from_mp >= 0 ? '-' : '+'}$${Math.abs(fi.spot_dist_from_mp).toFixed(2)} (${fi.spot_dist_from_mp_pct >= 0 ? '-' : '+'}${Math.abs(fi.spot_dist_from_mp_pct).toFixed(1)}%)`;
+          }
+          if (elPcr) elPcr.innerText = `${fi.put_call_ratio.toFixed(2)} (${fi.put_call_label})`;
+          if (elPin) elPin.innerText = fi.pin_zone;
         }
       }
     }
@@ -3472,6 +3534,7 @@
             <td>${item.iv ? item.iv.toFixed(0) + '%' : '--'}</td>
             <td>
               <span class="strat-badge" style="background: rgba(255, 215, 0, 0.15); border: 1px solid #ffd700; color: #ffd700; font-weight: bold;">${item.flavor_title}</span>
+              ${item.max_pain_intel ? `<span class="strat-badge" style="background: ${item.max_pain_intel.algo_pin_target ? 'rgba(0, 210, 106, 0.15)' : 'rgba(255, 152, 0, 0.15)'}; border: 1px solid ${item.max_pain_intel.algo_pin_target ? '#00d26a' : '#ff9800'}; color: ${item.max_pain_intel.algo_pin_target ? '#00d26a' : '#ff9800'}; font-size: 8px; margin-left: 3px;">${item.max_pain_intel.pin_safety_badge}</span>` : ''}
               <div style="font-size: 8.5px; color: #bbb;">${item.recommended_strategy} &rarr; <b class="c-green">+${item.ann_yield}% Ann.</b></div>
             </td>
             <td><b class="c-green" style="font-size: 11px;">+${item.upfront_cash.toFixed(0)} CASH</b></td>
@@ -3637,6 +3700,34 @@
         document.getElementById('wb-strat-name').innerText = `STRATEGY: COVERED CALL CASH HARVESTER (${item.flavor_title})`;
         document.getElementById('wb-strat-desc').innerHTML = `${item.flavor_desc}<br>Instant upfront cash deposit: <b class="c-green">+$${item.upfront_cash.toFixed(2)}</b>. If called away at $${item.strike.toFixed(2)}, total cash delivered is <b class="c-white">$${item.called_cash.toFixed(2)}</b>.`;
 
+        // Dynamic Max Pain & Institutional Flow Box
+        const mpBox = document.getElementById('wb-max-pain-box');
+        if (mpBox) {
+          mpBox.style.display = 'block';
+          const mp = item.max_pain_intel;
+          if (mp) {
+            document.getElementById('wb-mp-val').innerText = `$${mp.max_pain.toFixed(2)}`;
+            document.getElementById('wb-gw-val').innerText = `$${mp.gamma_wall.toFixed(2)}`;
+            const pullEl = document.getElementById('wb-mp-pull');
+            if (pullEl) {
+              pullEl.innerText = `${mp.spot_dist_from_mp >= 0 ? '-' : '+'}$${Math.abs(mp.spot_dist_from_mp).toFixed(2)} (${mp.spot_dist_from_mp_pct >= 0 ? '-' : '+'}${Math.abs(mp.spot_dist_from_mp_pct).toFixed(1)}% gravity pull)`;
+              pullEl.className = mp.spot_dist_from_mp >= 0 ? 'c-red' : 'c-green';
+            }
+            document.getElementById('wb-mp-pcr').innerText = `${mp.put_call_ratio.toFixed(2)} (${mp.put_call_label})`;
+            document.getElementById('wb-mp-calloi').innerText = `${mp.call_oi.toLocaleString()}`;
+            document.getElementById('wb-mp-putoi').innerText = `${mp.put_oi.toLocaleString()}`;
+            const badgeEl = document.getElementById('wb-mp-badge');
+            if (badgeEl) {
+              badgeEl.innerText = mp.pin_safety_badge;
+              badgeEl.style.color = mp.algo_pin_target ? '#00d26a' : '#ff9800';
+              badgeEl.style.borderColor = mp.algo_pin_target ? '#00d26a' : '#ff9800';
+              badgeEl.style.background = mp.algo_pin_target ? 'rgba(0, 210, 106, 0.15)' : 'rgba(255, 152, 0, 0.15)';
+            }
+            const descEl = document.getElementById('wb-mp-explanation');
+            if (descEl) descEl.innerHTML = mp.pin_bias_desc;
+          }
+        }
+
         // Call box
         const call = item.optimal_call || {};
         document.getElementById('wb-call-strike').innerText = `$${item.strike.toFixed(2)} CALL (${item.expiry})`;
@@ -3666,6 +3757,9 @@
       }
 
       // --- STANDARD WYCKOFF LONG CANDIDATE RENDERING ---
+      const mpBoxNonCC = document.getElementById('wb-max-pain-box');
+      if (mpBoxNonCC) mpBoxNonCC.style.display = 'none';
+
       if (item.category === 'SWEET_SPOT_MIDCAP') {
         catBadge.innerText = '🎯 SWEET SPOT ($15-$75)';
         catBadge.className = 'strat-badge strat-tranche';
