@@ -883,6 +883,74 @@ class ExitPayload(BaseModel):
     ticker: str
     trade_id: int | None = None
 
+class SwingRegisterPayload(BaseModel):
+    ticker: str
+    direction: str = "LONG"
+    entry_price: float
+    stop_loss: float
+    take_profit: float
+    timeframe: str = "1h"
+    quantity: float | None = None
+    regime: str = "Phase C Spring"
+
+@app.post("/api/trade/register_swing")
+def register_swing_trade(payload: SwingRegisterPayload):
+    """Registers or updates a swing position to be armed by the 5-Tier Exit Guardian with overnight hold."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        sym = payload.ticker.upper()
+        now_iso = datetime.datetime.now().isoformat()
+        risk = abs(payload.entry_price - payload.stop_loss) or (payload.entry_price * 0.015)
+        target_gain = abs(payload.take_profit - payload.entry_price)
+        target_r = round(target_gain / risk, 2) if risk > 0 else 1.20
+
+        c.execute("SELECT id FROM alerts WHERE ticker = ? AND outcome = 'OPEN' ORDER BY id DESC LIMIT 1", (sym,))
+        row = c.fetchone()
+        if row:
+            t_id = row[0]
+            c.execute("""
+                UPDATE alerts
+                SET user_active = 1,
+                    timeframe = ?,
+                    direction = ?,
+                    entry_price = ?,
+                    initial_stop_loss = ?,
+                    stop_loss = ?,
+                    take_profit = ?,
+                    initial_shares = COALESCE(?, initial_shares),
+                    optimal_target_r = ?,
+                    regime = ?
+                WHERE id = ?
+            """, (payload.timeframe, payload.direction.upper(), payload.entry_price, payload.stop_loss, payload.stop_loss, payload.take_profit, payload.quantity, target_r, payload.regime, t_id))
+        else:
+            c.execute("""
+                INSERT INTO alerts (
+                    ticker, direction, entry_price, stop_loss, initial_stop_loss,
+                    take_profit, regime, timestamp, outcome, user_active,
+                    initial_shares, timeframe, ml_confidence, optimal_target_r,
+                    telegram_alerted, model_version, partial_tier_done, peak_high_r
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', 1, ?, ?, 70.0, ?, 1, 'v7-swing-wyckoff', 0, 0.0)
+            """, (
+                sym, payload.direction.upper(), payload.entry_price, payload.stop_loss, payload.stop_loss,
+                payload.take_profit, payload.regime, now_iso, payload.quantity, payload.timeframe, target_r
+            ))
+            t_id = c.lastrowid
+        conn.commit()
+        conn.close()
+
+        # Send alert
+        try:
+            from telegram_notifier import send_message, is_configured
+            if is_configured():
+                send_message(f"🛡️ [EXIT GUARDIAN ARMED] Registered {sym} ({payload.timeframe.upper()}) | Entry: ${payload.entry_price:.2f} | Stop: ${payload.stop_loss:.2f} | Target: ${payload.take_profit:.2f} (+{target_r:.2f}R). Overnight hold active.", force=True)
+        except Exception:
+            pass
+
+        return {"success": True, "trade_id": t_id, "ticker": sym, "timeframe": payload.timeframe, "optimal_target_r": target_r}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.post("/api/order/exit")
 def place_exit(exit_req: ExitPayload):
     """Executes full position exit on Public.com directly from the terminal (covers shorts or sells longs)."""
