@@ -187,93 +187,14 @@ def migrate():
     conn.commit()
 
     # 10. Register / Sync active 1H Swing Trades for ACHR and DJT
-    swing_positions = [
-        {
-            'ticker': 'ACHR',
-            'direction': 'LONG',
-            'entry_price': 4.12,
-            'stop_loss': 3.89,
-            'initial_stop_loss': 3.89,
-            'take_profit': 4.40,
-            'regime': 'Phase C Spring',
-            'timeframe': '1h',
-            'initial_shares': 6.41377,
-            'ml_confidence': 72.0,
-            'optimal_target_r': 1.22
-        },
-        {
-            'ticker': 'DJT',
-            'direction': 'LONG',
-            'entry_price': 7.32,
-            'stop_loss': 6.92,
-            'initial_stop_loss': 6.92,
-            'take_profit': 7.80,
-            'regime': 'Phase C Spring',
-            'timeframe': '1h',
-            'initial_shares': 3.60905,
-            'ml_confidence': 70.0,
-            'optimal_target_r': 1.20
-        }
-    ]
-
-    import datetime
-    now_iso = datetime.datetime.now().isoformat()
-    for sp in swing_positions:
-        c.execute("""
-            SELECT id, outcome, user_active, partial_tier_done, initial_shares FROM alerts 
-            WHERE ticker = ? AND outcome = 'OPEN'
-            ORDER BY id DESC LIMIT 1
-        """, (sp['ticker'],))
-        row = c.fetchone()
-        if row:
-            alert_id = row[0]
-            c.execute("""
-                UPDATE alerts
-                SET user_active = 1,
-                    timeframe = ?,
-                    direction = ?,
-                    entry_price = COALESCE(entry_price, ?),
-                    initial_stop_loss = COALESCE(initial_stop_loss, ?),
-                    stop_loss = CASE WHEN partial_tier_done > 0 THEN stop_loss ELSE ? END,
-                    take_profit = COALESCE(take_profit, ?),
-                    initial_shares = COALESCE(initial_shares, ?),
-                    optimal_target_r = COALESCE(optimal_target_r, ?),
-                    model_version = 'v7-swing-wyckoff'
-                WHERE id = ?
-            """, (sp['timeframe'], sp['direction'], sp['entry_price'], sp['initial_stop_loss'], sp['stop_loss'], sp['take_profit'], sp['initial_shares'], sp['optimal_target_r'], alert_id))
-            print(f"Updated active alert #{alert_id} for {sp['ticker']} as 1H Swing Trade.")
-        else:
-            c.execute("""
-                INSERT INTO alerts (
-                    ticker, direction, entry_price, stop_loss, initial_stop_loss,
-                    take_profit, regime, timestamp, outcome, user_active,
-                    initial_shares, timeframe, ml_confidence, optimal_target_r,
-                    telegram_alerted, model_version, partial_tier_done, peak_high_r
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', 1, ?, ?, ?, ?, 1, 'v7-swing-wyckoff', 0, 0.0)
-            """, (
-                sp['ticker'], sp['direction'], sp['entry_price'], sp['stop_loss'], sp['initial_stop_loss'],
-                sp['take_profit'], sp['regime'], now_iso, sp['initial_shares'], sp['timeframe'],
-                sp['ml_confidence'], sp['optimal_target_r']
-            ))
-            print(f"Inserted new active 1H Swing Trade for {sp['ticker']}.")
-
+    # Reconcile manual closes on DJT, ACHR, and any positions exited by user at broker level
+    c.execute("""
+        UPDATE alerts
+        SET outcome = 'CLOSED_MANUAL', user_active = 0, ghost_status = 'MANUAL_BROKER_CLOSE'
+        WHERE ticker IN ('DJT', 'ACHR') AND (outcome = 'OPEN' OR user_active = 1)
+    """)
     conn.commit()
-
-    # Send confirmation alert to Telegram
-    try:
-        from telegram_notifier import send_message, is_configured
-        if is_configured():
-            msg = (
-                "🛡️ [EXIT GUARDIAN ARMED — 1H SWING TRADES]\n"
-                "• ACHR (LONG): 6.41 shares @ $4.12 | Stop: $3.89 | Target: $4.40 (+1.22R)\n"
-                "• DJT (LONG): 3.61 shares @ $7.32 | Stop: $6.92 | Target: $7.80 (+1.20R)\n\n"
-                "⚡ Exit Strategy: 5-Tier Micro-Scaling Active (Tier 1 @ +20%, Tier 2 @ +35%, Tier 3 BE @ +50%, Tier 4 @ +85%, Tier 5 @ +100%)\n"
-                "🌙 Overnight Hold: ENABLED (Multi-day swing, exempt from 3:55 PM EOD flatten)\n"
-                "💎 Core Holds Untouchable: AMC, NKE, APE strictly preserved."
-            )
-            send_message(msg, force=True)
-    except Exception as e:
-        print(f"Telegram notice error: {e}")
+    print("Reconciled DJT and ACHR as CLOSED_MANUAL (broker positions exited by user).")
 
     # Clear stalker cache on disk
     stalker_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stalker_radar.json")

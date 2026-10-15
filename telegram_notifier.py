@@ -82,6 +82,12 @@ def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, reg
         now_et = datetime.datetime.now()
     is_pre = (now_et.hour < 9) or (now_et.hour == 9 and now_et.minute < 30)
 
+    # Suppress intraday day trade scalp alerts (1m, 5m, 15m) outside regular market hours (after 4:00 PM or before 9:30 AM EST)
+    is_regular_market = (now_et.weekday() < 5) and ((now_et.hour > 9 or (now_et.hour == 9 and now_et.minute >= 30)) and (now_et.hour < 16))
+    if timeframe in ["1m", "5m", "15m"] and not is_regular_market:
+        print(f"[{now_et.strftime('%H:%M:%S')}] [Telegram Notice] Suppressed {timeframe} intraday trade alert for {ticker} (Regular market hours closed).")
+        return False
+
     trade_style = styles.get(timeframe, "Unknown")
     if is_pre and timeframe in ["1m", "5m"]:
         trade_style += " [PRE-MARKET 7AM SETUP]"

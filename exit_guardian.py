@@ -213,6 +213,44 @@ def run_guardian_cycle():
         conn.close()
         return
 
+    # -------------------------------------------------------------
+    # BROKER POSITION RECONCILIATION
+    # If a trade was tracked as user_active=1, but the position is no longer
+    # held in Public.com (e.g. user manually closed it on Public.com),
+    # mark it CLOSED_MANUAL immediately so Guardian stops monitoring and stops alerting.
+    # -------------------------------------------------------------
+    CORE_HOLDINGS = {'AMC', 'APE', 'NKE'}
+    try:
+        from public_executor import get_client, get_account_id
+        port = get_client().get_portfolio(get_account_id())
+        held_broker_symbols = set()
+        for p in (getattr(port, 'positions', None) or []):
+            if hasattr(p, 'instrument') and p.instrument and getattr(p.instrument, 'symbol', None):
+                if float(getattr(p, 'quantity', 0.0) or 0.0) > 0:
+                    held_broker_symbols.add(p.instrument.symbol.upper())
+
+        active_reconciled = []
+        for t in trades:
+            sym = (t.get('ticker') or '').upper()
+            trade_id = t['id']
+            if sym not in CORE_HOLDINGS and sym not in held_broker_symbols:
+                print(f"[{get_est_now_str()}] [Guardian] Auto-detected manual broker exit for {sym} (ID: {trade_id}). Marking CLOSED_MANUAL.")
+                c.execute("""
+                    UPDATE alerts 
+                    SET outcome = 'CLOSED_MANUAL', user_active = 0, ghost_status = 'MANUAL_BROKER_CLOSE'
+                    WHERE id = ?
+                """, (trade_id,))
+                conn.commit()
+            else:
+                active_reconciled.append(t)
+        trades = active_reconciled
+    except Exception as e_recon:
+        print(f"[{get_est_now_str()}] [Guardian] Broker reconciliation notice: {e_recon}")
+
+    if not trades:
+        conn.close()
+        return
+
     # Batch fetch live prices for active tickers
     tickers = list(set([t['ticker'] for t in trades if t.get('ticker')]))
     live_prices = {}
