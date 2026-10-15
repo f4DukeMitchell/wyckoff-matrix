@@ -45,13 +45,21 @@ def check_eod_flatten(trades, live_prices, conn):
         return False
 
     c = conn.cursor()
-    PROTECTED_HOLDS = {'AMC', 'APE', 'NKE'}
+    PROTECTED_HOLDS = {'AMC', 'APE', 'NKE', 'ACHR', 'DJT'}
     summary_lines = []
     for t in trades:
         trade_id = t['id']
         sym = t['ticker'].upper()
         if sym in PROTECTED_HOLDS:
             continue
+
+        # CRITICAL SWING TRADE PROTECTION:
+        # 1H and 1D Swing Trades are multi-day positions designed to be held overnight.
+        # Only intraday day scalps (1m, 5m, 15m) are subject to the 3:55 PM EOD flatten!
+        tf = str(t.get('timeframe') or '5m').lower()
+        if tf in ['1h', '1d', 'port', 'swing']:
+            continue
+
         direction = (t.get('direction') or 'LONG').upper()
         entry = float(t.get('entry_price') or 0.0)
         init_sl = float(t.get('initial_stop_loss') or t.get('stop_loss') or entry * 0.985)
@@ -99,7 +107,7 @@ def flatten_all_algo_trades(reason="MANUAL_TERMINAL_TRIGGER"):
     1. Closes and updates all active DB alerts (user_active = 1).
     2. Directly sweeps the live Public.com broker portfolio and closes any open non-core position (equities & options), strictly protecting AMC, APE, NKE.
     """
-    PROTECTED_HOLDS = {'AMC', 'APE', 'NKE'}
+    PROTECTED_HOLDS = {'AMC', 'APE', 'NKE', 'ACHR', 'DJT'}
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
@@ -120,6 +128,8 @@ def flatten_all_algo_trades(reason="MANUAL_TERMINAL_TRIGGER"):
     for t in trades:
         sym = t['ticker'].upper()
         if sym in PROTECTED_HOLDS: continue
+        tf = str(t.get('timeframe') or '5m').lower()
+        if tf in ['1h', '1d', 'port', 'swing']: continue
         processed_tickers.add(sym)
         direction = t.get('direction', 'LONG')
         price = live_prices.get(sym) or float(t.get('entry_price', 0))
