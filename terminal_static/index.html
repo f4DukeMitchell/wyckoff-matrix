@@ -977,6 +977,165 @@
       height: calc(100% - 30px);
       overflow: hidden;
     }
+
+    /* COLLAPSIBLE CHART NEWS DRAWER */
+    .chart-news-drawer {
+      background: #0b0d12;
+      border-top: 1px solid var(--wsr-border);
+      transition: height 0.2s ease-in-out;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      z-index: 25;
+      box-sizing: border-box;
+    }
+    .chart-news-drawer.collapsed {
+      height: 26px;
+      min-height: 26px;
+    }
+    .chart-news-drawer.expanded {
+      height: 190px;
+      min-height: 190px;
+    }
+    .chart-news-drawer-bar {
+      height: 26px;
+      min-height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 10px;
+      background: #11141c;
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid #1a202c;
+    }
+    .chart-news-drawer-bar:hover {
+      background: #161a24;
+    }
+    .chart-news-drawer-content {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: #161b24;
+      overflow: hidden;
+      padding: 0;
+    }
+    .drawer-col {
+      background: #090b0f;
+      padding: 6px 8px;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      gap: 5px;
+    }
+    .drawer-item {
+      font-size: 10px;
+      padding: 5px 6px;
+      background: #10131a;
+      border-left: 2px solid #ff9900;
+      border-radius: 2px;
+      color: #eee;
+      text-decoration: none;
+      display: block;
+      line-height: 1.35;
+      transition: all 0.15s;
+    }
+    .drawer-item:hover {
+      background: #181d28;
+      color: #00ff88;
+      border-left-color: #00ff88;
+    }
+
+    /* DEDICATED MARKET PULSE PAGE */
+    #market-pulse-grid {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      background: #080808;
+      overflow: hidden;
+      height: calc(100vh - 44px);
+    }
+    .pulse-header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 14px;
+      background: #0d0f15;
+      border-bottom: 1px solid var(--wsr-border);
+      flex-wrap: wrap;
+      gap: 10px;
+      z-index: 10;
+    }
+    .pulse-indices-strip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .pulse-ticker-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #131720;
+      border: 1px solid #1f2737;
+      padding: 2px 8px;
+      border-radius: 2px;
+      font-size: 11px;
+      font-family: inherit;
+    }
+    .pulse-body-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 320px 1fr 340px;
+      gap: 2px;
+      background: var(--wsr-border);
+      overflow: hidden;
+      min-height: 0;
+    }
+    .pulse-pane {
+      background: var(--wsr-panel);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+    .pulse-pane-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .pulse-news-card {
+      padding: 8px 10px;
+      background: #0c0e14;
+      border: 1px solid #161b24;
+      border-left: 3px solid #ff9900;
+      border-radius: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: background 0.15s, border-left-color 0.15s;
+    }
+    .pulse-news-card:hover {
+      background: #131722;
+      border-left-color: #00ff88;
+    }
+    .sentiment-badge {
+      font-size: 8.5px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: inline-block;
+    }
+    .sentiment-BULLISH { background: rgba(0, 255, 136, 0.15); color: #00ff88; border: 1px solid rgba(0,255,136,0.3); }
+    .sentiment-BEARISH { background: rgba(255, 77, 77, 0.15); color: #ff4d4d; border: 1px solid rgba(255,77,77,0.3); }
+    .sentiment-NEUTRAL { background: rgba(180, 180, 180, 0.1); color: #aaa; border: 1px solid #333; }
   </style>
 </head>
 <body>
@@ -987,6 +1146,7 @@
     <div class="view-tabs">
       <button id="tab-terminal" class="view-tab active" onclick="switchView('terminal')">📊 TRADING</button>
       <button id="tab-charts" class="view-tab" onclick="switchView('charts')" style="border-color: #00d26a; color: #00ff88;" title="Multi-Chart Matrix: Toggle 1, 2, or 4 Charts with individual ticker & timeframe selection">📈 CHARTS</button>
+      <button id="tab-pulse" class="view-tab" onclick="switchView('pulse')" style="border-color: #ff9900; color: #ff9900;" title="Market Pulse: Today's Action, AI Bot Intelligence Briefs, Macro Wire & Ticker News">📰 MARKET PULSE</button>
       <button id="tab-mllab" class="view-tab" onclick="switchView('mllab')">🧠 AI / ML LAB</button>
       <button id="tab-options" class="view-tab" onclick="switchView('options')" style="border-color: #a855f7; color: #c084fc;" title="Dedicated Options Matrix: Real-time 0.65 Delta Weekly Calls & Multi-Tranche Exits">⚡ OPTIONS MATRIX</button>
       <button id="tab-paper" class="view-tab" onclick="switchView('paper')" style="border-color: #00e5ff; color: #00e5ff;" title="AI Learning Model Simulated Paper Trades (Air-gapped from live broker trades)">🤖 ML PAPER LAB</button>
@@ -2123,6 +2283,85 @@
         <div class="multi-chart-canvas-box" id="slot-canvas-3"></div>
       </div>
     </div>
+
+    <!-- COLLAPSIBLE BOTTOM NEWS & WIRE DRAWER -->
+    <div id="chart-news-drawer" class="chart-news-drawer collapsed">
+      <div class="chart-news-drawer-bar" onclick="toggleChartNewsDrawer()">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span id="chart-drawer-arrow" style="font-size: 11px; color: #ff9900; font-weight: bold;">▲</span>
+          <span style="font-weight: 700; color: #ff9900; font-size: 10px; letter-spacing: 0.5px;">📰 TODAY'S WIRE &amp; ACTIVE CHART NEWS</span>
+          <div id="chart-drawer-ticker-tags" style="display: flex; gap: 4px;"></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button class="term-btn" onclick="event.stopPropagation(); switchView('pulse')" style="padding: 1px 6px; font-size: 9px; border-color: #ff9900; color: #ff9900;">↗ EXPAND TO FULL MARKET PULSE (F10)</button>
+          <span style="font-size: 9.5px; color: #777;">[PRESS 'N' TO TOGGLE]</span>
+        </div>
+      </div>
+      <div class="chart-news-drawer-content" id="chart-news-drawer-content">
+        <!-- Rendered dynamically for 4 active slots -->
+      </div>
+    </div>
+  </div>
+
+  <!-- DEDICATED MARKET PULSE & TODAY'S ACTION COMMAND CENTER -->
+  <div id="market-pulse-grid">
+    <!-- Macro Ticker Header Bar -->
+    <div class="pulse-header-bar">
+      <div class="pulse-indices-strip">
+        <span style="font-weight: 700; color: #ff9900; font-size: 11px; margin-right: 4px;">🌐 MARKET PULSE:</span>
+        <div class="pulse-ticker-chip" id="chip-spy"><span>SPY</span> <b class="c-green" id="pulse-price-spy">$--</b></div>
+        <div class="pulse-ticker-chip" id="chip-qqq"><span>QQQ</span> <b class="c-green" id="pulse-price-qqq">$--</b></div>
+        <div class="pulse-ticker-chip" id="chip-iwm"><span>IWM</span> <b class="c-yellow" id="pulse-price-iwm">$--</b></div>
+        <div class="pulse-ticker-chip" id="chip-dia"><span>DIA</span> <b class="c-green" id="pulse-price-dia">$--</b></div>
+        <span style="color: #666; font-size: 10px; margin-left: 6px;" id="pulse-last-updated">LIVE FEED</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <input type="text" id="pulse-search-input" placeholder="SEARCH TICKER NEWS (e.g. NVDA, AMZN)" list="ticker-datalist" onkeydown="if(event.key==='Enter') searchTickerNews(this.value)" style="width: 220px; background: #000; border: 1px solid #333; color: #00ff88; font-weight: bold; font-family: inherit; font-size: 10.5px; padding: 2px 6px; text-transform: uppercase;" />
+        <button class="term-btn" onclick="searchTickerNews(document.getElementById('pulse-search-input').value)" style="padding: 2px 8px; font-size: 10px; border-color: #00ff88; color: #00ff88;">FETCH NEWS</button>
+        <button class="term-btn" onclick="fetchMarketPulse()" style="padding: 2px 8px; font-size: 10px; border-color: #ff9900; color: #ff9900;">🔄 REFRESH WIRE</button>
+      </div>
+    </div>
+
+    <!-- 3-Column Body -->
+    <div class="pulse-body-grid">
+      <!-- Col 1: Today's Action & Bot Intelligence -->
+      <div class="pulse-pane">
+        <div class="pane-header">
+          <span>⚡ TODAY'S ACTIONS &amp; BOT LEDGER</span>
+          <span class="c-green" id="pulse-actions-count">0 EVENTS</span>
+        </div>
+        <div class="pulse-pane-content" id="pulse-actions-container">
+          <div style="color: #777; text-align: center; padding: 20px;">Loading today's bot actions...</div>
+        </div>
+      </div>
+
+      <!-- Col 2: Breaking Market Wire (CNBC & MarketWatch) -->
+      <div class="pulse-pane">
+        <div class="pane-header">
+          <span>📡 LIVE BREAKING MARKET WIRE (CNBC &amp; MARKETWATCH)</span>
+          <span class="c-cyan" id="pulse-wire-count">LIVE HEADLINES</span>
+        </div>
+        <div class="pulse-pane-content" id="pulse-wire-container">
+          <div style="color: #777; text-align: center; padding: 20px;">Streaming market wire headlines...</div>
+        </div>
+      </div>
+
+      <!-- Col 3: Company Catalysts & Ticker News -->
+      <div class="pulse-pane">
+        <div class="pane-header">
+          <span id="pulse-ticker-title">🏢 TICKER CATALYSTS &amp; COMPANY NEWS</span>
+          <div style="display: flex; gap: 4px;" id="pulse-quick-tickers">
+            <button class="term-btn" onclick="searchTickerNews('AMZN')" style="padding: 0 4px; font-size: 8.5px;">AMZN</button>
+            <button class="term-btn" onclick="searchTickerNews('PLTR')" style="padding: 0 4px; font-size: 8.5px;">PLTR</button>
+            <button class="term-btn" onclick="searchTickerNews('AMC')" style="padding: 0 4px; font-size: 8.5px;">AMC</button>
+            <button class="term-btn" onclick="searchTickerNews('NKE')" style="padding: 0 4px; font-size: 8.5px;">NKE</button>
+          </div>
+        </div>
+        <div class="pulse-pane-content" id="pulse-ticker-news-container">
+          <div style="color: #777; text-align: center; padding: 20px;">Select a ticker or search above to view company news.</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <datalist id="ticker-datalist">
@@ -2157,6 +2396,8 @@
         <tr style="border-bottom: 1px solid #222;"><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700;">F7</td><td style="padding: 8px 4px;">Toggle Options Matrix View</td></tr>
         <tr style="border-bottom: 1px solid #222;"><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700;">F8</td><td style="padding: 8px 4px;">Toggle ML Paper Lab (All Signals & Outcomes)</td></tr>
         <tr style="border-bottom: 1px solid #222;"><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700;">F9</td><td style="padding: 8px 4px;">Toggle Multi-Chart Matrix (1, 2, or 4 Charts)</td></tr>
+        <tr style="border-bottom: 1px solid #222;"><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700;">F10</td><td style="padding: 8px 4px;">Toggle Market Pulse & Today's Action Center</td></tr>
+        <tr style="border-bottom: 1px solid #222;"><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700;">N</td><td style="padding: 8px 4px;">Toggle Active Chart News Drawer (Charts View)</td></tr>
         <tr><td style="padding: 8px 4px; color: var(--wsr-yellow); font-weight: 700;">ESC</td><td style="padding: 8px 4px;">Clear Command Input / Close Modals</td></tr>
       </table>
       <div style="margin-top: 18px; text-align: right;">
@@ -2177,6 +2418,7 @@
       <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'options' ? 'terminal' : 'options')"><b>F7</b> OPTIONS</span>
       <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'paper' ? 'terminal' : 'paper')"><b>F8</b> PAPER LAB</span>
       <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'charts' ? 'terminal' : 'charts')"><b>F9</b> CHARTS</span>
+      <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'pulse' ? 'terminal' : 'pulse')"><b>F10</b> PULSE</span>
       <span class="fn-key" style="cursor:pointer;" onclick="handleEscClear()"><b>ESC</b> CLEAR</span>
     </div>
     <div>
@@ -3931,8 +4173,10 @@
       const optGrid = document.getElementById('options-matrix-grid');
       const paperGrid = document.getElementById('paper-lab-grid');
       const chartsGrid = document.getElementById('charts-page-grid');
+      const pulseGrid = document.getElementById('market-pulse-grid');
       const tabTerm = document.getElementById('tab-terminal');
       const tabCharts = document.getElementById('tab-charts');
+      const tabPulse = document.getElementById('tab-pulse');
       const tabML = document.getElementById('tab-mllab');
       const tabOpt = document.getElementById('tab-options');
       const tabPaper = document.getElementById('tab-paper');
@@ -3942,8 +4186,10 @@
       if (optGrid) optGrid.style.display = 'none';
       if (paperGrid) paperGrid.style.display = 'none';
       if (chartsGrid) chartsGrid.style.display = 'none';
+      if (pulseGrid) pulseGrid.style.display = 'none';
       tabTerm.classList.remove('active');
       if (tabCharts) tabCharts.classList.remove('active');
+      if (tabPulse) tabPulse.classList.remove('active');
       tabML.classList.remove('active');
       if (tabOpt) tabOpt.classList.remove('active');
       if (tabPaper) tabPaper.classList.remove('active');
@@ -3952,6 +4198,10 @@
         if (chartsGrid) chartsGrid.style.display = 'flex';
         if (tabCharts) tabCharts.classList.add('active');
         initMultiCharts();
+      } else if (view === 'pulse') {
+        if (pulseGrid) pulseGrid.style.display = 'flex';
+        if (tabPulse) tabPulse.classList.add('active');
+        fetchMarketPulse();
       } else if (view === 'mllab') {
         mlGrid.style.display = 'flex';
         tabML.classList.add('active');
@@ -5720,6 +5970,239 @@
       }
     }
 
+    // --- MARKET PULSE & NEWS ENGINE ---
+    let cachedMarketPulse = null;
+    let chartNewsDrawerOpen = false;
+
+    async function fetchMarketPulse(customTickers) {
+      try {
+        const tickers = customTickers || (multiChartSlots ? multiChartSlots.map(s => s.ticker).join(',') : 'SPY,QQQ,NVDA,TSLA');
+        const res = await fetch(`/api/market/pulse?tickers=${encodeURIComponent(tickers)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        cachedMarketPulse = data;
+        renderMarketPulse(data);
+        updateChartNewsDrawer(data);
+      } catch (err) {
+        console.error("Error fetching market pulse:", err);
+      }
+    }
+
+    function renderMarketPulse(data) {
+      if (!data) return;
+
+      // 1. Update Index chips
+      if (data.indices) {
+        if (data.indices.SPY) document.getElementById('pulse-price-spy').innerText = `$${Number(data.indices.SPY).toFixed(2)}`;
+        if (data.indices.QQQ) document.getElementById('pulse-price-qqq').innerText = `$${Number(data.indices.QQQ).toFixed(2)}`;
+        if (data.indices.IWM) document.getElementById('pulse-price-iwm').innerText = `$${Number(data.indices.IWM).toFixed(2)}`;
+        if (data.indices.DIA) document.getElementById('pulse-price-dia').innerText = `$${Number(data.indices.DIA).toFixed(2)}`;
+      }
+      if (data.timestamp) {
+        document.getElementById('pulse-last-updated').innerText = `UPDATED: ${data.timestamp}`;
+      }
+
+      // 2. Col 1: Today's Actions & Bot Ledger
+      const actionsContainer = document.getElementById('pulse-actions-container');
+      const actionsCountEl = document.getElementById('pulse-actions-count');
+      if (actionsContainer && data.today_actions) {
+        const act = data.today_actions;
+        const totalEvents = (act.recent_alerts || []).length + (act.hot_setups || []).length;
+        if (actionsCountEl) actionsCountEl.innerText = `${totalEvents} EVENTS`;
+
+        let html = '';
+
+        // Active Algo & Broker Trades Banner
+        html += `<div style="background: #11141c; border: 1px solid #1f2738; padding: 6px 8px; border-radius: 2px;">
+          <div style="font-weight: 700; color: #00ff88; font-size: 10px; display: flex; justify-content: space-between;">
+            <span>🛡️ BROKER PORTFOLIO STATUS</span>
+            <span>ZERO OVERNIGHT ALGO RISK</span>
+          </div>
+          <div style="font-size: 9.5px; color: #aaa; margin-top: 3px;">
+            Core Holds Protected: <b>AMC</b>, <b>NKE</b>, <b>APE</b> | 5M Day Scalps: 100% Cash EOD Flatten
+          </div>
+        </div>`;
+
+        // Hot Radar Setups
+        if (act.hot_setups && act.hot_setups.length > 0) {
+          html += `<div class="detail-title" style="margin-top: 6px; color: #ffd700;">🎯 TOP 5M RADAR CANDIDATES (COILED AT BOUNDARIES)</div>`;
+          act.hot_setups.forEach(hs => {
+            const isSpring = hs.status === 'HOT_SPRING' || hs.status === 'TEST_SUPPORT';
+            const badgeColor = isSpring ? '#00ff88' : '#ff4d4d';
+            const badgeBg = isSpring ? 'rgba(0,255,136,0.1)' : 'rgba(255,77,77,0.1)';
+            html += `<div style="display: flex; align-items: center; justify-content: space-between; background: #0c0e14; border: 1px solid #1c2230; padding: 5px 8px; border-radius: 2px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <b style="color: #fff; font-size: 11px;">${hs.ticker}</b>
+                <span style="font-size: 8.5px; padding: 1px 4px; border-radius: 2px; font-weight: bold; background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeColor};">${hs.status}</span>
+              </div>
+              <div style="text-align: right; font-size: 10px;">
+                <b style="color: #fff;">$${hs.price.toFixed(2)}</b>
+                <span style="color: #888; font-size: 9px; margin-left: 4px;">(${hs.dist_boundary_pct}% to ${hs.boundary_type})</span>
+              </div>
+            </div>`;
+          });
+        }
+
+        // Recent Today Alerts
+        if (act.recent_alerts && act.recent_alerts.length > 0) {
+          html += `<div class="detail-title" style="margin-top: 8px;">📋 TODAY'S WYCKOFF ALERTS &amp; EXITS</div>`;
+          act.recent_alerts.forEach(al => {
+            const isWin = al.outcome === 'WIN';
+            const isLoss = al.outcome === 'LOSS';
+            const outColor = isWin ? '#00ff88' : (isLoss ? '#ff4d4d' : '#ffd700');
+            const dirColor = al.direction === 'LONG' ? '#00ff88' : '#ff4d4d';
+            const rVal = al.pnl_r != null ? `${al.pnl_r > 0 ? '+' : ''}${al.pnl_r.toFixed(2)}R` : '--';
+            html += `<div style="background: #0d0f16; border: 1px solid #1a202c; padding: 6px 8px; border-radius: 2px; display: flex; flex-direction: column; gap: 2px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: bold; color: #fff; font-size: 11px;">${al.ticker} <span style="color: ${dirColor}; font-size: 9.5px;">[${al.direction} ${al.timeframe}]</span></span>
+                <span style="font-weight: bold; color: ${outColor}; font-size: 10px;">${al.outcome || 'OPEN'} (${rVal})</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 9px; color: #888;">
+                <span>Entry: $${al.entry_price ? al.entry_price.toFixed(2) : '--'} | Stop: $${al.stop_loss ? al.stop_loss.toFixed(2) : '--'}</span>
+                <span>${(al.timestamp || '').substring(11, 19)}</span>
+              </div>
+            </div>`;
+          });
+        }
+
+        actionsContainer.innerHTML = html;
+      }
+
+      // 3. Col 2: Live Breaking Market Wire (CNBC & MarketWatch)
+      const wireContainer = document.getElementById('pulse-wire-container');
+      const wireCountEl = document.getElementById('pulse-wire-count');
+      if (wireContainer && data.market_wire) {
+        if (wireCountEl) wireCountEl.innerText = `${data.market_wire.length} HEADLINES`;
+        let html = '';
+        data.market_wire.forEach(item => {
+          const sentClass = `sentiment-${item.sentiment || 'NEUTRAL'}`;
+          html += `<div class="pulse-news-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span class="sentiment-badge ${sentClass}">${item.sentiment || 'NEUTRAL'}</span>
+              <span style="font-size: 9px; color: #777;">${item.source || 'WIRE'} • ${item.time_str || ''}</span>
+            </div>
+            <a href="${item.link || '#'}" target="_blank" style="color: #eee; font-weight: bold; font-size: 11px; text-decoration: none; line-height: 1.35;">${item.title}</a>
+            ${item.description ? `<div style="font-size: 9.5px; color: #888; line-height: 1.3;">${item.description}</div>` : ''}
+          </div>`;
+        });
+        wireContainer.innerHTML = html;
+      }
+
+      // 4. Col 3: Default Ticker News
+      if (data.chart_news) {
+        const firstTicker = Object.keys(data.chart_news)[0];
+        if (firstTicker && !document.getElementById('pulse-search-input').value) {
+          renderTickerNews(firstTicker, data.chart_news[firstTicker]);
+        }
+      }
+    }
+
+    async function searchTickerNews(ticker) {
+      if (!ticker) return;
+      ticker = ticker.trim().toUpperCase();
+      document.getElementById('pulse-ticker-title').innerText = `🏢 ${ticker} COMPANY NEWS &amp; CATALYSTS`;
+      const container = document.getElementById('pulse-ticker-news-container');
+      container.innerHTML = `<div style="color: #ffd700; text-align: center; padding: 20px;">Fetching live headlines for ${ticker}...</div>`;
+      try {
+        const res = await fetch(`/api/market/ticker_news?ticker=${ticker}`);
+        const data = await res.json();
+        if (data.news && data.news.length > 0) {
+          renderTickerNews(ticker, data.news);
+        } else {
+          container.innerHTML = `<div style="color: #888; text-align: center; padding: 20px;">No recent news found for ${ticker}.</div>`;
+        }
+      } catch (e) {
+        container.innerHTML = `<div style="color: #ff4d4d; text-align: center; padding: 20px;">Error fetching news: ${e.message}</div>`;
+      }
+    }
+
+    function renderTickerNews(ticker, newsList) {
+      const container = document.getElementById('pulse-ticker-news-container');
+      if (!container) return;
+      document.getElementById('pulse-ticker-title').innerText = `🏢 ${ticker} COMPANY NEWS &amp; CATALYSTS`;
+      if (!newsList || newsList.length === 0) {
+        container.innerHTML = `<div style="color: #888; text-align: center; padding: 20px;">No recent headlines for ${ticker}.</div>`;
+        return;
+      }
+      let html = '';
+      newsList.forEach(item => {
+        const sentClass = `sentiment-${item.sentiment || 'NEUTRAL'}`;
+        html += `<div class="pulse-news-card" style="border-left-color: #00e5ff;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="sentiment-badge ${sentClass}">${item.sentiment || 'NEUTRAL'}</span>
+            <span style="font-size: 9px; color: #777;">${item.time_str || ''}</span>
+          </div>
+          <a href="${item.link || '#'}" target="_blank" style="color: #fff; font-weight: 600; font-size: 10.5px; text-decoration: none; line-height: 1.35;">${item.title}</a>
+          ${item.description ? `<div style="font-size: 9.5px; color: #888; line-height: 1.3;">${item.description}</div>` : ''}
+        </div>`;
+      });
+      container.innerHTML = html;
+    }
+
+    // --- CHART COLLAPSIBLE NEWS DRAWER ---
+    function toggleChartNewsDrawer() {
+      const drawer = document.getElementById('chart-news-drawer');
+      const arrow = document.getElementById('chart-drawer-arrow');
+      if (!drawer) return;
+      chartNewsDrawerOpen = !chartNewsDrawerOpen;
+      if (chartNewsDrawerOpen) {
+        drawer.classList.remove('collapsed');
+        drawer.classList.add('expanded');
+        if (arrow) arrow.innerText = '▼';
+        updateChartNewsDrawer(cachedMarketPulse);
+        if (!cachedMarketPulse) {
+          fetchMarketPulse();
+        }
+      } else {
+        drawer.classList.remove('expanded');
+        drawer.classList.add('collapsed');
+        if (arrow) arrow.innerText = '▲';
+      }
+      setTimeout(() => {
+        multiChartSlots.forEach(slot => {
+          const c = document.getElementById(`slot-canvas-${slot.index}`);
+          if (slot.chart && c && c.clientWidth > 0 && c.clientHeight > 0) {
+            slot.chart.resize(c.clientWidth, c.clientHeight);
+          }
+        });
+      }, 250);
+    }
+
+    function updateChartNewsDrawer(data) {
+      const tagsContainer = document.getElementById('chart-drawer-ticker-tags');
+      const contentContainer = document.getElementById('chart-news-drawer-content');
+      if (!tagsContainer || !contentContainer) return;
+
+      const activeTickers = multiChartSlots.slice(0, currentChartsLayout).map(s => s.ticker);
+      tagsContainer.innerHTML = activeTickers.map(t => `<span style="background: #19202c; color: #00ff88; font-size: 9px; padding: 1px 5px; border-radius: 2px; font-weight: bold;">${t}</span>`).join('');
+
+      if (!chartNewsDrawerOpen) return;
+
+      const chartNews = (data && data.chart_news) ? data.chart_news : {};
+      let html = '';
+      for (let i = 0; i < 4; i++) {
+        const sym = multiChartSlots[i] ? multiChartSlots[i].ticker : (activeTickers[i] || 'SPY');
+        const newsItems = chartNews[sym] || [];
+        html += `<div class="drawer-col">
+          <div style="font-weight: 700; color: #ffd700; font-size: 10px; display: flex; justify-content: space-between; border-bottom: 1px solid #222; padding-bottom: 2px;">
+            <span>#${i+1} ${sym} NEWS</span>
+            <button class="term-btn" onclick="switchView('pulse'); searchTickerNews('${sym}')" style="padding: 0 4px; font-size: 8px;">MORE ↗</button>
+          </div>`;
+        if (newsItems.length > 0) {
+          newsItems.slice(0, 4).forEach(it => {
+            html += `<a href="${it.link || '#'}" target="_blank" class="drawer-item" title="${it.title}">
+              <div>${it.title}</div>
+              <div style="font-size: 8.5px; color: #777; margin-top: 2px;">${it.time_str || ''}</div>
+            </a>`;
+          });
+        } else {
+          html += `<div style="font-size: 9.5px; color: #555; padding: 6px 0;">No headlines found.</div>`;
+        }
+        html += `</div>`;
+      }
+      contentContainer.innerHTML = html;
+    }
+
     function updateTickerDatalist() {
       const dl = document.getElementById('ticker-datalist');
       if (!dl) return;
@@ -5804,6 +6287,12 @@
       } else if (e.key === 'F9') {
         e.preventDefault();
         switchView(currentView === 'charts' ? 'terminal' : 'charts');
+      } else if (e.key === 'F10') {
+        e.preventDefault();
+        switchView(currentView === 'pulse' ? 'terminal' : 'pulse');
+      } else if ((e.key === 'n' || e.key === 'N') && currentView === 'charts' && !['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+        e.preventDefault();
+        toggleChartNewsDrawer();
       }
     });
 
@@ -5815,6 +6304,8 @@
         cmdInput.value = '';
         if (val === 'CHARTS' || val === '/CHARTS' || val === 'MULTI' || val === '4CHART' || val === '2CHART') {
           switchView('charts');
+        } else if (val === 'PULSE' || val === '/PULSE' || val === 'NEWS' || val === '/NEWS' || val === 'WIRE') {
+          switchView('pulse');
         } else if (val === 'OPTIONS' || val === '/OPTIONS' || val === 'OPT' || val === 'MATRIX') {
           switchView('options');
         } else if (val === 'PAPER' || val === '/PAPER' || val === 'GHOST' || val === 'SIM') {

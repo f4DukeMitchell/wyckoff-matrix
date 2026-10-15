@@ -1523,6 +1523,26 @@ def get_ticker_options(ticker: str):
     except Exception as e:
         return {"status": "ERROR", "error": str(e)}
 
+@app.get("/api/market/pulse")
+def get_market_pulse_endpoint(tickers: str = None):
+    """Returns macroeconomic wire, major index quotes, today's actions/bot ledger, and ticker news."""
+    try:
+        import market_news
+        t_list = [t.strip().upper() for t in tickers.split(',')] if tickers else ['SPY', 'QQQ', 'NVDA', 'TSLA']
+        return market_news.get_market_pulse(t_list)
+    except Exception as e:
+        return {"status": "ERROR", "error": str(e)}
+
+@app.get("/api/market/ticker_news")
+def get_ticker_news_endpoint(ticker: str):
+    """Returns real-time news headlines for a specific stock."""
+    try:
+        import market_news
+        news = market_news.get_ticker_news(ticker)
+        return {"status": "SUCCESS", "ticker": ticker.upper(), "count": len(news), "news": news}
+    except Exception as e:
+        return {"status": "ERROR", "error": str(e), "news": []}
+
 @app.get("/api/health")
 def health_check():
     return {"status": "ONLINE", "version": "2.2.0"}
