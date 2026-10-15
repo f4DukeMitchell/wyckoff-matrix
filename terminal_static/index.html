@@ -1202,6 +1202,7 @@
               <th style="padding: 3px 4px; cursor: pointer;" onclick="sortPositions('entry_price')">ENTRY &#x25B4;&#x25BE;</th>
               <th style="padding: 3px 4px; cursor: pointer;" onclick="sortPositions('current_price')">LAST &#x25B4;&#x25BE;</th>
               <th style="padding: 3px 4px; cursor: pointer;" onclick="sortPositions('unrealized_pnl_pct')">P&L &#x25B4;&#x25BE;</th>
+              <th style="padding: 3px 4px; cursor: pointer;" onclick="sortPositions('ml_confidence')">ML GRADE &#x25B4;&#x25BE;</th>
               <th style="padding: 3px 4px; cursor: pointer;" onclick="sortPositions('take_profit')">TP &#x25B4;&#x25BE;</th>
               <th style="padding: 3px 4px; text-align: center;">ACT</th>
             </tr>
@@ -2766,6 +2767,7 @@
           const arrowPrice = queueSortField === 'price' ? (queueSortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
           const arrowDist = queueSortField === 'dist_boundary_pct' ? (queueSortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
           const arrowRegime = queueSortField === 'bars_in_regime' ? (queueSortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
+          const arrowML = queueSortField === 'ml_confidence' ? (queueSortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
 
           theadEl.innerHTML = `
             <tr>
@@ -2774,6 +2776,7 @@
               <th style="cursor: pointer; user-select: none;" onclick="sortQueue('price')">PRICE <span style="font-size: 9px; color: ${queueSortField === 'price' ? '#00e5ff' : '#666'};">${arrowPrice}</span></th>
               <th style="cursor: pointer; user-select: none;" onclick="sortQueue('dist_boundary_pct')">BOUNDARY PROXIMITY <span style="font-size: 9px; color: ${queueSortField === 'dist_boundary_pct' ? '#00e5ff' : '#666'};">${arrowDist}</span></th>
               <th style="cursor: pointer; user-select: none;" onclick="sortQueue('bars_in_regime')">REGIME / CHOP <span style="font-size: 9px; color: ${queueSortField === 'bars_in_regime' ? '#00e5ff' : '#666'};">${arrowRegime}</span></th>
+              <th style="cursor: pointer; user-select: none;" onclick="sortQueue('ml_confidence')">ML GRADE <span style="font-size: 9px; color: ${queueSortField === 'ml_confidence' ? '#00e5ff' : '#666'};">${arrowML}</span></th>
               <th style="text-align: center;">VIEW</th>
             </tr>
           `;
@@ -2831,6 +2834,10 @@
             let bA = a.status === 'CHOPPING_BLOCK' ? (a.chop_cycles || 0) : (a.bars_in_regime || 0);
             let bB = b.status === 'CHOPPING_BLOCK' ? (b.chop_cycles || 0) : (b.bars_in_regime || 0);
             return queueSortAsc ? bA - bB : bB - bA;
+          } else if (queueSortField === 'ml_confidence') {
+            let mA = parseFloat(a.ml_confidence || 0);
+            let mB = parseFloat(b.ml_confidence || 0);
+            return queueSortAsc ? mA - mB : mB - mA;
           }
           return 0;
         });
@@ -2894,12 +2901,13 @@
               <td>$${item.price ? item.price.toFixed(2) : '--'}</td>
               <td style="font-size: 11px;">${distText}</td>
               <td>${regimeText}</td>
+              <td>${getMLGradeBadge(item.ml_confidence)}</td>
               <td><button class="term-btn" onclick="selectTicker('${item.ticker}', '5m')" style="padding: 1px 6px; font-size: 10px;">CHART</button></td>
             `;
             scanTbody.appendChild(tr);
           });
         } else {
-          scanTbody.innerHTML = `<tr><td colspan="6" class="c-muted" style="text-align: center; padding: 14px;">${rawPriorityQueueData && rawPriorityQueueData.length > 0 ? 'No tickers match filter criteria' : '⚡ 5M Priority Queue initializing... (~120-150 tickers stream on 5M close)'}</td></tr>`;
+          scanTbody.innerHTML = `<tr><td colspan="7" class="c-muted" style="text-align: center; padding: 14px;">${rawPriorityQueueData && rawPriorityQueueData.length > 0 ? 'No tickers match filter criteria' : '⚡ 5M Priority Queue initializing... (~120-150 tickers stream on 5M close)'}</td></tr>`;
         }
         return;
       }
@@ -2912,6 +2920,7 @@
         const arrowDir = currentSortField === 'direction' ? (sortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
         const arrowEntry = currentSortField === 'entry_price' ? (sortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
         const arrowTf = currentSortField === 'timeframe' ? (sortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
+        const arrowML = currentSortField === 'ml_confidence' ? (sortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
         const arrowTime = currentSortField === 'timestamp' ? (sortAsc ? '▲' : '▼') : '&#x25B4;&#x25BE;';
 
         theadEl.innerHTML = `
@@ -2920,6 +2929,7 @@
             <th style="cursor: pointer; user-select: none;" onclick="sortScanner('direction')">SETUP <span style="font-size: 9px; color: ${currentSortField === 'direction' ? '#00e5ff' : '#666'};">${arrowDir}</span></th>
             <th style="cursor: pointer; user-select: none;" onclick="sortScanner('entry_price')">ENTRY <span style="font-size: 9px; color: ${currentSortField === 'entry_price' ? '#00e5ff' : '#666'};">${arrowEntry}</span></th>
             <th style="cursor: pointer; user-select: none;" onclick="sortScanner('timeframe')">TF <span style="font-size: 9px; color: ${currentSortField === 'timeframe' ? '#00e5ff' : '#666'};">${arrowTf}</span></th>
+            <th style="cursor: pointer; user-select: none;" onclick="sortScanner('ml_confidence')">ML GRADE <span style="font-size: 9px; color: ${currentSortField === 'ml_confidence' ? '#00e5ff' : '#666'};">${arrowML}</span></th>
             <th style="cursor: pointer; user-select: none;" onclick="sortScanner('timestamp')">SIGNAL TIME (EST) <span style="font-size: 9px; color: ${currentSortField === 'timestamp' ? '#00e5ff' : '#666'};">${arrowTime}</span></th>
             <th style="text-align: center;">TRADE</th>
           </tr>
@@ -2935,6 +2945,11 @@
       filtered.sort((a, b) => {
         let valA = a[currentSortField] || '';
         let valB = b[currentSortField] || '';
+        if (['entry_price', 'ml_confidence'].includes(currentSortField)) {
+          valA = parseFloat(valA || 0);
+          valB = parseFloat(valB || 0);
+          return sortAsc ? valA - valB : valB - valA;
+        }
         if (typeof valA === 'string') valA = valA.toLowerCase();
         if (typeof valB === 'string') valB = valB.toLowerCase();
         if (valA < valB) return sortAsc ? -1 : 1;
@@ -2958,13 +2973,14 @@
             <td class="${isLong ? 'c-green' : 'c-red'}">${s.direction}</td>
             <td>$${s.entry_price ? s.entry_price.toFixed(2) : '--'}</td>
             <td><b class="c-yellow">${s.timeframe || '5m'}</b></td>
+            <td>${getMLGradeBadge(s.ml_confidence)}</td>
             <td class="c-muted" style="font-size: 10px;">${timeDisplay}</td>
             <td><button class="${btnClass}" onclick="${btnAction}">${btnText}</button></td>
           `;
           scanTbody.appendChild(tr);
         });
       } else if (rawStalkerData.length === 0 || activeTFFilter !== 'ALL') {
-        scanTbody.innerHTML = `<tr><td colspan="6" class="c-muted">No ${activeTFFilter} setups detected</td></tr>`;
+        scanTbody.innerHTML = `<tr><td colspan="7" class="c-muted">No ${activeTFFilter} setups detected</td></tr>`;
       }
     }
 
@@ -3546,6 +3562,54 @@
       }
     }
 
+    function getMLGradeBadge(conf) {
+      if (conf === null || conf === undefined || isNaN(conf)) {
+        return `<span class="c-muted" style="font-size:9px;">--</span>`;
+      }
+      const score = parseFloat(conf);
+      let grade = 'C';
+      let color = '#888';
+      let bg = 'rgba(255,255,255,0.05)';
+      let border = '#444';
+
+      if (score >= 75) {
+        grade = 'A+';
+        color = '#00ff88';
+        bg = 'rgba(0,255,136,0.15)';
+        border = '#00ff88';
+      } else if (score >= 70) {
+        grade = 'A';
+        color = '#00ff88';
+        bg = 'rgba(0,255,136,0.10)';
+        border = 'rgba(0,255,136,0.6)';
+      } else if (score >= 65) {
+        grade = 'B+';
+        color = '#00e5ff';
+        bg = 'rgba(0,229,255,0.12)';
+        border = '#00e5ff';
+      } else if (score >= 55) {
+        grade = 'B';
+        color = '#ffd700';
+        bg = 'rgba(255,215,0,0.10)';
+        border = 'rgba(255,215,0,0.6)';
+      } else if (score >= 45) {
+        grade = 'C';
+        color = '#ff9800';
+        bg = 'rgba(255,152,0,0.10)';
+        border = '#ff9800';
+      } else {
+        grade = 'D';
+        color = '#ff4444';
+        bg = 'rgba(255,68,68,0.15)';
+        border = '#ff4444';
+      }
+
+      return `<span style="display:inline-flex; align-items:center; gap:2px; background:${bg}; color:${color}; border:1px solid ${border}; padding:1px 4px; border-radius:2px; font-weight:bold; font-size:9.5px; white-space:nowrap;" title="ML Win Probability: ${score.toFixed(1)}%">
+        <span>${score.toFixed(0)}%</span>
+        <span style="font-size:8px; opacity:0.85;">[${grade}]</span>
+      </span>`;
+    }
+
     let positionsSortField = 'ticker';
     let positionsSortAsc = true;
 
@@ -3564,7 +3628,7 @@
       if (!posTbody) return;
       posTbody.innerHTML = '';
       if (!rawPositionsData || rawPositionsData.length === 0) {
-        posTbody.innerHTML = '<tr><td colspan="7" class="c-muted">No open active positions</td></tr>';
+        posTbody.innerHTML = '<tr><td colspan="8" class="c-muted">No open active positions</td></tr>';
         return;
       }
 
@@ -3573,7 +3637,7 @@
         let valA = a[positionsSortField];
         let valB = b[positionsSortField];
 
-        if (['entry_price', 'current_price', 'unrealized_pnl_pct', 'take_profit', 'quantity', 'market_value'].includes(positionsSortField)) {
+        if (['entry_price', 'current_price', 'unrealized_pnl_pct', 'take_profit', 'quantity', 'market_value', 'ml_confidence'].includes(positionsSortField)) {
           valA = parseFloat(valA || 0);
           valB = parseFloat(valB || 0);
           return positionsSortAsc ? valA - valB : valB - valA;
@@ -3639,6 +3703,7 @@
           <td style="padding:3px 4px;">$${p.entry_price ? p.entry_price.toFixed(2) : '--'}</td>
           <td style="padding:3px 4px;"><b class="c-white">${currPrice}</b></td>
           <td class="${pnlClass}" style="padding:3px 4px; font-weight:600;">${pnlDisplay}</td>
+          <td style="padding:3px 4px;">${p.is_broker_native ? '<span class="c-muted" style="font-size:8.5px;">CORE HOLD</span>' : getMLGradeBadge(p.ml_confidence)}</td>
           <td style="padding:3px 4px;">${targetDisplay}</td>
           <td style="padding:3px 4px; text-align:center;"><button class="term-btn term-btn-exit" style="padding: 2px 6px; font-size: 9px;" onclick="event.stopPropagation(); ${exitCall}">EXIT</button></td>
         `;
@@ -6031,9 +6096,10 @@
             const badgeColor = isSpring ? '#00ff88' : '#ff4d4d';
             const badgeBg = isSpring ? 'rgba(0,255,136,0.1)' : 'rgba(255,77,77,0.1)';
             html += `<div style="display: flex; align-items: center; justify-content: space-between; background: #0c0e14; border: 1px solid #1c2230; padding: 5px 8px; border-radius: 2px;">
-              <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="display: flex; align-items: center; gap: 5px;">
                 <b style="color: #fff; font-size: 11px;">${hs.ticker}</b>
                 <span style="font-size: 8.5px; padding: 1px 4px; border-radius: 2px; font-weight: bold; background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeColor};">${hs.status}</span>
+                ${getMLGradeBadge(hs.ml_confidence)}
               </div>
               <div style="text-align: right; font-size: 10px;">
                 <b style="color: #fff;">$${hs.price.toFixed(2)}</b>
@@ -6054,7 +6120,11 @@
             const rVal = al.pnl_r != null ? `${al.pnl_r > 0 ? '+' : ''}${al.pnl_r.toFixed(2)}R` : '--';
             html += `<div style="background: #0d0f16; border: 1px solid #1a202c; padding: 6px 8px; border-radius: 2px; display: flex; flex-direction: column; gap: 2px;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-weight: bold; color: #fff; font-size: 11px;">${al.ticker} <span style="color: ${dirColor}; font-size: 9.5px;">[${al.direction} ${al.timeframe}]</span></span>
+                <span style="font-weight: bold; color: #fff; font-size: 11px; display: flex; align-items: center; gap: 4px;">
+                  <span>${al.ticker}</span>
+                  <span style="color: ${dirColor}; font-size: 9.5px;">[${al.direction} ${al.timeframe}]</span>
+                  ${getMLGradeBadge(al.ml_confidence)}
+                </span>
                 <span style="font-weight: bold; color: ${outColor}; font-size: 10px;">${al.outcome || 'OPEN'} (${rVal})</span>
               </div>
               <div style="display: flex; justify-content: space-between; font-size: 9px; color: #888;">

@@ -116,7 +116,7 @@ def get_terminal_state():
     
     # Active user trades (tracked by Wyckoff algo)
     c.execute("""
-        SELECT id, ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe, timestamp, user_active, outcome, pnl_r, breakeven_set, partial_exit_done, partial_tier_done, initial_shares, peak_high_r, trailing_stop_price, initial_stop_loss
+        SELECT id, ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe, timestamp, user_active, outcome, pnl_r, breakeven_set, partial_exit_done, partial_tier_done, initial_shares, peak_high_r, trailing_stop_price, initial_stop_loss, ml_confidence
         FROM alerts
         WHERE outcome = 'OPEN' AND user_active = 1
         ORDER BY id DESC
@@ -219,7 +219,8 @@ def get_terminal_state():
                 'unrealized_r': None,
                 'quantity': bh['quantity'],
                 'market_value': bh['market_value'],
-                'is_broker_native': True
+                'is_broker_native': True,
+                'ml_confidence': None
             })
     
     # Recent scanner signals (distinct latest setup per ticker & timeframe)

@@ -125,13 +125,13 @@ def get_today_actions() -> Dict[str, Any]:
             conn.row_factory = sqlite3.Row
             c = conn.cursor()
             
-            # 1. Today's alerts
+            # 1. Today's alerts (strictly today's calendar date)
             c.execute("""
                 SELECT id, ticker, direction, entry_price, stop_loss, take_profit, timeframe, 
                        regime, timestamp, outcome, user_active, pnl_r, ml_confidence
                 FROM alerts
-                WHERE timestamp >= date('now', 'start of day')
-                   OR timestamp >= date('now', '-1 day')
+                WHERE date(timestamp) = date('now')
+                   OR timestamp >= date('now', 'start of day')
                 ORDER BY id DESC LIMIT 20
             """)
             rows = c.fetchall()

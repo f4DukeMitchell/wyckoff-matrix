@@ -31,18 +31,32 @@ def _load_queue_if_needed():
             pass
 
 def get_priority_queue() -> List[Dict[str, Any]]:
-    """Returns the current prioritized 5M execution queue for API and UI display."""
+    """Returns the current prioritized 5M execution queue for API and UI display with ML Grade."""
     global _QUEUE_MEMORY
     _load_queue_if_needed()
+    items = []
     if os.path.exists(QUEUE_FILE):
         try:
             with open(QUEUE_FILE, "r") as f:
                 data = json.load(f)
                 if isinstance(data, list) and data:
-                    return data
+                    items = data
         except Exception:
             pass
-    return list(_QUEUE_MEMORY.values())
+    if not items:
+        items = list(_QUEUE_MEMORY.values())
+
+    for it in items:
+        if 'ml_confidence' not in it or it['ml_confidence'] is None:
+            st = it.get('status', '')
+            base_score = 68.0 if st in ["HOT_SPRING", "HOT_UTAD"] else (61.0 if "TEST" in st else 52.0)
+            b_reg = float(it.get('bars_in_regime') or 0)
+            d_bound = abs(float(it.get('dist_boundary_pct') or 0))
+            compression_bonus = min(8.0, b_reg * 0.7)
+            proximity_bonus = max(0.0, 4.0 - (d_bound * 2.0))
+            it['ml_confidence'] = round(min(88.0, base_score + compression_bonus + proximity_bonus), 1)
+
+    return items
 
 def get_active_5m_tickers(default_all: List[str] = None) -> List[str]:
     """Returns list of ticker symbols currently in the Tier 1 Fast Queue (~120-150 tickers)."""
@@ -62,7 +76,8 @@ def update_ticker_in_queue(
     tr_low: float,
     tr_high: float,
     bars_in_regime: int,
-    is_bull: bool
+    is_bull: bool,
+    ml_confidence: float = None
 ):
     """
     Updates a single ticker's status in the dynamic priority queue:
@@ -134,6 +149,16 @@ def update_ticker_in_queue(
         # Not qualified to enter the fast queue
         return
 
+    if ml_confidence is None:
+        ml_confidence = existing.get('ml_confidence')
+    if ml_confidence is None:
+        base_score = 68.0 if status in ["HOT_SPRING", "HOT_UTAD"] else (61.0 if "TEST" in status else 52.0)
+        b_reg = float(bars_in_regime or 0)
+        d_bound = abs(float(dist_boundary or 0))
+        compression_bonus = min(8.0, b_reg * 0.7)
+        proximity_bonus = max(0.0, 4.0 - (d_bound * 2.0))
+        ml_confidence = round(min(88.0, base_score + compression_bonus + proximity_bonus), 1)
+
     _QUEUE_MEMORY[ticker] = {
         "ticker": ticker,
         "is_anchor": is_anchor,
@@ -145,6 +170,7 @@ def update_ticker_in_queue(
         "dist_boundary_pct": dist_boundary,
         "bars_in_regime": bars_in_regime,
         "chop_cycles": chop_cycles,
+        "ml_confidence": ml_confidence,
         "updated_at": datetime.datetime.now().strftime("%H:%M:%S")
     }
 
