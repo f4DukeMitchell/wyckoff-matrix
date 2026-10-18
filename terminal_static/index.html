@@ -2638,7 +2638,8 @@
         </div>
         <!-- Filter Tabs Strip -->
         <div class="pnl-filter-bar">
-          <button class="pnl-filter-btn active" onclick="setPNLFilter('ALL', this)">ALL</button>
+          <button class="pnl-filter-btn active" onclick="setPNLFilter('OCT8', this)">🚀 10/8+ LIVE ERA</button>
+          <button class="pnl-filter-btn" onclick="setPNLFilter('ALL', this)">ALL REAL TRADES</button>
           <button class="pnl-filter-btn" onclick="setPNLFilter('AUTO_VM', this)">🤖 AUTO VM</button>
           <button class="pnl-filter-btn" onclick="setPNLFilter('MANUAL_BROKER', this)">👤 MANUAL</button>
           <button class="pnl-filter-btn" onclick="setPNLFilter('WIN', this)">🏆 WINS</button>
@@ -6714,7 +6715,7 @@
 
     // --- P&L STATION CONTROLLER ---
     let cachedPNLData = null;
-    let currentPNLFilter = 'ALL';
+    let currentPNLFilter = 'OCT8';
     let selectedPNLTradeId = null;
 
     async function fetchPNLStation() {
@@ -6731,54 +6732,6 @@
 
     function renderPNLStation(data) {
       if (!data || !data.kpis) return;
-      const kpis = data.kpis;
-
-      const totalDollarEl = document.getElementById('pnl-total-dollar');
-      if (totalDollarEl) {
-        const d = kpis.total_net_dollar || 0.0;
-        totalDollarEl.innerText = `${d >= 0 ? '+' : '-'}$${Math.abs(d).toFixed(2)}`;
-        totalDollarEl.className = `val ${d >= 0 ? 'c-green' : 'c-red'}`;
-      }
-
-      const totalREl = document.getElementById('pnl-total-r');
-      if (totalREl) {
-        const r = kpis.total_net_r || 0.0;
-        totalREl.innerText = `${r >= 0 ? '+' : ''}${r.toFixed(2)}R`;
-        totalREl.className = `val ${r >= 0 ? 'c-cyan' : 'c-red'}`;
-      }
-
-      const winrateEl = document.getElementById('pnl-winrate');
-      if (winrateEl) {
-        winrateEl.innerText = `${kpis.win_rate_ex_be || 0.0}% (${kpis.wins_count || 0}W / ${(kpis.wins_count || 0) + (kpis.losses_count || 0)}D)`;
-      }
-
-      const tradesCountEl = document.getElementById('pnl-trades-count');
-      if (tradesCountEl) {
-        tradesCountEl.innerText = `${kpis.total_trades || 0} (${kpis.wins_count || 0}W - ${kpis.losses_count || 0}L - ${kpis.breakeven_count || 0}BE)`;
-      }
-
-      const pfEl = document.getElementById('pnl-profit-factor');
-      if (pfEl) {
-        pfEl.innerText = `${kpis.profit_factor || 1.00}`;
-      }
-
-      const autoCountEl = document.getElementById('pnl-auto-count');
-      if (autoCountEl) {
-        const d = kpis.auto_net_dollar || 0.0;
-        autoCountEl.innerText = `${kpis.auto_trades_count || 0} (${d >= 0 ? '+' : '-'}$${Math.abs(d).toFixed(2)})`;
-      }
-
-      const manualCountEl = document.getElementById('pnl-manual-count');
-      if (manualCountEl) {
-        const d = kpis.manual_net_dollar || 0.0;
-        manualCountEl.innerText = `${kpis.manual_trades_count || 0} (${d >= 0 ? '+' : '-'}$${Math.abs(d).toFixed(2)})`;
-      }
-
-      const lastUpdatedEl = document.getElementById('pnl-last-updated');
-      if (lastUpdatedEl) {
-        lastUpdatedEl.innerText = `UPDATED: ${new Date().toLocaleTimeString()}`;
-      }
-
       filterPNLTrades();
     }
 
@@ -6795,8 +6748,13 @@
       const listContainer = document.getElementById('pnl-trade-list-container');
       const ledgerCountEl = document.getElementById('pnl-ledger-count');
 
+      // Filter trades based on active tab and search
       let filtered = cachedPNLData.trades.filter(t => {
         if (searchVal && !t.ticker.includes(searchVal)) return false;
+        if (currentPNLFilter === 'OCT8') {
+          const dtStr = t.timestamp || t.entry_time || '';
+          return dtStr >= '2026-10-08';
+        }
         if (currentPNLFilter === 'AUTO_VM') return t.source === 'AUTO_VM';
         if (currentPNLFilter === 'MANUAL_BROKER') return t.source === 'MANUAL_BROKER';
         if (currentPNLFilter === 'WIN') return t.outcome === 'WIN' || (t.outcome === 'CLOSED_MANUAL' && t.net_pnl_dollar >= 0);
@@ -6804,6 +6762,64 @@
         if (currentPNLFilter === 'BREAKEVEN') return t.outcome === 'BREAKEVEN' || (Math.abs(t.net_pnl_dollar) <= 0.05 && t.outcome !== 'WIN' && t.outcome !== 'LOSS');
         return true;
       });
+
+      // Recalculate KPIs based on current scope
+      const scopeTrades = (currentPNLFilter === 'OCT8') 
+        ? cachedPNLData.trades.filter(t => (t.timestamp || t.entry_time || '') >= '2026-10-08')
+        : cachedPNLData.trades;
+
+      const scWins = scopeTrades.filter(t => t.outcome === 'WIN' || (t.outcome === 'CLOSED_MANUAL' && t.net_pnl_dollar >= 0));
+      const scLosses = scopeTrades.filter(t => t.outcome === 'LOSS' || (t.net_pnl_dollar < -0.05 && t.outcome !== 'BREAKEVEN'));
+      const scBE = scopeTrades.filter(t => t.outcome === 'BREAKEVEN' || Math.abs(t.net_pnl_dollar) <= 0.05);
+
+      const scNetDollar = scopeTrades.reduce((acc, t) => acc + (t.net_pnl_dollar || 0), 0);
+      const scNetR = scopeTrades.reduce((acc, t) => acc + (t.pnl_r || 0), 0);
+      const scGrossWin = scWins.reduce((acc, t) => acc + (t.net_pnl_dollar || 0), 0);
+      const scGrossLoss = Math.abs(scLosses.reduce((acc, t) => acc + (t.net_pnl_dollar || 0), 0));
+      const scPF = scGrossLoss > 0 ? (scGrossWin / scGrossLoss).toFixed(2) : (scGrossWin > 0 ? '99.0' : '0.00');
+      const scWinRate = (scWins.length + scLosses.length) > 0 
+        ? ((scWins.length / (scWins.length + scLosses.length)) * 100).toFixed(1)
+        : '0.0';
+
+      const scAuto = scopeTrades.filter(t => t.source === 'AUTO_VM');
+      const scManual = scopeTrades.filter(t => t.source === 'MANUAL_BROKER');
+      const scAutoDollar = scAuto.reduce((acc, t) => acc + (t.net_pnl_dollar || 0), 0);
+      const scManualDollar = scManual.reduce((acc, t) => acc + (t.net_pnl_dollar || 0), 0);
+
+      const totalDollarEl = document.getElementById('pnl-total-dollar');
+      if (totalDollarEl) {
+        totalDollarEl.innerText = `${scNetDollar >= 0 ? '+' : '-'}$${Math.abs(scNetDollar).toFixed(2)}`;
+        totalDollarEl.className = `val ${scNetDollar >= 0 ? 'c-green' : 'c-red'}`;
+      }
+      const totalREl = document.getElementById('pnl-total-r');
+      if (totalREl) {
+        totalREl.innerText = `${scNetR >= 0 ? '+' : ''}${scNetR.toFixed(2)}R`;
+        totalREl.className = `val ${scNetR >= 0 ? 'c-cyan' : 'c-red'}`;
+      }
+      const winrateEl = document.getElementById('pnl-winrate');
+      if (winrateEl) {
+        winrateEl.innerText = `${scWinRate}% (${scWins.length}W / ${scWins.length + scLosses.length}D)`;
+      }
+      const tradesCountEl = document.getElementById('pnl-trades-count');
+      if (tradesCountEl) {
+        tradesCountEl.innerText = `${scopeTrades.length} (${scWins.length}W - ${scLosses.length}L - ${scBE.length}BE)`;
+      }
+      const pfEl = document.getElementById('pnl-profit-factor');
+      if (pfEl) {
+        pfEl.innerText = scPF;
+      }
+      const autoCountEl = document.getElementById('pnl-auto-count');
+      if (autoCountEl) {
+        autoCountEl.innerText = `${scAuto.length} (${scAutoDollar >= 0 ? '+' : '-'}$${Math.abs(scAutoDollar).toFixed(2)})`;
+      }
+      const manualCountEl = document.getElementById('pnl-manual-count');
+      if (manualCountEl) {
+        manualCountEl.innerText = `${scManual.length} (${scManualDollar >= 0 ? '+' : '-'}$${Math.abs(scManualDollar).toFixed(2)})`;
+      }
+      const lastUpdatedEl = document.getElementById('pnl-last-updated');
+      if (lastUpdatedEl) {
+        lastUpdatedEl.innerText = `UPDATED: ${new Date().toLocaleTimeString()}`;
+      }
 
       if (ledgerCountEl) ledgerCountEl.innerText = `${filtered.length} TRADES`;
 
