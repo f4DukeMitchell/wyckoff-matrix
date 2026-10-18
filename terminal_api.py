@@ -1320,6 +1320,19 @@ def get_ml_paper_trades():
     except Exception as e:
         return {"status": "ERROR", "error": str(e), "kpis": {}, "open_trades": [], "recent_closed": []}
 
+@app.get("/api/pnl/station")
+def get_pnl_station():
+    """
+    Returns complete P&L Station data: aggregate KPIs, all closed and active trades
+    (both manual broker executions and automated VM algo trades), with deep trade-by-trade
+    autopsy and execution lifecycle analysis.
+    """
+    try:
+        from pnl_engine import fetch_pnl_station_data
+        return fetch_pnl_station_data()
+    except Exception as e:
+        return {"status": "ERROR", "error": str(e), "kpis": {}, "trades": []}
+
 @app.post("/api/alerts/sync")
 def sync_alerts(payload: list[dict]):
     """Receives alerts from another instance and inserts or updates records."""

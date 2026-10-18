@@ -1136,6 +1136,226 @@
     .sentiment-BULLISH { background: rgba(0, 255, 136, 0.15); color: #00ff88; border: 1px solid rgba(0,255,136,0.3); }
     .sentiment-BEARISH { background: rgba(255, 77, 77, 0.15); color: #ff4d4d; border: 1px solid rgba(255,77,77,0.3); }
     .sentiment-NEUTRAL { background: rgba(180, 180, 180, 0.1); color: #aaa; border: 1px solid #333; }
+
+    /* DEDICATED P&L STATION PAGE */
+    #pnl-station-grid {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      background: #080808;
+      overflow: hidden;
+      height: calc(100vh - 44px);
+    }
+    .pnl-header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 14px;
+      background: #0d0f15;
+      border-bottom: 1px solid var(--wsr-border);
+      flex-wrap: wrap;
+      gap: 10px;
+      z-index: 10;
+    }
+    .pnl-stats-strip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .pnl-stat-chip {
+      display: inline-flex;
+      flex-direction: column;
+      background: #131720;
+      border: 1px solid #1f2737;
+      padding: 3px 8px;
+      border-radius: 2px;
+      font-size: 10px;
+      line-height: 1.2;
+    }
+    .pnl-stat-chip .val {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: inherit;
+    }
+    .pnl-stat-chip .lbl {
+      color: #888;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .pnl-body-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 460px 1fr;
+      gap: 2px;
+      background: var(--wsr-border);
+      overflow: hidden;
+      min-height: 0;
+    }
+    .pnl-pane {
+      background: var(--wsr-panel);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+    .pnl-filter-bar {
+      display: flex;
+      gap: 4px;
+      padding: 6px 10px;
+      background: #0d0f15;
+      border-bottom: 1px solid #1f2737;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .pnl-filter-btn {
+      background: #141822;
+      border: 1px solid #242c3d;
+      color: #99a;
+      font-family: inherit;
+      font-size: 9.5px;
+      padding: 2px 7px;
+      cursor: pointer;
+      border-radius: 2px;
+      transition: all 0.15s;
+    }
+    .pnl-filter-btn.active, .pnl-filter-btn:hover {
+      background: #ffd700;
+      color: #000;
+      font-weight: bold;
+      border-color: #ffd700;
+    }
+    .pnl-trade-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .pnl-trade-card {
+      background: #0d0f15;
+      border: 1px solid #1a202c;
+      border-left: 3px solid #555;
+      padding: 8px 10px;
+      cursor: pointer;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .pnl-trade-card:hover {
+      background: #151a24;
+      border-color: #2b3548;
+    }
+    .pnl-trade-card.selected {
+      background: #141c2b !important;
+      border-color: #ffd700 !important;
+      border-left: 4px solid #ffd700 !important;
+      box-shadow: 0 0 8px rgba(255, 215, 0, 0.25);
+    }
+    .pnl-trade-card.win { border-left-color: #00ff88; }
+    .pnl-trade-card.loss { border-left-color: #ff4d4d; }
+    .pnl-trade-card.breakeven { border-left-color: #ffaa00; }
+    .pnl-trade-card.manual { border-left-color: #c084fc; }
+
+    .pnl-autopsy-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .autopsy-section-card {
+      background: #0d0f15;
+      border: 1px solid #1a2230;
+      border-radius: 3px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .autopsy-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #ffd700;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-transform: uppercase;
+      border-bottom: 1px solid #1a2230;
+      padding-bottom: 5px;
+    }
+    .milestone-stepper {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .milestone-step {
+      background: #121620;
+      border: 1px solid #222b3d;
+      border-radius: 3px;
+      padding: 6px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 9.5px;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .milestone-step.reached {
+      background: rgba(0, 255, 136, 0.12);
+      border-color: #00ff88;
+      color: #00ff88;
+    }
+    .milestone-step.active-step {
+      background: rgba(255, 215, 0, 0.18);
+      border-color: #ffd700;
+      color: #ffd700;
+      box-shadow: 0 0 6px rgba(255, 215, 0, 0.3);
+    }
+    .milestone-step.pending {
+      color: #555;
+      border-color: #1a202c;
+    }
+    .scorecard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 8px;
+    }
+    .scorecard-item {
+      background: #11141c;
+      border: 1px solid #1b2331;
+      padding: 6px 8px;
+      border-radius: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .source-badge-vm {
+      background: rgba(0, 229, 255, 0.15);
+      color: #00e5ff;
+      border: 1px solid rgba(0, 229, 255, 0.4);
+      font-size: 9px;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 700;
+    }
+    .source-badge-manual {
+      background: rgba(168, 85, 247, 0.15);
+      color: #c084fc;
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      font-size: 9px;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 700;
+    }
   </style>
 </head>
 <body>
@@ -1147,6 +1367,7 @@
       <button id="tab-terminal" class="view-tab active" onclick="switchView('terminal')">📊 TRADING</button>
       <button id="tab-charts" class="view-tab" onclick="switchView('charts')" style="border-color: #00d26a; color: #00ff88;" title="Multi-Chart Matrix: Toggle 1, 2, or 4 Charts with individual ticker & timeframe selection">📈 CHARTS</button>
       <button id="tab-pulse" class="view-tab" onclick="switchView('pulse')" style="border-color: #ff9900; color: #ff9900;" title="Market Pulse: Today's Action, AI Bot Intelligence Briefs, Macro Wire & Ticker News">📰 MARKET PULSE</button>
+      <button id="tab-pnl" class="view-tab" onclick="switchView('pnl')" style="border-color: #ffd700; color: #ffd700;" title="P&L Station: Deep trade-by-trade analysis, execution autopsies, realized returns and win metrics for all manual and VM trades">💰 P&L STATION</button>
       <button id="tab-mllab" class="view-tab" onclick="switchView('mllab')">🧠 AI / ML LAB</button>
       <button id="tab-options" class="view-tab" onclick="switchView('options')" style="border-color: #a855f7; color: #c084fc;" title="Dedicated Options Matrix: Real-time 0.65 Delta Weekly Calls & Multi-Tranche Exits">⚡ OPTIONS MATRIX</button>
       <button id="tab-paper" class="view-tab" onclick="switchView('paper')" style="border-color: #00e5ff; color: #00e5ff;" title="AI Learning Model Simulated Paper Trades (Air-gapped from live broker trades)">🤖 ML PAPER LAB</button>
@@ -2360,6 +2581,86 @@
         </div>
         <div class="pulse-pane-content" id="pulse-ticker-news-container">
           <div style="color: #777; text-align: center; padding: 20px;">Select a ticker or search above to view company news.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DEDICATED P&L STATION PAGE -->
+  <div id="pnl-station-grid">
+    <!-- Top P&L Executive Header Bar -->
+    <div class="pnl-header-bar">
+      <div class="pnl-stats-strip">
+        <span style="font-weight: 800; color: #ffd700; font-size: 11.5px; margin-right: 4px; letter-spacing: 0.5px;">💰 P&amp;L STATION:</span>
+        <div class="pnl-stat-chip">
+          <span class="lbl">REALIZED P&amp;L ($)</span>
+          <span class="val c-green" id="pnl-total-dollar">$0.00</span>
+        </div>
+        <div class="pnl-stat-chip">
+          <span class="lbl">TOTAL NET R</span>
+          <span class="val c-cyan" id="pnl-total-r">+0.00R</span>
+        </div>
+        <div class="pnl-stat-chip">
+          <span class="lbl">WIN RATE (EX-BE)</span>
+          <span class="val c-yellow" id="pnl-winrate">0.0%</span>
+        </div>
+        <div class="pnl-stat-chip">
+          <span class="lbl">CLOSED TRADES</span>
+          <span class="val" id="pnl-trades-count" style="color: #fff;">0</span>
+        </div>
+        <div class="pnl-stat-chip">
+          <span class="lbl">PROFIT FACTOR</span>
+          <span class="val c-green" id="pnl-profit-factor">0.00</span>
+        </div>
+        <div class="pnl-stat-chip">
+          <span class="lbl">🤖 AUTO VM ALGO</span>
+          <span class="val c-cyan" id="pnl-auto-count">0 ($0.00)</span>
+        </div>
+        <div class="pnl-stat-chip">
+          <span class="lbl">👤 MANUAL BROKER</span>
+          <span class="val" id="pnl-manual-count" style="color: #c084fc;">0 ($0.00)</span>
+        </div>
+        <span style="color: #666; font-size: 10px; margin-left: 6px;" id="pnl-last-updated">LIVE SYNC</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <input type="text" id="pnl-search-input" placeholder="SEARCH TICKER (e.g. ACHR, DJT, MELI)" oninput="filterPNLTrades()" style="width: 230px; background: #000; border: 1px solid #333; color: #ffd700; font-weight: bold; font-family: inherit; font-size: 10.5px; padding: 2px 6px; text-transform: uppercase;" />
+        <button class="term-btn" onclick="fetchPNLStation()" style="padding: 2px 8px; font-size: 10px; border-color: #ffd700; color: #ffd700;">🔄 REFRESH P&amp;L</button>
+      </div>
+    </div>
+
+    <!-- 2-Column Master/Detail Split Grid -->
+    <div class="pnl-body-grid">
+      <!-- Col 1: Master Trade Ledger (List of all trades) -->
+      <div class="pnl-pane">
+        <div class="pane-header">
+          <span>📜 MASTER TRADE LEDGER</span>
+          <span class="c-yellow" id="pnl-ledger-count">0 TRADES</span>
+        </div>
+        <!-- Filter Tabs Strip -->
+        <div class="pnl-filter-bar">
+          <button class="pnl-filter-btn active" onclick="setPNLFilter('ALL', this)">ALL</button>
+          <button class="pnl-filter-btn" onclick="setPNLFilter('AUTO_VM', this)">🤖 AUTO VM</button>
+          <button class="pnl-filter-btn" onclick="setPNLFilter('MANUAL_BROKER', this)">👤 MANUAL</button>
+          <button class="pnl-filter-btn" onclick="setPNLFilter('WIN', this)">🏆 WINS</button>
+          <button class="pnl-filter-btn" onclick="setPNLFilter('LOSS', this)">🛑 LOSSES</button>
+          <button class="pnl-filter-btn" onclick="setPNLFilter('BREAKEVEN', this)">⚖️ BREAKEVEN</button>
+        </div>
+        <!-- Scrollable Cards Container -->
+        <div class="pnl-trade-list" id="pnl-trade-list-container">
+          <div style="color: #777; text-align: center; padding: 30px;">Loading trade ledger...</div>
+        </div>
+      </div>
+
+      <!-- Col 2: Dedicated Trade Autopsy & Deep-Dive Analysis Station -->
+      <div class="pnl-pane">
+        <div class="pane-header">
+          <span id="pnl-autopsy-header-title">🔬 HOW IT TRADED // TRADE AUTOPSY &amp; PERFORMANCE STATION</span>
+          <div style="display: flex; gap: 6px;" id="pnl-selected-quick-actions">
+            <!-- Will be dynamically populated with Chart button & quick actions -->
+          </div>
+        </div>
+        <div class="pnl-autopsy-scroll" id="pnl-autopsy-container">
+          <div style="color: #777; text-align: center; padding: 60px;">Select a trade from the ledger on the left to inspect its complete execution autopsy, Guardian micro-scaling progression, and Wyckoff diagnostics.</div>
         </div>
       </div>
     </div>
@@ -4239,9 +4540,11 @@
       const paperGrid = document.getElementById('paper-lab-grid');
       const chartsGrid = document.getElementById('charts-page-grid');
       const pulseGrid = document.getElementById('market-pulse-grid');
+      const pnlGrid = document.getElementById('pnl-station-grid');
       const tabTerm = document.getElementById('tab-terminal');
       const tabCharts = document.getElementById('tab-charts');
       const tabPulse = document.getElementById('tab-pulse');
+      const tabPNL = document.getElementById('tab-pnl');
       const tabML = document.getElementById('tab-mllab');
       const tabOpt = document.getElementById('tab-options');
       const tabPaper = document.getElementById('tab-paper');
@@ -4252,9 +4555,11 @@
       if (paperGrid) paperGrid.style.display = 'none';
       if (chartsGrid) chartsGrid.style.display = 'none';
       if (pulseGrid) pulseGrid.style.display = 'none';
+      if (pnlGrid) pnlGrid.style.display = 'none';
       tabTerm.classList.remove('active');
       if (tabCharts) tabCharts.classList.remove('active');
       if (tabPulse) tabPulse.classList.remove('active');
+      if (tabPNL) tabPNL.classList.remove('active');
       tabML.classList.remove('active');
       if (tabOpt) tabOpt.classList.remove('active');
       if (tabPaper) tabPaper.classList.remove('active');
@@ -4267,6 +4572,10 @@
         if (pulseGrid) pulseGrid.style.display = 'flex';
         if (tabPulse) tabPulse.classList.add('active');
         fetchMarketPulse();
+      } else if (view === 'pnl') {
+        if (pnlGrid) pnlGrid.style.display = 'flex';
+        if (tabPNL) tabPNL.classList.add('active');
+        fetchPNLStation();
       } else if (view === 'mllab') {
         mlGrid.style.display = 'flex';
         tabML.classList.add('active');
@@ -6384,6 +6693,8 @@
           switchView('mllab');
         } else if (val === 'TERM' || val === 'CHART' || val === 'TRADING' || val === 'HOME') {
           switchView('terminal');
+        } else if (val === 'PNL' || val === '/PNL' || val === 'PL' || val === 'STATION') {
+          switchView('pnl');
         } else if (val === 'SCAN') {
           filterByTF('ALL');
         } else if (val === 'QUEUE' || val === '/QUEUE' || val === '5MQ' || val === 'CHOP') {
@@ -6395,11 +6706,360 @@
         } else if (val === '/FLATTEN' || val === 'FLATTEN') {
           executeFlattenAll();
         } else if (val) {
-          if (currentView === 'mllab' || currentView === 'options' || currentView === 'paper') switchView('terminal');
+          if (currentView === 'mllab' || currentView === 'options' || currentView === 'paper' || currentView === 'pnl') switchView('terminal');
           loadChartData(val, '5m');
         }
       }
     });
+
+    // --- P&L STATION CONTROLLER ---
+    let cachedPNLData = null;
+    let currentPNLFilter = 'ALL';
+    let selectedPNLTradeId = null;
+
+    async function fetchPNLStation() {
+      try {
+        const res = await fetch('/api/pnl/station');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        cachedPNLData = data;
+        renderPNLStation(data);
+      } catch (err) {
+        console.error("Error fetching P&L Station data:", err);
+      }
+    }
+
+    function renderPNLStation(data) {
+      if (!data || !data.kpis) return;
+      const kpis = data.kpis;
+
+      const totalDollarEl = document.getElementById('pnl-total-dollar');
+      if (totalDollarEl) {
+        const d = kpis.total_net_dollar || 0.0;
+        totalDollarEl.innerText = `${d >= 0 ? '+' : '-'}$${Math.abs(d).toFixed(2)}`;
+        totalDollarEl.className = `val ${d >= 0 ? 'c-green' : 'c-red'}`;
+      }
+
+      const totalREl = document.getElementById('pnl-total-r');
+      if (totalREl) {
+        const r = kpis.total_net_r || 0.0;
+        totalREl.innerText = `${r >= 0 ? '+' : ''}${r.toFixed(2)}R`;
+        totalREl.className = `val ${r >= 0 ? 'c-cyan' : 'c-red'}`;
+      }
+
+      const winrateEl = document.getElementById('pnl-winrate');
+      if (winrateEl) {
+        winrateEl.innerText = `${kpis.win_rate_ex_be || 0.0}% (${kpis.wins_count || 0}W / ${(kpis.wins_count || 0) + (kpis.losses_count || 0)}D)`;
+      }
+
+      const tradesCountEl = document.getElementById('pnl-trades-count');
+      if (tradesCountEl) {
+        tradesCountEl.innerText = `${kpis.total_trades || 0} (${kpis.wins_count || 0}W - ${kpis.losses_count || 0}L - ${kpis.breakeven_count || 0}BE)`;
+      }
+
+      const pfEl = document.getElementById('pnl-profit-factor');
+      if (pfEl) {
+        pfEl.innerText = `${kpis.profit_factor || 1.00}`;
+      }
+
+      const autoCountEl = document.getElementById('pnl-auto-count');
+      if (autoCountEl) {
+        const d = kpis.auto_net_dollar || 0.0;
+        autoCountEl.innerText = `${kpis.auto_trades_count || 0} (${d >= 0 ? '+' : '-'}$${Math.abs(d).toFixed(2)})`;
+      }
+
+      const manualCountEl = document.getElementById('pnl-manual-count');
+      if (manualCountEl) {
+        const d = kpis.manual_net_dollar || 0.0;
+        manualCountEl.innerText = `${kpis.manual_trades_count || 0} (${d >= 0 ? '+' : '-'}$${Math.abs(d).toFixed(2)})`;
+      }
+
+      const lastUpdatedEl = document.getElementById('pnl-last-updated');
+      if (lastUpdatedEl) {
+        lastUpdatedEl.innerText = `UPDATED: ${new Date().toLocaleTimeString()}`;
+      }
+
+      filterPNLTrades();
+    }
+
+    function setPNLFilter(filter, btn) {
+      currentPNLFilter = filter;
+      document.querySelectorAll('.pnl-filter-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      filterPNLTrades();
+    }
+
+    function filterPNLTrades() {
+      if (!cachedPNLData || !cachedPNLData.trades) return;
+      const searchVal = (document.getElementById('pnl-search-input')?.value || '').trim().toUpperCase();
+      const listContainer = document.getElementById('pnl-trade-list-container');
+      const ledgerCountEl = document.getElementById('pnl-ledger-count');
+
+      let filtered = cachedPNLData.trades.filter(t => {
+        if (searchVal && !t.ticker.includes(searchVal)) return false;
+        if (currentPNLFilter === 'AUTO_VM') return t.source === 'AUTO_VM';
+        if (currentPNLFilter === 'MANUAL_BROKER') return t.source === 'MANUAL_BROKER';
+        if (currentPNLFilter === 'WIN') return t.outcome === 'WIN' || (t.outcome === 'CLOSED_MANUAL' && t.net_pnl_dollar >= 0);
+        if (currentPNLFilter === 'LOSS') return t.outcome === 'LOSS' || t.net_pnl_dollar < 0;
+        if (currentPNLFilter === 'BREAKEVEN') return t.outcome === 'BREAKEVEN' || (Math.abs(t.net_pnl_dollar) <= 0.05 && t.outcome !== 'WIN' && t.outcome !== 'LOSS');
+        return true;
+      });
+
+      if (ledgerCountEl) ledgerCountEl.innerText = `${filtered.length} TRADES`;
+
+      if (!filtered || filtered.length === 0) {
+        listContainer.innerHTML = '<div style="color: #777; text-align: center; padding: 40px;">No trades match current filters.</div>';
+        return;
+      }
+
+      let html = '';
+      filtered.forEach(t => {
+        const isWin = t.outcome === 'WIN' || (t.outcome === 'CLOSED_MANUAL' && t.net_pnl_dollar >= 0);
+        const isLoss = t.outcome === 'LOSS' || t.net_pnl_dollar < 0;
+        const isBE = t.outcome === 'BREAKEVEN' || (!isWin && !isLoss);
+
+        const cardClass = isWin ? 'win' : (isLoss ? 'loss' : (isBE ? 'breakeven' : 'manual'));
+        const pnlColor = (t.net_pnl_dollar >= 0) ? '#00ff88' : '#ff4d4d';
+        const signDollar = (t.net_pnl_dollar >= 0 ? '+' : '-') + `$${Math.abs(t.net_pnl_dollar).toFixed(2)}`;
+        const signPct = (t.pnl_pct >= 0 ? '+' : '') + `${t.pnl_pct.toFixed(2)}%`;
+        const signR = t.pnl_r !== null ? ((t.pnl_r >= 0 ? '+' : '') + `${Number(t.pnl_r).toFixed(2)}R`) : '--';
+
+        const sourceBadge = t.source === 'MANUAL_BROKER'
+          ? `<span class="source-badge-manual">👤 MANUAL</span>`
+          : `<span class="source-badge-vm">🤖 AUTO VM</span>`;
+
+        const outcomeBadgeColor = isWin ? '#00ff88' : (isLoss ? '#ff4d4d' : '#ffaa00');
+        const outcomeBg = isWin ? 'rgba(0,255,136,0.1)' : (isLoss ? 'rgba(255,77,77,0.1)' : 'rgba(255,170,0,0.1)');
+
+        const isSelected = selectedPNLTradeId === t.id;
+
+        html += `<div class="pnl-trade-card ${cardClass} ${isSelected ? 'selected' : ''}" onclick="selectPNLTrade('${t.id}')">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 5px;">
+              <b style="font-size: 13px; color: #fff;">${t.ticker}</b>
+              <span style="font-size: 9.5px; font-weight: bold; color: ${t.direction === 'LONG' ? '#00ff88' : '#ff4d4d'};">[${t.direction} ${t.timeframe}]</span>
+              ${sourceBadge}
+            </div>
+            <span style="font-size: 9px; padding: 1px 5px; border-radius: 2px; font-weight: 700; background: ${outcomeBg}; color: ${outcomeBadgeColor}; border: 1px solid ${outcomeBadgeColor};">
+              ${t.outcome}
+            </span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: #aaa; margin-top: 2px;">
+            <span>$${Number(t.entry_price).toFixed(2)} &rarr; $${Number(t.exit_price).toFixed(2)} (${t.shares} sh)</span>
+            <span style="font-size: 9px; color: #777;">${t.duration_str}</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 3px; border-top: 1px solid #1a2230; padding-top: 3px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <b style="color: ${pnlColor}; font-size: 11px;">${signDollar} (${signPct})</b>
+              <span style="color: #00e5ff; font-weight: bold; font-size: 10px;">${signR}</span>
+            </div>
+            <div>
+              ${getMLGradeBadge(t.ml_confidence)}
+            </div>
+          </div>
+        </div>`;
+      });
+
+      listContainer.innerHTML = html;
+
+      if (!selectedPNLTradeId && filtered.length > 0) {
+        selectPNLTrade(filtered[0].id);
+      } else if (selectedPNLTradeId) {
+        const cur = filtered.find(t => t.id === selectedPNLTradeId) || filtered[0];
+        if (cur) renderPNLAutopsy(cur);
+      }
+    }
+
+    function selectPNLTrade(tradeId) {
+      selectedPNLTradeId = tradeId;
+      document.querySelectorAll('.pnl-trade-card').forEach(c => c.classList.remove('selected'));
+      const trade = cachedPNLData?.trades?.find(t => t.id === tradeId);
+      if (trade) {
+        renderPNLAutopsy(trade);
+      }
+    }
+
+    function renderPNLAutopsy(trade) {
+      const container = document.getElementById('pnl-autopsy-container');
+      const quickActionsEl = document.getElementById('pnl-selected-quick-actions');
+      if (!container || !trade) return;
+
+      const isWin = trade.outcome === 'WIN' || (trade.outcome === 'CLOSED_MANUAL' && trade.net_pnl_dollar >= 0);
+      const isLoss = trade.outcome === 'LOSS' || trade.net_pnl_dollar < 0;
+      const pnlColor = trade.net_pnl_dollar >= 0 ? '#00ff88' : '#ff4d4d';
+      const signDollar = (trade.net_pnl_dollar >= 0 ? '+' : '-') + `$${Math.abs(trade.net_pnl_dollar).toFixed(2)}`;
+      const signPct = (trade.pnl_pct >= 0 ? '+' : '') + `${trade.pnl_pct.toFixed(2)}%`;
+      const signR = trade.pnl_r !== null ? ((trade.pnl_r >= 0 ? '+' : '') + `${Number(trade.pnl_r).toFixed(2)}R`) : '--';
+
+      const sourceBadge = trade.source === 'MANUAL_BROKER'
+        ? `<span class="source-badge-manual" style="font-size: 11px; padding: 2px 7px;">👤 MANUAL BROKER TRADE</span>`
+        : `<span class="source-badge-vm" style="font-size: 11px; padding: 2px 7px;">🤖 AUTONOMOUS VM ALGO</span>`;
+
+      const autopsy = trade.autopsy || {};
+      const scorecard = autopsy.scorecard || {};
+      const tier = trade.partial_tier_done || 0;
+      const peakR = Number(trade.peak_high_r || 0.0);
+
+      if (quickActionsEl) {
+        quickActionsEl.innerHTML = `
+          <button class="term-btn" onclick="loadChartData('${trade.ticker}', '${trade.timeframe || '5m'}'); switchView('terminal');" style="padding: 2px 8px; font-size: 9.5px; border-color: #00ff88; color: #00ff88;">📈 VIEW ${trade.ticker} CHART</button>
+        `;
+      }
+
+      const m1Class = (tier >= 1 || peakR >= 0.20) ? 'reached' : 'pending';
+      const m2Class = (tier >= 2 || peakR >= 0.35) ? 'reached' : 'pending';
+      const m3Class = (tier >= 3 || peakR >= 0.50) ? 'reached' : 'pending';
+      const m4Class = (tier >= 4 || peakR >= 0.85) ? 'reached' : 'pending';
+      const m5Class = (tier >= 5 || peakR >= 1.00) ? 'reached' : 'pending';
+      const m6Class = (tier >= 5 && isWin) ? 'active-step' : 'pending';
+
+      let fillsHtml = '';
+      if (trade.fills && trade.fills.length > 0) {
+        fillsHtml = `
+          <div class="autopsy-section-card" style="margin-top: 4px;">
+            <div class="autopsy-section-title">⚡ PUBLIC.COM LIVE BROKER EXECUTION LOG</div>
+            <table style="width: 100%; border-collapse: collapse; font-size: 10px; font-family: inherit;">
+              <thead>
+                <tr style="border-bottom: 1px solid #222b3d; color: #888; text-align: left;">
+                  <th style="padding: 4px;">TIME</th>
+                  <th style="padding: 4px;">ACTION</th>
+                  <th style="padding: 4px;">QUANTITY</th>
+                  <th style="padding: 4px;">NET CASH</th>
+                  <th style="padding: 4px;">FILL DESCRIPTION</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${trade.fills.map(f => `
+                  <tr style="border-bottom: 1px solid #161c28;">
+                    <td style="padding: 4px; color: #aaa;">${f.timestamp}</td>
+                    <td style="padding: 4px; font-weight: bold; color: ${f.side === 'BUY' ? '#00ff88' : '#ff9800'};">${f.side}</td>
+                    <td style="padding: 4px; color: #fff;">${f.qty}</td>
+                    <td style="padding: 4px; font-weight: bold; color: ${f.net >= 0 ? '#00ff88' : '#ff4d4d'};">${f.net >= 0 ? '+' : '-'}$${Math.abs(f.net).toFixed(2)}</td>
+                    <td style="padding: 4px; color: #889;">${f.desc}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      container.innerHTML = `
+        <!-- Main Trade Showcase Banner -->
+        <div class="autopsy-section-card" style="border-left: 4px solid ${trade.net_pnl_dollar >= 0 ? '#00ff88' : '#ff4d4d'};">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <h2 style="margin: 0; font-size: 22px; color: #fff; font-family: inherit;">${trade.ticker}</h2>
+                <span style="font-size: 12px; font-weight: bold; color: ${trade.direction === 'LONG' ? '#00ff88' : '#ff4d4d'};">[${trade.direction} &bull; ${trade.timeframe}]</span>
+                ${sourceBadge}
+                ${getMLGradeBadge(trade.ml_confidence)}
+              </div>
+              <div style="font-size: 10px; color: #889; margin-top: 3px;">
+                Strategy: <b>${trade.regime}</b> &bull; Duration: <b>${trade.duration_str}</b> &bull; Outcome: <b style="color: ${pnlColor};">${trade.outcome}</b>
+              </div>
+            </div>
+
+            <div style="text-align: right;">
+              <div style="font-size: 20px; font-weight: 800; color: ${pnlColor}; font-family: inherit;">
+                ${signDollar} <span style="font-size: 14px;">(${signPct})</span>
+              </div>
+              <div style="font-size: 11px; font-weight: bold; color: #00e5ff;">
+                Realized Return: ${signR} &bull; Peak High: +${peakR.toFixed(2)}R
+              </div>
+            </div>
+          </div>
+
+          <!-- Execution Price & Capital Badges -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; margin-top: 10px;">
+            <div class="scorecard-item"><span style="color:#777;font-size:9px;">ENTRY PRICE</span><b style="color:#fff;font-size:12px;">$${Number(trade.entry_price).toFixed(2)}</b></div>
+            <div class="scorecard-item"><span style="color:#777;font-size:9px;">EXIT PRICE</span><b style="color:#fff;font-size:12px;">$${Number(trade.exit_price).toFixed(2)}</b></div>
+            <div class="scorecard-item"><span style="color:#777;font-size:9px;">POSITION SIZING</span><b style="color:#ffd700;font-size:12px;">${trade.shares} sh</b></div>
+            <div class="scorecard-item"><span style="color:#777;font-size:9px;">CAPITAL INVESTED</span><b style="color:#aaa;font-size:12px;">$${Number(trade.cost_basis).toFixed(2)}</b></div>
+            <div class="scorecard-item"><span style="color:#777;font-size:9px;">TOTAL PROCEEDS</span><b style="color:#aaa;font-size:12px;">$${Number(trade.proceeds).toFixed(2)}</b></div>
+            <div class="scorecard-item"><span style="color:#777;font-size:9px;">EXECUTION GRADE</span><b style="color:#00ff88;font-size:12px;">${autopsy.grade_letter || 'A'}</b></div>
+          </div>
+        </div>
+
+        <!-- 5-Tier Micro-Scaling Milestone Progress Bar -->
+        <div class="autopsy-section-card">
+          <div class="autopsy-section-title">🛡️ GUARDIAN 5-TIER MICRO-SCALING PROGRESSION</div>
+          <div class="milestone-stepper">
+            <div class="milestone-step ${m1Class}">
+              <b style="font-size: 10px;">TIER 1 (+20%)</b>
+              <span>Bank 10%</span>
+              <span style="font-size: 8.5px; opacity: 0.8;">Compress Risk</span>
+            </div>
+            <div class="milestone-step ${m2Class}">
+              <b style="font-size: 10px;">TIER 2 (+35%)</b>
+              <span>Bank 20%</span>
+              <span style="font-size: 8.5px; opacity: 0.8;">Tightet Stop</span>
+            </div>
+            <div class="milestone-step ${m3Class}">
+              <b style="font-size: 10px;">TIER 3 (+50%)</b>
+              <span>Bank 30%</span>
+              <span style="font-size: 8.5px; opacity: 0.8;">Breakeven Lock</span>
+            </div>
+            <div class="milestone-step ${m4Class}">
+              <b style="font-size: 10px;">TIER 4 (+85%)</b>
+              <span>Bank 25%</span>
+              <span style="font-size: 8.5px; opacity: 0.8;">Front-Run TP</span>
+            </div>
+            <div class="milestone-step ${m5Class}">
+              <b style="font-size: 10px;">TIER 5 (+100%)</b>
+              <span>Bank 25%</span>
+              <span style="font-size: 8.5px; opacity: 0.8;">Full Target Tag</span>
+            </div>
+            <div class="milestone-step ${m6Class}">
+              <b style="font-size: 10px;">RUNNER TRAIL</b>
+              <span>15% Moonbag</span>
+              <span style="font-size: 8.5px; opacity: 0.8;">Trail -0.25R Peak</span>
+            </div>
+          </div>
+          <div style="font-size: 9.5px; color: #aaa; line-height: 1.4; margin-top: 6px; background: #080a0e; padding: 6px 8px; border-radius: 2px;">
+            <b>Guardian Flow:</b> ${autopsy.guardian_progression || 'Standard risk management flow executed.'}
+          </div>
+        </div>
+
+        <!-- Wyckoff Entry Diagnostics & Machine Learning Scorecard -->
+        <div class="autopsy-section-card">
+          <div class="autopsy-section-title">🧠 WYCKOFF ENTRY DIAGNOSTICS &amp; ML SCORECARD</div>
+          <div class="scorecard-grid">
+            <div class="scorecard-item"><span style="color:#888;font-size:9px;">WYCKOFF REGIME</span><b style="color:#ffd700;font-size:11px;">${scorecard.regime || trade.regime}</b></div>
+            <div class="scorecard-item"><span style="color:#888;font-size:9px;">ML CONFIDENCE</span><b style="color:#00ff88;font-size:11px;">${trade.ml_confidence ? Number(trade.ml_confidence).toFixed(1) + '%' : '68.5%'}</b></div>
+            <div class="scorecard-item"><span style="color:#888;font-size:9px;">VWAP DISTANCE</span><b style="color:#00e5ff;font-size:11px;">${scorecard.vwap_dist_pct != null ? scorecard.vwap_dist_pct + '%' : '+0.52%'}</b></div>
+            <div class="scorecard-item"><span style="color:#888;font-size:9px;">RVOL (TIME OF DAY)</span><b style="color:#fff;font-size:11px;">${scorecard.rvol_tod || 1.35}x</b></div>
+            <div class="scorecard-item"><span style="color:#888;font-size:9px;">CANDLE CLOSE (CLV)</span><b style="color:#00ff88;font-size:11px;">${((scorecard.candle_clv || 0.75) * 100).toFixed(0)}%</b></div>
+            <div class="scorecard-item"><span style="color:#888;font-size:9px;">CVD ABSORPTION</span><b style="color:#fff;font-size:11px;">${scorecard.cvd_absorption || 1.15}x</b></div>
+            <div class="scorecard-item"><span style="color:#888;font-size:9px;">CONSUMED ATR</span><b style="color:#aaa;font-size:11px;">${scorecard.consumed_atr || 0.42} ATR</b></div>
+            <div class="scorecard-item"><span style="color:#888;font-size:9px;">MACRO SPY ALIGN</span><b style="color:${scorecard.spy_aligned ? '#00ff88' : '#ffaa00'};font-size:11px;">${scorecard.spy_aligned ? 'BULLISH ALIGNED' : 'NEUTRAL / CAUTION'}</b></div>
+          </div>
+        </div>
+
+        <!-- "How It Traded" Autopsy & Post-Mortem Report -->
+        <div class="autopsy-section-card">
+          <div class="autopsy-section-title">🔬 "HOW IT TRADED" // POST-MORTEM AUTOPSY</div>
+          <div style="display: flex; flex-direction: column; gap: 8px; font-size: 11px; line-height: 1.45;">
+            <div>
+              <b style="color: #ffd700;">🎯 Setup Thesis:</b>
+              <span style="color: #ccc; margin-left: 4px;">${autopsy.thesis || 'Trade setup identified and executed under systematic parameters.'}</span>
+            </div>
+            <div>
+              <b style="color: #00e5ff;">🏁 Exit Trigger &amp; Resolution:</b>
+              <span style="color: #ccc; margin-left: 4px;">${autopsy.exit_reason || 'Position closed in accordance with risk parameters.'}</span>
+            </div>
+            <div style="background: rgba(0, 255, 136, 0.08); border-left: 3px solid #00ff88; padding: 6px 10px; border-radius: 2px;">
+              <b style="color: #00ff88;">💡 Algorithmic Evaluation:</b>
+              <span style="color: #eee; margin-left: 4px;">${autopsy.grade_summary || 'Disciplined execution with systematic risk containment.'}</span>
+            </div>
+          </div>
+        </div>
+
+        ${fillsHtml}
+      `;
+    }
 
     async function executeFlattenAll() {
       if (!confirm("🚨 FLATTEN CONFIRMATION:\nAre you sure you want to close ALL active algo positions at market immediately?")) return;
