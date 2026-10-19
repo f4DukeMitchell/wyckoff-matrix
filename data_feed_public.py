@@ -109,12 +109,18 @@ def build_from_collected_cache(ticker: str, interval: str):
     return None
 
 def get_async_client():
+    try:
+        curr_loop = asyncio.get_running_loop()
+    except RuntimeError:
+        curr_loop = None
     client = getattr(_THREAD_LOCAL, 'async_client', None)
-    if client is None:
+    saved_loop = getattr(_THREAD_LOCAL, 'async_loop', None)
+    if client is None or (curr_loop is not None and saved_loop is not curr_loop):
         if not API_KEY:
             raise ValueError("PUBLIC_API_KEY not configured in environment.")
         client = AsyncPublicApiClient(auth_config=ApiKeyAuthConfig(api_secret_key=API_KEY))
         _THREAD_LOCAL.async_client = client
+        _THREAD_LOCAL.async_loop = curr_loop
     return client
 
 # Interval mapping (100% Pure Public.com API)

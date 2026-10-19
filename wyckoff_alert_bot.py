@@ -572,12 +572,6 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         except Exception:
             orb_regime_code = 0
 
-        # Indicator 4.4: Sector ETF Intraday Return (%)
-        try:
-            sector_ret_pct = round(get_sector_return(ticker), 2)
-        except Exception:
-            sector_ret_pct = 0.0
-
         c_below = (lows[curr] < range_low[curr]) or (lows[curr-1] < range_low[curr-1])
         vol_dry = rel_vol[curr] < VOL_LIMIT
         # Mode 2: High-Volume Institutional Absorption Spring (Shakeout with Hammer CLV >= 0.65 & Positive CVD >= 0.20)
@@ -630,6 +624,14 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         is_rth = (now.hour > 9 or (now.hour == 9 and now.minute >= 30)) and now.hour < 16
         if not is_rth and interval in ("1m", "5m", "15m", "1h"):
             return
+        if not (is_spring or is_utad):
+            return
+
+        # Indicator 4.4: Sector ETF Intraday Return (%) — only evaluated when a Spring or UTAD triggers
+        try:
+            sector_ret_pct = round(get_sector_return(ticker), 2)
+        except Exception:
+            sector_ret_pct = 0.0
 
         if is_spring and (current_time - last_alerted.get(ticker, 0) > 900):
             open_second_spring = None
