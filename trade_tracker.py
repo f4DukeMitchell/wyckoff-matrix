@@ -96,19 +96,22 @@ def init_db():
             conn.close()
 
 _cached_ml_model = None
+_cached_ml_mtime = 0.0
 def get_ml_model():
-    global _cached_ml_model
-    if _cached_ml_model is not None:
-        return _cached_ml_model
+    global _cached_ml_model, _cached_ml_mtime
     try:
         import pickle
         if os.path.exists("wyckoff_model.pkl"):
+            mtime = os.path.getmtime("wyckoff_model.pkl")
+            if _cached_ml_model is not None and mtime == _cached_ml_mtime:
+                return _cached_ml_model
             with open("wyckoff_model.pkl", "rb") as f:
                 _cached_ml_model = pickle.load(f)
+                _cached_ml_mtime = mtime
                 return _cached_ml_model
     except Exception as e:
         print(f"Error loading wyckoff_model.pkl: {e}")
-    return None
+    return _cached_ml_model
 
 def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_of_day, direction,
                             effort_vs_result=1.0, test_vol_ratio=1.0,
@@ -206,12 +209,18 @@ def calculate_ml_confidence(bars_in_regime, vwap_distance, atr_expansion, hour_o
                 'hour_of_day': h_day,
                 'dir_num': dir_num
             }
-            if hasattr(model, 'feature_names_in_'):
-                features = pd.DataFrame([{col: feat_dict.get(col, 0.0) for col in model.feature_names_in_}])
+            active_model = model
+            if dir_num == 1 and getattr(model, 'model_long', None) is not None:
+                active_model = model.model_long
+            elif dir_num == 0 and getattr(model, 'model_short', None) is not None:
+                active_model = model.model_short
+
+            if hasattr(active_model, 'feature_names_in_'):
+                features = pd.DataFrame([{col: feat_dict.get(col, 0.0) for col in active_model.feature_names_in_}])
             else:
                 features = pd.DataFrame([feat_dict])
             # Probability of target == 1 (WIN)
-            prob = model.predict_proba(features)[0][1] * 100.0
+            prob = active_model.predict_proba(features)[0][1] * 100.0
             return round(float(prob), 1)
         except Exception as e:
             print(f"ML scoring error: {e}")

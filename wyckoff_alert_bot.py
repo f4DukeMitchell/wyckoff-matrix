@@ -410,9 +410,36 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                 break
         
         # --- Institutional & Wyckoff VSA Features ---
-        vwap = calc_vwap(highs, lows, closes, vols)
-        vwap_distance = (closes[-1] - vwap[-1]) / vwap[-1] * 100 if vwap[-1] > 0 else 0
-        vwap_slope = float((vwap[-1] - vwap[-7]) / vwap[-7] * 100.0) if (len(vwap) >= 7 and vwap[-7] > 0) else 0.0
+        curr = len(df) - 1
+        try:
+            curr_date = df.index[curr].date() if hasattr(df.index[curr], 'date') else None
+            if curr_date is not None and interval in ['1m', '5m', '15m']:
+                sess_bars = [i for i in range(max(0, curr - 78), curr + 1) if hasattr(df.index[i], 'date') and df.index[i].date() == curr_date]
+            else:
+                sess_bars = []
+            if not sess_bars:
+                sess_bars = list(range(max(0, curr - 20), curr + 1))
+        except Exception:
+            sess_bars = list(range(max(0, curr - 20), curr + 1))
+
+        if interval in ['1m', '5m', '15m'] and len(sess_bars) >= 1:
+            sess_tp = (highs[sess_bars] + lows[sess_bars] + closes[sess_bars]) / 3.0
+            sess_v = vols[sess_bars]
+            cum_v = np.cumsum(sess_v)
+            cum_tpv = np.cumsum(sess_tp * sess_v)
+            sess_vwap = np.where(cum_v > 0, cum_tpv / cum_v, closes[sess_bars])
+            curr_vwap = float(sess_vwap[-1])
+            vwap_distance = float((closes[curr] - curr_vwap) / curr_vwap * 100.0) if curr_vwap > 0 else 0.0
+            if len(sess_vwap) >= 7 and sess_vwap[-7] > 0:
+                vwap_slope = float((sess_vwap[-1] - sess_vwap[-7]) / sess_vwap[-7] * 100.0)
+            elif len(sess_vwap) >= 2 and sess_vwap[0] > 0:
+                vwap_slope = float((sess_vwap[-1] - sess_vwap[0]) / sess_vwap[0] * 100.0)
+            else:
+                vwap_slope = 0.0
+        else:
+            vwap = calc_vwap(highs, lows, closes, vols)
+            vwap_distance = (closes[-1] - vwap[-1]) / vwap[-1] * 100 if vwap[-1] > 0 else 0
+            vwap_slope = float((vwap[-1] - vwap[-7]) / vwap[-7] * 100.0) if (len(vwap) >= 7 and vwap[-7] > 0) else 0.0
         
         atr_exp = calc_atr_expansion(highs, lows, closes)
         atr_expansion = float(atr_exp[-1])
@@ -420,8 +447,6 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         vol_sma = pd.Series(vols).rolling(20, min_periods=1).mean().values
         with np.errstate(divide='ignore', invalid='ignore'):
             rel_vol = np.where(vol_sma > 0, vols / vol_sma, 1.0)
-        
-        curr = len(df) - 1
         
         # Wyckoff Law 3 (Effort vs. Result): Volume relative to candle spread
         curr_spread = abs(highs[curr] - lows[curr])
@@ -486,19 +511,19 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         candle_rng = highs[curr] - lows[curr]
         candle_clv = float(np.clip((closes[curr] - lows[curr]) / candle_rng, 0.0, 1.0)) if candle_rng > 0 else 0.5
 
-        # Indicator 3.1: Consumed Intraday ATR Ratio
+        # Indicator 3.1: Consumed Intraday ATR Ratio (Strictly Today's Session Range vs Expected Daily Range)
         try:
-            day_high = np.max(highs[max(0, curr-78):curr+1])
-            day_low = np.min(lows[max(0, curr-78):curr+1])
+            day_high = float(np.max(highs[sess_bars]))
+            day_low = float(np.min(lows[sess_bars]))
             day_range = day_high - day_low
             tr = np.maximum(highs[1:curr+1] - lows[1:curr+1],
                             np.maximum(abs(highs[1:curr+1] - closes[:curr]),
                                        abs(lows[1:curr+1] - closes[:curr])))
-            avg_tr = np.mean(tr[-78:]) * np.sqrt(78) if len(tr) >= 78 else np.mean(tr) * np.sqrt(len(tr))
-            consumed_atr = float(day_range / avg_tr) if avg_tr > 0 else 1.0
+            avg_tr = np.mean(tr[-78:]) * np.sqrt(78) if len(tr) >= 78 else np.mean(tr) * np.sqrt(max(1, len(tr)))
+            consumed_atr = round(float(day_range / avg_tr), 2) if avg_tr > 0 else 0.50
             atr_headroom = max(0.0, round(1.0 - consumed_atr, 3))
         except Exception:
-            consumed_atr = 1.0
+            consumed_atr = 0.50
             atr_headroom = 0.50
 
         # Indicator 2.4 (Roadmap #9): Secondary Test / SOS Reclaim Volume Ratio
@@ -507,28 +532,26 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
 
         # Indicator 1.4 (Roadmap #4): Intraday VPOC Distance (%)
         try:
-            lookback_day = min(curr, 78)
-            sess_closes = closes[curr - lookback_day:curr + 1]
-            sess_vols = vols[curr - lookback_day:curr + 1]
-            if len(sess_closes) >= 5 and np.sum(sess_vols) > 0:
-                hist, bin_edges = np.histogram(sess_closes, bins=20, weights=sess_vols)
-                max_bin = np.argmax(hist)
+            sess_closes = closes[sess_bars]
+            sess_vols = vols[sess_bars]
+            if len(sess_closes) >= 2 and np.sum(sess_vols) > 0:
+                hist, bin_edges = np.histogram(sess_closes, bins=10, weights=sess_vols)
+                max_bin = int(np.argmax(hist))
                 vpoc_price = (bin_edges[max_bin] + bin_edges[max_bin + 1]) * 0.5
-                vpoc_distance_pct = float((closes[curr] - vpoc_price) / vpoc_price * 100.0) if vpoc_price > 0 else 0.0
+                vpoc_distance_pct = round(float((closes[curr] - vpoc_price) / vpoc_price * 100.0), 3) if vpoc_price > 0 else 0.0
             else:
                 vpoc_distance_pct = 0.0
         except Exception:
             vpoc_distance_pct = 0.0
 
-        # Indicator 3.2 (Roadmap #12): Multi-Timeframe ATR Expansion Ratio
+        # Indicator 3.2 (Roadmap #12): Multi-Timeframe ATR Expansion Ratio (14-bar vs 78-bar ATR)
         try:
-            start_36 = max(0, curr - 36)
-            tr_36 = np.maximum(highs[start_36:curr+1] - lows[start_36:curr+1],
-                               np.maximum(abs(highs[start_36:curr+1] - closes[start_36-1:curr]),
-                                          abs(lows[start_36:curr+1] - closes[start_36-1:curr]))) if start_36 > 0 else (highs[start_36:curr+1] - lows[start_36:curr+1])
-            short_atr = np.mean(tr_36[-6:]) if len(tr_36) >= 6 else 1.0
-            long_atr = np.mean(tr_36) if len(tr_36) > 0 else 1.0
-            mtf_atr_ratio = float(short_atr / long_atr) if long_atr > 0 else 1.0
+            tr_all = np.maximum(highs[1:curr+1] - lows[1:curr+1],
+                                np.maximum(abs(highs[1:curr+1] - closes[:curr]),
+                                           abs(lows[1:curr+1] - closes[:curr])))
+            atr_14 = float(np.mean(tr_all[-14:])) if len(tr_all) >= 14 else float(np.mean(tr_all))
+            atr_78 = float(np.mean(tr_all[-78:])) if len(tr_all) >= 78 else float(np.mean(tr_all))
+            mtf_atr_ratio = round(float(atr_14 / atr_78), 2) if atr_78 > 0 else 1.0
         except Exception:
             mtf_atr_ratio = 1.0
 
@@ -551,12 +574,6 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
 
         # Indicator 2.7: Opening Range (ORB) Position (First 6 bars: 9:30 - 10:00 AM)
         try:
-            curr_date = df.index[curr].date() if hasattr(df.index[curr], 'date') else None
-            if curr_date is not None:
-                sess_bars = [i for i in range(max(0, curr - 78), curr + 1) if hasattr(df.index[i], 'date') and df.index[i].date() == curr_date]
-            else:
-                sess_bars = list(range(max(0, curr - 20), curr + 1))
-            
             if len(sess_bars) >= 6:
                 orb_bars = sess_bars[:6]
                 orb_h = max(highs[orb_bars])

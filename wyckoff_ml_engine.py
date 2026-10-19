@@ -272,8 +272,31 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
         # Train Random Forest Classifier with sample weights
         rf = RandomForestClassifier(n_estimators=100, max_depth=4, random_state=42)
         rf.fit(X, y, sample_weight=weights)
+
+        # Train Dedicated Directional Specialist Models (prevents 21% WR SHORT UTADs from diluting 62% WR LONG Springs)
+        long_df = clean_df[clean_df['dir_num'] == 1]
+        if len(long_df) >= 10:
+            rf_long = RandomForestClassifier(n_estimators=100, max_depth=4, random_state=42)
+            rf_long.fit(long_df[cols], long_df['target'], sample_weight=sample_weights.loc[long_df.index])
+            rf.model_long = rf_long
+        else:
+            rf.model_long = None
+
+        short_df = clean_df[clean_df['dir_num'] == 0]
+        if len(short_df) >= 10:
+            rf_short = RandomForestClassifier(n_estimators=100, max_depth=4, random_state=42)
+            rf_short.fit(short_df[cols], short_df['target'], sample_weight=sample_weights.loc[short_df.index])
+            rf.model_short = rf_short
+        else:
+            rf.model_short = None
         
-        acc = float((rf.predict(X) == y).mean() * 100)
+        # Compute combined directional accuracy across specialist models
+        if rf.model_long is not None and rf.model_short is not None:
+            long_correct = (rf.model_long.predict(long_df[cols]) == long_df['target']).sum()
+            short_correct = (rf.model_short.predict(short_df[cols]) == short_df['target']).sum()
+            acc = float((long_correct + short_correct) / len(clean_df) * 100.0)
+        else:
+            acc = float((rf.predict(X) == y).mean() * 100)
         
         wins = int((df['outcome'] == 'WIN').sum())
         losses = int((df['outcome'] == 'LOSS').sum())
@@ -284,7 +307,8 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
         directional_win_rate = (wins / (wins + losses) * 100.0) if (wins + losses) > 0 else 0.0
         be_rate = (breakevens / total_closed * 100.0) if total_closed > 0 else 0.0
         
-        importances = {feature_map[k]: round(float(imp * 100), 1) for k, imp in zip(cols, rf.feature_importances_)}
+        active_imp_model = rf.model_long if rf.model_long is not None else rf
+        importances = {feature_map[k]: round(float(imp * 100), 1) for k, imp in zip(cols, active_imp_model.feature_importances_)}
         sorted_imp = sorted(importances.items(), key=lambda x: x[1], reverse=True)
         top_feat = sorted_imp[0][0]
         
