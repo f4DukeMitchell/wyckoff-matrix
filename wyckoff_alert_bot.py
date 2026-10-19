@@ -1026,6 +1026,48 @@ def scan_market(interval, period, lookback):
     import asyncio
     asyncio.run(scan_market_public(interval, lookback))
 
+def scan_hot_boundary_touch_20s():
+    """
+    Ultra-lightweight 20-second intra-candle sniper check between 5-minute boundaries:
+    1. Pulls 1 single batched live-price quote call for the Priority Queue (0.2s).
+    2. Filters ONLY for tickers currently within 0.75% of range_low / range_high (or tagged HOT_SPRING / HOT_UTAD), capped at top 8.
+    3. Evaluates fresh 5m bars ONLY on those 1-8 active boundary-touch stocks (<0.8s total) without blocking Engine 2!
+    """
+    try:
+        from priority_queue import get_priority_queue, flush_priority_queue
+        from public_executor import get_live_prices
+        q_items = get_priority_queue()
+        if not q_items:
+            return
+        q_map = {it['ticker'].upper(): it for it in q_items if it.get('ticker')}
+        live_prices = get_live_prices(list(q_map.keys()))
+        hot_candidates = []
+        for sym, item in q_map.items():
+            tr_low = float(item.get('tr_low') or 0.0)
+            tr_high = float(item.get('tr_high') or 0.0)
+            px = float(live_prices.get(sym) or item.get('price') or 0.0)
+            if px <= 0:
+                continue
+            dist_low = ((px - tr_low) / px * 100.0) if tr_low > 0 else 99.0
+            dist_high = ((tr_high - px) / px * 100.0) if tr_high > 0 else 99.0
+            min_dist = min(abs(dist_low), abs(dist_high))
+            if (-0.6 <= dist_low <= 0.75) or (-0.6 <= dist_high <= 0.75) or item.get('status') in ('HOT_SPRING', 'HOT_UTAD'):
+                hot_candidates.append((min_dist, sym))
+        if not hot_candidates:
+            return
+        hot_candidates.sort(key=lambda x: x[0])
+        top_hot = [sym for _, sym in hot_candidates[:8]]
+        spy_bullish, spy_30m_ret, vix_slope = get_macro_context()
+        now = get_market_now()
+        hour_of_day = now.hour + now.minute / 60.0
+        for sym in top_hot:
+            df = get_public_bars_sync(sym, '5m')
+            if df is not None and not df.empty:
+                evaluate_ticker_data(sym, df, '5m', 200, spy_bullish, hour_of_day, now, spy_30m_ret, vix_slope)
+        flush_priority_queue()
+    except Exception:
+        pass
+
 
 last_report_date = None
 reports_sent = {"morning": False, "lunch": False, "power": False}
@@ -1289,11 +1331,13 @@ if __name__ == "__main__":
 
         if is_scanning_hours:
             current_5m_slot = (now.date(), now.hour, (now.minute // 5) * 5)
-            # Trigger 5m Priority Scan once per 5-minute candle boundary (:00, :05, :10, :15...) or initial boot.
-            # Leaves 4m45s of uninterrupted runway every 5m cycle for Engine 2's 15m/1h/1d & 611-ticker universe sweeps!
+            # 1. On 5-minute candle boundaries (:00, :05, :10, :15...): Full 5m Priority Queue refresh
             if last_5m_slot != current_5m_slot:
                 last_5m_slot = current_5m_slot
                 scan_market('5m', '5d', 200)
+            else:
+                # 2. Every 20 seconds in between: 0.2s batched live-quote check -> only pulls bars for the 1-8 stocks actively touching range_low/range_high!
+                scan_hot_boundary_touch_20s()
         else:
             print(f"[{now.strftime('%H:%M:%S')}] Outside scanning hours (Mon-Fri 7:00am-5:00pm EST). Scan paused.")
         
