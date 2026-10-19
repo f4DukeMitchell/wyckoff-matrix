@@ -474,6 +474,8 @@ def get_covered_calls_scanner_data(force_refresh=False):
             pin_zone_low = max_pain
             pin_zone_high = round(max_pain + 0.50, 2) if sym == "AMC" else round(max_pain + 2.0, 2)
 
+            import yfinance as yf
+            t = yf.Ticker(sym)
             exps = t.options[:6]
 
             holding_val = round(price * cfg["shares"], 2)
