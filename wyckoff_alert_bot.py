@@ -354,6 +354,32 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         min_required = min(lookback, 40)
         if df.empty or len(df) < min_required:
             return
+
+        # Clean Session Continuity (Previous Day RTH -> Pre-Market -> Today RTH):
+        # On 5m/15m, anchor range_low, range_high, vol_sma, and SuperTrend to Regular Trading Hours (09:30-16:00 EST)
+        # so thin 4:00 AM pre-market volume/wicks never distort 9:40 AM rel_vol or structural boundaries.
+        latest_live_price = float(df['Close'].iloc[-1])
+        if interval in ('5m', '15m') and isinstance(df.index, pd.DatetimeIndex):
+            try:
+                idx_et = df.index.tz_convert(ET_TZ) if (df.index.tz is not None and ET_TZ) else df.index
+                rth_mask = [
+                    (t.hour > 9 or (t.hour == 9 and t.minute >= 30)) and (t.hour < 16 or (t.hour == 16 and t.minute == 0))
+                    for t in idx_et
+                ]
+                df_rth = df[rth_mask]
+                if len(df_rth) >= min_required:
+                    is_rth_now = (now.hour > 9 or (now.hour == 9 and now.minute >= 30)) and (now.hour < 16)
+                    if is_rth_now:
+                        # During 9:30 AM - 4:00 PM regular market: use pure RTH bars (Friday 16:00 -> Monday 09:30 seam)
+                        df = df_rth
+                    else:
+                        # During pre-market (7:00 AM - 9:29 AM): keep RTH history + append current pre-market bar
+                        # so range_low/range_high & vol_sma stay pure RTH while current price reflects pre-market!
+                        df = pd.concat([df_rth, df.iloc[[-1]]])
+                        df = df[~df.index.duplicated(keep='last')]
+            except Exception:
+                pass
+
         eff_lookback = min(lookback, max(20, len(df) - 5))
             
         if isinstance(df.columns, pd.MultiIndex):
