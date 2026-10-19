@@ -47,10 +47,15 @@ def get_priority_queue() -> List[Dict[str, Any]]:
         items = list(_QUEUE_MEMORY.values())
 
     for it in items:
+        b_reg = float(it.get('bars_in_regime') or 0)
+        if b_reg < 8:
+            if it.get('status') == 'HOT_SPRING':
+                it['status'] = 'TEST_SUPPORT'
+            elif it.get('status') == 'HOT_UTAD':
+                it['status'] = 'TEST_RESIST'
         if 'ml_confidence' not in it or it['ml_confidence'] is None:
             st = it.get('status', '')
             base_score = 68.0 if st in ["HOT_SPRING", "HOT_UTAD"] else (61.0 if "TEST" in st else 52.0)
-            b_reg = float(it.get('bars_in_regime') or 0)
             d_bound = abs(float(it.get('dist_boundary_pct') or 0))
             compression_bonus = min(8.0, b_reg * 0.7)
             proximity_bonus = max(0.0, 4.0 - (d_bound * 2.0))
@@ -58,17 +63,47 @@ def get_priority_queue() -> List[Dict[str, Any]]:
 
     return items
 
+MAX_ACTIVE_5M_TICKERS = 60
+
 def get_active_5m_tickers(default_all: List[str] = None) -> List[str]:
-    """Returns list of ticker symbols currently in the Tier 1 Fast Queue (~120-150 tickers)."""
+    """
+    Returns top prioritized ticker symbols for the 5M Fast Queue (capped at 60 tickers
+    so the 5m scan completes in ~20s with zero API rate-limit pressure).
+    Prioritizes HOT_SPRING (Longs with >=8 bars exhaustion), ANCHOR_TICKERS, and TEST_SUPPORT first.
+    """
     q = get_priority_queue()
     if q:
-        symbols = [item['ticker'].upper() for item in q if item.get('ticker')]
-        # Ensure anchor tickers are always present
+        tier_rank = {
+            "HOT_SPRING": 0,
+            "TEST_SUPPORT": 1,
+            "ANCHOR_MONITOR": 2,
+            "HOT_UTAD": 3,
+            "TEST_RESIST": 4,
+            "MONITORING": 5,
+            "CHOPPING_BLOCK": 6
+        }
+        sorted_q = sorted(
+            [it for it in q if it.get('ticker')],
+            key=lambda it: (
+                tier_rank.get(it.get('status', 'MONITORING'), 5),
+                0 if it['ticker'].upper() in ANCHOR_TICKERS else 1,
+                abs(float(it.get('dist_boundary_pct') or 99.0))
+            )
+        )
+        symbols = []
+        # 1. Always include Anchor leaders first or in top set
         for a in ANCHOR_TICKERS:
             if a not in symbols:
                 symbols.append(a)
-        return symbols
-    return ANCHOR_TICKERS if not default_all else default_all[:120]
+        # 2. Fill up to MAX_ACTIVE_5M_TICKERS (60) with highest-priority boundary testers (HOT_SPRING first)
+        for item in sorted_q:
+            sym = item['ticker'].upper()
+            if sym not in symbols:
+                symbols.append(sym)
+            if len(symbols) >= MAX_ACTIVE_5M_TICKERS:
+                break
+        return symbols[:MAX_ACTIVE_5M_TICKERS]
+    return ANCHOR_TICKERS if not default_all else default_all[:60]
 
 def update_ticker_in_queue(
     ticker: str,
@@ -81,10 +116,10 @@ def update_ticker_in_queue(
 ):
     """
     Updates a single ticker's status in the dynamic priority queue:
-    - HOT_SPRING: within 1.5% of TR Low Support in bearish exhaustion regime
-    - HOT_UTAD: within 1.5% of TR High Ceiling in bullish exhaustion regime
-    - TEST_SUPPORT: within 1.5% of TR Low Support
-    - TEST_RESIST: within 1.5% of TR High Ceiling
+    - HOT_SPRING: within 1.5% of TR Low Support AND >= 8 bars in bearish exhaustion regime
+    - HOT_UTAD: within 1.5% of TR High Ceiling AND >= 8 bars in bullish exhaustion regime
+    - TEST_SUPPORT: within 1.5% of TR Low Support (< 8 bars regime or bullish trend)
+    - TEST_RESIST: within 1.5% of TR High Ceiling (< 8 bars regime or bearish trend)
     - ANCHOR_MONITOR: Anchor ticker currently in mid-range Phase B
     - MONITORING: Non-anchor stock within 2.5% of boundary
     - CHOPPING_BLOCK: Promoted stock that has drifted > 2.5% into middle of range
@@ -106,13 +141,13 @@ def update_ticker_in_queue(
     existing = _QUEUE_MEMORY.get(ticker, {})
     chop_cycles = existing.get('chop_cycles', 0)
 
-    # Determine status
-    if near_low and not is_bull:
+    # Determine status (HOT_SPRING / HOT_UTAD require >= 8 consecutive bars of SuperTrend exhaustion)
+    if near_low and not is_bull and int(bars_in_regime or 0) >= 8:
         status = "HOT_SPRING"
         boundary_type = "TR_LOW"
         dist_boundary = dist_low_pct
         chop_cycles = 0
-    elif near_high and is_bull:
+    elif near_high and is_bull and int(bars_in_regime or 0) >= 8:
         status = "HOT_UTAD"
         boundary_type = "TR_HIGH"
         dist_boundary = dist_high_pct

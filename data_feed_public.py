@@ -147,7 +147,7 @@ def parse_bars_to_df(response):
     return df
 
 async def fetch_ticker_bars(client, ticker, interval='5m', delay_ms=0.08, allow_cache_build=True):
-    """Fetch single ticker bars from Public.com safely with local cache synthesis and pacing delay."""
+    """Fetch single ticker bars from Public.com safely with local cache synthesis and 1-call 5m delta refresh."""
     if interval not in AGG_MAP:
         raise ValueError(f"Unsupported interval: {interval}")
 
@@ -159,10 +159,24 @@ async def fetch_ticker_bars(client, ticker, interval='5m', delay_ms=0.08, allow_
 
     agg, period = AGG_MAP[interval]
     try:
+        # Smart 5m Delta Refresh: If 5-day WEEK history (>=200 bars) is already in _BAR_CACHE,
+        # only fetch BarPeriod.DAY (1 API call instead of 2, cutting 5m API calls & latency by 50%!)
+        base_5m = _get_cache(sym, '5m', max_age_sec=14400) if interval == '5m' else None
+        if interval == '5m' and base_5m is not None and len(base_5m) >= 200:
+            res_day = await client.get_bars(sym, period=BarPeriod.DAY, aggregation=agg)
+            df_day = parse_bars_to_df(res_day)
+            if not df_day.empty:
+                df = pd.concat([base_5m, df_day])
+                df = df[~df.index.duplicated(keep='last')].sort_index()
+                _store_cache(sym, '5m', df)
+                if delay_ms > 0:
+                    await asyncio.sleep(delay_ms)
+                return ticker, df
+
         res = await client.get_bars(sym, period=period, aggregation=agg)
         df = parse_bars_to_df(res)
 
-        # Supplement with DAY period on 5m to ensure active pre-market candles (7:00 AM+) are merged
+        # Supplement with DAY period on 5m initial pull to ensure active pre-market candles (7:00 AM+) are merged
         if interval == '5m' and period == BarPeriod.WEEK:
             try:
                 res_day = await client.get_bars(sym, period=BarPeriod.DAY, aggregation=agg)
@@ -211,10 +225,23 @@ def get_public_bars_sync(ticker, interval='5m', allow_cache_build=True):
     try:
         from public_executor import get_client
         client = get_client()
+
+        # Smart 5m Delta Refresh: If 5-day WEEK history (>=200 bars) is already in _BAR_CACHE,
+        # only fetch BarPeriod.DAY (1 single API call instead of 2!)
+        base_5m = _get_cache(sym, '5m', max_age_sec=14400) if interval == '5m' else None
+        if interval == '5m' and base_5m is not None and len(base_5m) >= 200:
+            res_day = client.get_bars(sym, period=BarPeriod.DAY, aggregation=agg)
+            df_day = parse_bars_to_df(res_day)
+            if not df_day.empty:
+                df = pd.concat([base_5m, df_day])
+                df = df[~df.index.duplicated(keep='last')].sort_index()
+                _store_cache(sym, '5m', df)
+                return df
+
         res = client.get_bars(sym, period=period, aggregation=agg)
         df = parse_bars_to_df(res)
 
-        # Merge DAY bars on 5m to include today's pre-market session
+        # Merge DAY bars on 5m initial pull to include today's pre-market session
         if interval == '5m' and period == BarPeriod.WEEK:
             try:
                 res_day = client.get_bars(sym, period=BarPeriod.DAY, aggregation=agg)
