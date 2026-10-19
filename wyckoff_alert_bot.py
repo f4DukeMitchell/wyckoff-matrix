@@ -571,16 +571,24 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
 
         c_below = (lows[curr] < range_low[curr]) or (lows[curr-1] < range_low[curr-1])
         vol_dry = rel_vol[curr] < VOL_LIMIT
+        # Mode 2: High-Volume Institutional Absorption Spring (Shakeout with Hammer CLV >= 0.65 & Positive CVD >= 0.20)
+        vol_absorption = (rel_vol[curr] >= VOL_LIMIT) and (candle_clv >= 0.65) and (cvd_delta_ratio >= 0.20)
+        vol_spring_ok = vol_dry or vol_absorption
         
         # Also catch late-candle 5m Spring completions on curr-1 if the new bar just opened and still holds u1[curr]
         c_below_prev = (curr >= 2) and ((lows[curr-1] < range_low[curr-1]) or (lows[curr-2] < range_low[curr-2]))
+        prev_rng = abs(highs[curr-1] - lows[curr-1]) if curr >= 1 else 0.0
+        prev_clv = float(np.clip((closes[curr-1] - lows[curr-1]) / prev_rng, 0.0, 1.0)) if prev_rng > 1e-6 else 0.5
+        prev_cvd = float((2.0 * (closes[curr-1] - lows[curr-1]) - prev_rng) / prev_rng) if prev_rng > 1e-6 else 0.0
+        vol_prev_ok = (curr >= 1) and ((rel_vol[curr-1] < VOL_LIMIT) or (prev_clv >= 0.65 and prev_cvd >= 0.20))
         is_spring_just_closed = (
             interval == '5m' and curr >= 2 and
-            c_below_prev and u1[curr-1] and not u1[curr-2] and u1[curr] and not u9[curr] and (rel_vol[curr-1] < VOL_LIMIT)
+            c_below_prev and u1[curr-1] and not u1[curr-2] and u1[curr] and not u9[curr] and vol_prev_ok
         )
         
-        # LONG (Spring): 100% Intact as originally proven + late-candle transition catch
-        is_spring = (c_below and u1[curr] and not u1[curr-1] and not u9[curr] and vol_dry) or is_spring_just_closed
+        # LONG (Spring): 100% Intact Dry-Up (< 1.2x) + High-Volume Institutional Absorption + late-candle catch
+        is_spring = (c_below and u1[curr] and not u1[curr-1] and not u9[curr] and vol_spring_ok) or is_spring_just_closed
+        is_absorption_spring = bool(is_spring and not vol_dry and (vol_absorption or (is_spring_just_closed and rel_vol[curr-1] >= VOL_LIMIT)))
         
         # SHORT (UTAD / LPSY - Decoupled Wyckoff Distribution Engine):
         # 1. Structural UTAD Sweep: Price probed above Range High in previous 1 to 10 bars
@@ -649,7 +657,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
             if risk <= 0.001:
                 return
 
-            regime = "BEARISH (Seeking Reversal)" if not u9[curr] and not u14[curr] else "MIXED"
+            spring_subtype = "High-Vol Absorption Spring" if is_absorption_spring else "Dry-Up Spring"
+            regime = f"BEARISH ({spring_subtype})" if not u9[curr] and not u14[curr] else f"MIXED ({spring_subtype})"
             
             # --- Extract All 4 Institutional Tactics ---
             inst = compute_all_institutional_features(ticker, price, vols[curr], rel_vol=rel_vol[curr],
@@ -737,6 +746,7 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     return
 
                 auto_executed = False
+                auto_reason = None
                 try:
                     from auto_buyer import execute_autonomous_second_spring_buy
                     auto_executed, auto_reason = execute_autonomous_second_spring_buy(
@@ -746,7 +756,7 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] 2nd Spring Auto-Buy error: {e}")
 
                 if TELEGRAM_ENABLED and not auto_executed:
-                    tg_trade_alert(ticker, "LONG (2nd SPRING / TEST)", price, open_second_spring['initial_stop_loss'], open_second_spring['take_profit'], regime, interval, flow, open_second_spring['id'], ml_confidence=ml_conf)
+                    tg_trade_alert(ticker, "LONG (2nd SPRING / TEST)", price, open_second_spring['initial_stop_loss'], open_second_spring['take_profit'], regime, interval, flow, open_second_spring['id'], ml_confidence=ml_conf, auto_reason=auto_reason)
                 last_alerted[ticker] = current_time
                 return
 
@@ -792,6 +802,7 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                           sector_aligned=1 if sector_ret_pct >= 0.0 else 0)
             
             auto_executed = False
+            auto_reason = None
             if trade_id:
                 try:
                     from auto_buyer import execute_autonomous_spring_buy
@@ -800,7 +811,7 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Auto-buyer hook error: {e}")
 
             if TELEGRAM_ENABLED and not auto_executed:
-                tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, interval, flow, trade_id, ml_confidence=ml_conf)
+                tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, interval, flow, trade_id, ml_confidence=ml_conf, auto_reason=auto_reason)
                 if TRACKER_ENABLED and trade_id: mark_trade_alerted(trade_id)
             elif TRACKER_ENABLED and trade_id:
                 mark_trade_alerted(trade_id)

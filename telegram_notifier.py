@@ -55,13 +55,14 @@ def send_message(text, reply_markup=None, chat_id=None, force=False):
         print(f"Failed to send Telegram message: {e}")
         return False
 
-def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe="5m", options_flow=None, trade_id=None, ml_confidence=None):
-    """Formats and sends a trading alert."""
+def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe="5m", options_flow=None, trade_id=None, ml_confidence=None, auto_reason=None):
+    """Formats and sends a trading alert with explicit Live vs. Paper Tracking headers."""
     if not is_configured():
         print("Telegram not configured. Skipping trade alert.")
         return False
         
     styles = {
+        "1m": "Micro Stalker Scalp",
         "5m": "Day Trade Scalp",
         "15m": "Day Trade / Short Swing",
         "1h": "Swing Trade",
@@ -69,6 +70,7 @@ def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, reg
     }
     
     expected_times = {
+        "1m": "15 - 60 Mins",
         "5m": "1 - 4 Hours",
         "15m": "1 - 3 Days",
         "1h": "1 - 2 Weeks",
@@ -106,10 +108,31 @@ def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, reg
         sl_str = str(stop_loss)
         tp_str = str(take_profit)
         
-    now_str = datetime.datetime.now().strftime('%b %d, %I:%M %p')
+    now_str = now_et.strftime('%b %d, %I:%M %p EST')
+    dir_up = (direction or "").upper()
+    is_short = "SHORT" in dir_up
+    
+    # Explicit Header & Execution Status Classification
+    if ml_confidence is not None and ml_confidence < 55.0:
+        header_line = f"📝 [PAPER TRACKING ONLY - ML < 55%] {ticker}"
+        exec_status = f"🛡️ Paper Audit Only (ML {ml_confidence:.1f}% < 55.0% Auto-Buy Gate)"
+    elif is_short:
+        header_line = f"📝 [PAPER TRACKING ONLY - SHORT] {ticker}"
+        exec_status = "🛡️ Paper Audit Only (Auto-Buyer is Long-Only)"
+    elif timeframe in ["15m", "1h", "1d"]:
+        conf_badge = f" - ML {ml_confidence:.1f}%" if ml_confidence is not None else ""
+        header_line = f"🎯 [SWING RADAR ALERT{conf_badge}] {ticker}"
+        exec_status = f"🔔 Manual Swing Candidate ({timeframe} not auto-traded)"
+    else:
+        reason_label = auto_reason or "MANUAL_REVIEW"
+        header_line = f"📝 [PAPER TRACKING ONLY - {reason_label}] {ticker}"
+        exec_status = f"🛡️ Paper Audit Only ({reason_label})"
+
     ml_str = f"\n🤖 ML Win Confidence: {ml_confidence:.1f}% (Random Forest)" if ml_confidence is not None else ""
     message = (
-        f"🚨 TRADE ALERT: {ticker}\n"
+        f"{header_line}\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"Execution Status: {exec_status}\n"
         f"Direction: {direction}\n"
         f"Style: {trade_style} ({timeframe})\n"
         f"Initiated: {now_str}\n"

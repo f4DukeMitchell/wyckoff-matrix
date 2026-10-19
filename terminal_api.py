@@ -252,7 +252,7 @@ def get_terminal_state():
     # Latest Telegram broadcast alerts (Day Trades & Swing Trades)
     c.execute("""
         SELECT id, ticker, direction, entry_price, stop_loss, take_profit, 
-               timeframe, timestamp, outcome, ml_confidence
+               timeframe, timestamp, outcome, ml_confidence, user_active, regime
         FROM alerts
         WHERE ticker NOT LIKE 'TEST%' AND (telegram_alerted = 1 OR telegram_alerted IS NULL)
         ORDER BY id DESC LIMIT 25
@@ -271,6 +271,17 @@ def get_terminal_state():
             r['channel'] = 'Wyckoff Trades'
             r['channel_type'] = 'SWING'
             r['chat_id'] = '8610265859'
+        is_live = bool(r.get('user_active') == 1)
+        ml_c = r.get('ml_confidence')
+        r['is_live'] = is_live
+        if is_live:
+            r['execution_badge'] = '⚡ LIVE AUTO-BUY'
+        elif ml_c is not None and float(ml_c) < 55.0:
+            r['execution_badge'] = '📝 PAPER (<55% ML)'
+        elif (r.get('direction') or '').upper() == 'SHORT':
+            r['execution_badge'] = '📝 PAPER (SHORT)'
+        else:
+            r['execution_badge'] = '📝 PAPER TRACKING'
         telegram_alerts.append(r)
 
     stalker_list = []
@@ -483,14 +494,17 @@ def get_bars(ticker: str, interval: str = "5m"):
                 "value": float(vwap_vals[idx])
             })
 
-        # 5. Detect Spring and UTAD markers
-        # 5. Detect Spring and UTAD / LPSY markers
+        # 5. Detect Spring (Dry-Up & High-Volume Absorption) and UTAD / LPSY markers
         if idx >= 2 and not np.isnan(range_low[idx]) and not np.isnan(range_high[idx]):
             c_below = (lows[idx] < range_low[idx]) or (lows[idx-1] < range_low[idx-1])
             vol_dry = rel_vol[idx] < 1.2
+            bar_rng = highs[idx] - lows[idx]
+            bar_clv = ((closes[idx] - lows[idx]) / bar_rng) if bar_rng > 1e-6 else 0.5
+            bar_cvd = ((2.0 * (closes[idx] - lows[idx]) - bar_rng) / bar_rng) if bar_rng > 1e-6 else 0.0
+            vol_absorption = (rel_vol[idx] >= 1.2) and (bar_clv >= 0.65) and (bar_cvd >= 0.20)
             
-            # Spring (Long): Proven contrarian reversal
-            is_spring = c_below and u1[idx] and not u1[idx-1] and not u9[idx] and vol_dry
+            # Spring (Long): Proven contrarian reversal (Dry-Up OR High-Volume Absorption)
+            is_spring = c_below and u1[idx] and not u1[idx-1] and not u9[idx] and (vol_dry or vol_absorption)
             
             # Decoupled LPSY / UTAD (Short):
             sweep_bars = [k for k in range(max(0, idx - 10), idx) if highs[k] > range_high[k]]
@@ -507,7 +521,7 @@ def get_bars(ticker: str, interval: str = "5m"):
                     "position": "belowBar",
                     "color": "#00d26a",
                     "shape": "arrowUp",
-                    "text": "SPRING (LONG)"
+                    "text": "SPRING (ABSORPTION)" if vol_absorption else "SPRING (LONG)"
                 })
             elif is_lpsy:
                 markers.append({
@@ -703,6 +717,10 @@ def get_evidence(ticker: str, timeframe: str = "5m"):
     curr = len(df) - 1
     curr_rv = float(rel_vol[curr]) if not np.isnan(rel_vol[curr]) else 1.0
     is_dry = curr_rv < 1.2
+    c_rng = highs[curr] - lows[curr]
+    c_clv = ((closes[curr] - lows[curr]) / c_rng) if c_rng > 1e-6 else 0.5
+    c_cvd = ((2.0 * (closes[curr] - lows[curr]) - c_rng) / c_rng) if c_rng > 1e-6 else 0.0
+    is_absorption = (curr_rv >= 1.2) and (c_clv >= 0.65) and (c_cvd >= 0.20)
 
     # Micro ST confirmation: is fast supertrend active in setup direction
     direction = db_alert['direction'] if db_alert else ("LONG" if closes[curr] > closes[max(0, curr-5)] else "SHORT")
@@ -730,7 +748,8 @@ def get_evidence(ticker: str, timeframe: str = "5m"):
         "pattern_match": ml_conf,
         "evidence": {
             "micro_st": micro_ok,
-            "vol_exhaustion": is_dry,
+            "vol_exhaustion": bool(is_dry or is_absorption),
+            "vol_mode": "ABSORPTION" if is_absorption else "DRY_UP",
             "vol_ratio": round(curr_rv, 2),
             "reclaimed_level": reclaimed,
             "shield_passed": True,

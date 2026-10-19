@@ -262,8 +262,9 @@ def execute_autonomous_second_spring_buy(parent_trade_id, ticker, price, ml_conf
         # Telegram Alert
         conf_str = f" | ML Edge: {ml_conf:.1f}%" if ml_conf is not None else ""
         msg = (
-            f"⚡ 2X SECOND SPRING PYRAMID EXECUTED!\n"
+            f"⚡ [LIVE AUTO-BUY EXECUTED - 2X PYRAMID] {ticker.upper()}\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"Execution Status: 🟢 LIVE PUBLIC.COM BROKER FILL\n"
             f"Symbol: {ticker.upper()} (Tranche #2 Added)\n"
             f"Timeframe: {timeframe}\n"
             f"Added Capital: ${dollar_alloc:.2f} ({status})\n"
@@ -275,14 +276,20 @@ def execute_autonomous_second_spring_buy(parent_trade_id, ticker, price, ml_conf
             f"• Both tranches share the exact same invalidation line.\n"
             f"• Target-Relative partial ladder scaled to bank double cash at targets!"
         )
-        send_message(msg)
-        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ✅ 2X Second Spring Success: {ticker} (${dollar_alloc:.2f})")
+        send_message(msg, force=True)
+        try:
+            from telegram_notifier import TELEGRAM_CHAT_ID_DAY
+            if TELEGRAM_CHAT_ID_DAY:
+                send_message(msg, chat_id=TELEGRAM_CHAT_ID_DAY, force=True)
+        except Exception:
+            pass
+        print(f"[{get_market_time().strftime('%H:%M:%S')}] ✅ 2X Second Spring Success: {ticker} (${dollar_alloc:.2f})")
         return True, "EXECUTED_SECOND_SPRING"
 
     except Exception as e:
         err_msg = f"❌ 2X Second Spring Buy FAILED for {ticker}: {str(e)}"
-        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {err_msg}")
-        send_message(err_msg)
+        print(f"[{get_market_time().strftime('%H:%M:%S')}] {err_msg}")
+        send_message(err_msg, force=True)
         if 'conn' in locals():
             conn.close()
         return False, str(e)
@@ -294,7 +301,7 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
     """
     eligible, reason = check_auto_buy_eligibility(ticker, ml_conf, timeframe=timeframe)
     if not eligible:
-        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Auto-Buy Bypassed for {ticker} ({timeframe}): {reason}")
+        print(f"[{get_market_time().strftime('%H:%M:%S')}] Auto-Buy Bypassed for {ticker} ({timeframe}): {reason}")
         return False, reason
 
     # Determine allocation based on user configuration and target R
@@ -319,7 +326,7 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
     t1_risk_cap = round(min(0.55, max(0.35, calc_target_r * 0.50)), 2)
 
     try:
-        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ⚡ EXECUTING AUTONOMOUS BUY: {ticker} (${dollar_alloc:.2f}) on Public.com...")
+        print(f"[{get_market_time().strftime('%H:%M:%S')}] ⚡ EXECUTING AUTONOMOUS BUY: {ticker} (${dollar_alloc:.2f}) on Public.com...")
         order_res = execute_dollar_buy(ticker.upper(), dollar_alloc)
         
         # Mark active in database and store optimal_target_r
@@ -353,8 +360,9 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
         conf_str = f" | ML Edge: {ml_conf:.1f}%" if ml_conf is not None else ""
         mult_str = f" (Base: ${base_alloc:.2f} × {mult:.2f}x)" if sizing.get('target_weighted') else ""
         msg = (
-            f"⚡ AUTONOMOUS BUY EXECUTED!\n"
+            f"⚡ [LIVE AUTO-BUY EXECUTED] {ticker.upper()}\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"Execution Status: 🟢 LIVE PUBLIC.COM BROKER FILL (ML >= 55%)\n"
             f"Symbol: {ticker.upper()} (LONG)\n"
             f"Timeframe: {timeframe}\n"
             f"Allocation: ${dollar_alloc:.2f}{mult_str} ({status})\n"
@@ -370,11 +378,17 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
             f"• Tier 5 (+{t5_r:+.2f}R | 100%): Bank 25% (Full Target Tag)\n"
             f"• Tier 6 (Runner 15%): Trailed into 3:55 PM EST Flatten"
         )
-        send_message(msg)
-        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ✅ Auto-Buy Success: {ticker} (${dollar_alloc:.2f})")
+        send_message(msg, force=True)
+        try:
+            from telegram_notifier import TELEGRAM_CHAT_ID_DAY
+            if TELEGRAM_CHAT_ID_DAY:
+                send_message(msg, chat_id=TELEGRAM_CHAT_ID_DAY, force=True)
+        except Exception:
+            pass
+        print(f"[{get_market_time().strftime('%H:%M:%S')}] ✅ Auto-Buy Success: {ticker} (${dollar_alloc:.2f})")
         return True, "EXECUTED"
     except Exception as e:
         err_msg = f"❌ Autonomous Buy FAILED for {ticker}: {str(e)}"
-        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {err_msg}")
-        send_message(err_msg)
+        print(f"[{get_market_time().strftime('%H:%M:%S')}] {err_msg}")
+        send_message(err_msg, force=True)
         return False, str(e)
