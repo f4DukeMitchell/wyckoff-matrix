@@ -1524,6 +1524,7 @@
             <button class="term-btn q-flt-btn" data-qflt="HOT" onclick="setQueueFilterStatus('HOT')" style="color: #00ff88; border-color: rgba(0,255,136,0.3);">🔥 HOT</button>
             <button class="term-btn q-flt-btn" data-qflt="TEST" onclick="setQueueFilterStatus('TEST')" style="color: #ffd700; border-color: rgba(255,215,0,0.3);">🛡️ TESTS</button>
             <button class="term-btn q-flt-btn" data-qflt="ANCHOR" onclick="setQueueFilterStatus('ANCHOR')" style="color: #00d2ff; border-color: rgba(0,210,255,0.3);">💎 ANCHORS</button>
+            <button class="term-btn q-flt-btn" data-qflt="RADAR" onclick="setQueueFilterStatus('RADAR')" style="color: #ffd700; border-color: rgba(255,200,0,0.3);">👀 RADAR</button>
             <button class="term-btn q-flt-btn" data-qflt="CHOP" onclick="setQueueFilterStatus('CHOP')" style="color: #ff4444; border-color: rgba(255,68,68,0.3);">⚠️ CHOP</button>
           </div>
           <div style="display: flex; gap: 4px; align-items: center;">
@@ -3093,6 +3094,8 @@
           queueList = queueList.filter(item => item.status === 'TEST_SUPPORT' || item.status === 'TEST_RESIST');
         } else if (queueFilterStatus === 'ANCHOR') {
           queueList = queueList.filter(item => item.status === 'ANCHOR_MONITOR');
+        } else if (queueFilterStatus === 'RADAR') {
+          queueList = queueList.filter(item => item.status === 'MONITORING');
         } else if (queueFilterStatus === 'CHOP') {
           queueList = queueList.filter(item => item.status === 'CHOPPING_BLOCK');
         }

@@ -62,34 +62,50 @@ def _resample_ohlcv(df: pd.DataFrame, rule: str) -> pd.DataFrame:
 
 def build_from_collected_cache(ticker: str, interval: str):
     """
-    Builds or updates 15m, 1h, and 1d bars directly from previously collected 5m/15m pulls
+    Builds or updates 15m, 1h, and 1d bars directly from previously collected 5m pulls
     when available, avoiding redundant Public.com API calls.
     Returns DataFrame if constructed from cache, or None if a fresh Public.com pull is needed.
     """
     sym = normalize_public_symbol(ticker)
     if interval == '15m':
-        # If 5m bars were pulled within the last 4.5 minutes, build 15m directly from 5m (~170 bars)
-        df_5m = _get_cache(sym, '5m', max_age_sec=270)
-        if df_5m is not None and len(df_5m) >= 240:
+        # Build 15m directly from collected 5m cache (~624 RTH 5m bars -> ~208 RTH 15m bars, need 50)
+        df_5m = _get_cache(sym, '5m', max_age_sec=3600)
+        if df_5m is not None and len(df_5m) >= 150:
             df_15m = _resample_ohlcv(df_5m, '15min')
-            if len(df_15m) >= 80:
+            if len(df_15m) >= 50:
                 _store_cache(sym, '15m', df_15m)
                 return df_15m
-    elif interval in ('1h', '1d'):
-        # If we have a baseline 1h or 1d history in cache + fresh intraday 5m or 15m bars,
-        # merge the resampled intraday bars onto the baseline without hitting the API again.
-        base_df = _get_cache(sym, interval, max_age_sec=86400)
-        intraday_df = _get_cache(sym, '5m', max_age_sec=1800)
-        if intraday_df is None or intraday_df.empty:
-            intraday_df = _get_cache(sym, '15m', max_age_sec=1800)
-        if base_df is not None and len(base_df) >= 80 and intraday_df is not None and not intraday_df.empty:
-            rule = '1h' if interval == '1h' else '1D'
-            recent_agg = _resample_ohlcv(intraday_df, rule)
-            if not recent_agg.empty:
-                merged = pd.concat([base_df, recent_agg])
+    elif interval == '1h':
+        # 1. If 1h baseline + 5m cache exist, merge resampled 5m onto 1h baseline
+        base_df = _get_cache(sym, '1h', max_age_sec=86400)
+        df_5m = _get_cache(sym, '5m', max_age_sec=3600)
+        if df_5m is not None and not df_5m.empty:
+            recent_1h = _resample_ohlcv(df_5m, '1h')
+            if base_df is not None and not base_df.empty and not recent_1h.empty:
+                merged = pd.concat([base_df, recent_1h])
                 merged = merged[~merged.index.duplicated(keep='last')].sort_index()
-                _store_cache(sym, interval, merged)
-                return merged
+                if len(merged) >= 50:
+                    _store_cache(sym, '1h', merged)
+                    return merged
+            # 2. Even without a separate 1h API pull, 5m BarPeriod.WEEK (~624 RTH bars) produces ~56-69 1h bars (>=50 needed)!
+            if len(recent_1h) >= 50:
+                _store_cache(sym, '1h', recent_1h)
+                return recent_1h
+        if base_df is not None and len(base_df) >= 50:
+            return base_df
+    elif interval == '1d':
+        # 1d requires >=50 daily bars (1-time BarPeriod.YEAR pull per 24h), then stitches live 5m resampled daily bar onto it!
+        base_df = _get_cache(sym, '1d', max_age_sec=86400)
+        if base_df is not None and len(base_df) >= 50:
+            df_5m = _get_cache(sym, '5m', max_age_sec=3600)
+            if df_5m is not None and not df_5m.empty:
+                recent_1d = _resample_ohlcv(df_5m, '1D')
+                if not recent_1d.empty:
+                    merged = pd.concat([base_df, recent_1d])
+                    merged = merged[~merged.index.duplicated(keep='last')].sort_index()
+                    _store_cache(sym, '1d', merged)
+                    return merged
+            return base_df
     return None
 
 def get_async_client():
@@ -156,6 +172,13 @@ async def fetch_ticker_bars(client, ticker, interval='5m', delay_ms=0.08, allow_
         cached_built = build_from_collected_cache(sym, interval)
         if cached_built is not None and not cached_built.empty:
             return ticker, cached_built
+        # If 15m or 1h was requested for a ticker not yet in the 5m cache, pull 5m once (populating the 5m master cache)
+        # and build 15m/1h directly from it so we never waste API calls on separate 15m/1h pulls!
+        if interval in ('15m', '1h') and _get_cache(sym, '5m', max_age_sec=3600) is None:
+            await fetch_ticker_bars(client, sym, interval='5m', delay_ms=delay_ms, allow_cache_build=False)
+            cached_built = build_from_collected_cache(sym, interval)
+            if cached_built is not None and not cached_built.empty:
+                return ticker, cached_built
 
     agg, period = AGG_MAP[interval]
     try:
