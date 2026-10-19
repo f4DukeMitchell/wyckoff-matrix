@@ -1274,7 +1274,8 @@ if __name__ == "__main__":
         print(f"Error launching Broad 5M Sweeper: {e_sw}")
 
     # Immediate start of live scanner without blocking boot
-    print(f"[{get_market_now().strftime('%H:%M:%S')}] Entering live market scanning loop (Engine 1: Priority 5M Cadence with Engine 2 Preemption)...")
+    print(f"[{get_market_now().strftime('%H:%M:%S')}] Entering live market scanning loop (Engine 1: True 5-Minute Boundary Cadence with Engine 2 Preemption)...")
+    last_5m_slot = None
     
     while True:
         check_telegram_commands()
@@ -1287,8 +1288,12 @@ if __name__ == "__main__":
         is_regular_market = is_weekday and ((now.hour > 9 or (now.hour == 9 and now.minute >= 30)) and (now.hour < 16))
 
         if is_scanning_hours:
-            # Engine 1: Preempts Engine 2 (pausing any running 15m/1h/1d sweep) and scans 5m Fast Priority Queue
-            scan_market('5m', '5d', 200)
+            current_5m_slot = (now.date(), now.hour, (now.minute // 5) * 5)
+            # Trigger 5m Priority Scan once per 5-minute candle boundary (:00, :05, :10, :15...) or initial boot.
+            # Leaves 4m45s of uninterrupted runway every 5m cycle for Engine 2's 15m/1h/1d & 611-ticker universe sweeps!
+            if last_5m_slot != current_5m_slot:
+                last_5m_slot = current_5m_slot
+                scan_market('5m', '5d', 200)
         else:
             print(f"[{now.strftime('%H:%M:%S')}] Outside scanning hours (Mon-Fri 7:00am-5:00pm EST). Scan paused.")
         
