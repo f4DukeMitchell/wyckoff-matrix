@@ -1254,46 +1254,83 @@ if __name__ == "__main__":
     # Coordinates with Engine 1 via PRIORITY_SCAN_ACTIVE so 15m/1h/1d automatically PAUSE whenever 5m runs and RESUME after.
     def start_broad_5m_sweeper():
         import threading
+        import asyncio
+        from priority_queue import get_active_5m_tickers, flush_priority_queue
+
+        async def _sweep_remaining_5m_async():
+            fast_set = set(get_active_5m_tickers(TICKERS))
+            rem_tickers = [t for t in TICKERS if t not in fast_set]
+            if not rem_tickers:
+                return
+            try:
+                spy_bullish, spy_30m_ret, vix_slope = get_macro_context()
+            except Exception:
+                spy_bullish = await get_spy_trend_public()
+                spy_30m_ret = 0.0
+                vix_slope = 0.0
+            now = get_market_now()
+            hour_of_day = now.hour + now.minute / 60.0
+            count = 0
+            async for sym, df in stream_ticker_bars(
+                rem_tickers,
+                interval='5m',
+                delay_ms=0.14,
+                respect_priority_pause=True,
+                concurrency=3
+            ):
+                count += 1
+                evaluate_ticker_data(sym, df, '5m', 200, spy_bullish, hour_of_day, now, spy_30m_ret, vix_slope)
+            try:
+                flush_priority_queue()
+            except Exception:
+                pass
+            print(f"[{get_market_now().strftime('%H:%M:%S')}] [Engine 2] Completed full 5m universe sweep (+{count} remaining tickers -> all {len(TICKERS)} cached).")
+
         def sweeper_loop():
-            print(f"[Engine 2] Background Multi-TF (15m/1h/1d) & Broad 5M Public.com Sweeper started ({len(TICKERS)} stocks).")
-            sweep_cursor = 0
+            print(f"[Engine 2] Full-Universe 5M Refresh + Zero-Call 15m/1h/1d Cache Synthesizer started ({len(TICKERS)} stocks).")
+            last_swept_5m_slot = None
             while True:
                 try:
                     now = get_market_now()
                     is_weekday = now.weekday() < 5
                     is_scanning_hours = is_weekday and (7 <= now.hour < 17)
                     if is_scanning_hours:
-                        # Wait if Engine 1 is currently executing a high-priority 5m scan
+                        # 1. Wait if Engine 1 is currently executing the Top-60 high-priority 5m scan (~11.5s)
                         while PRIORITY_SCAN_ACTIVE.is_set():
                             time.sleep(0.25)
 
-                        # A. 15m wide-net sweep on 15m candle closes (:00, :15, :30, :45) right after 5m finishes
-                        # Starts with cached 5m priority tickers (0ms) then streams remaining universe, pausing on next 5m pull!
+                        now = get_market_now()
+                        slot_5m = (now.date(), now.hour, (now.minute // 5) * 5)
+
+                        # 2. Every 5-minute slot: right after Top 60 finish (~11.5s), sweep the remaining ~551 tickers on 5m (~105s)
+                        # so ALL 611 tickers have fresh 5m bars in _BAR_CACHE every 5 minutes!
+                        if last_swept_5m_slot != slot_5m:
+                            last_swept_5m_slot = slot_5m
+                            asyncio.run(_sweep_remaining_5m_async())
+
+                        # 3. A. 15m scan on 15m quarters (0, 15, 30, 45) — built 100% from the fresh 611-ticker 5m cache in <2.5s (0 API calls)!
                         now = get_market_now()
                         current_quarter = (now.minute // 15) * 15
-                        is_15m_due = (now.minute % 15 in (0, 1) and not reports_sent.get(f"m15_{current_quarter}", False)) or not reports_sent.get("m15_init", False)
-                        if is_15m_due:
+                        if not reports_sent.get(f"m15_{current_quarter}", False):
                             reports_sent[f"m15_{current_quarter}"] = True
-                            reports_sent["m15_init"] = True
                             for m in [0, 15, 30, 45]:
                                 if m != current_quarter:
                                     reports_sent[f"m15_{m}"] = False
                             scan_market('15m', '20d', 80)
 
-                        # B. 1h scanned in OFFSET 5m down-period (:02 to :04 past the hour, never colliding with :00 or :05!)
-                        # Synthesizes current 1h bars from collected 5m/15m cache where available.
+                        # 4. B. 1h scan once per hour — built 100% from the fresh 611-ticker 5m cache in <2.0s (0 API calls)!
                         now = get_market_now()
-                        if 2 <= now.minute <= 4 and not reports_sent.get("hourly_1h_scanned", False):
+                        if now.minute < 15 and not reports_sent.get("hourly_1h_scanned", False):
                             reports_sent["hourly_1h_scanned"] = True
                             scan_market('1h', '60d', 100)
-                        elif now.minute >= 10:
+                        elif now.minute >= 15:
                             reports_sent["hourly_1h_scanned"] = False
 
-                        # C. 1d scanned 3x a day in OFFSET 5m down-periods: 9:38 AM, 1:03 PM, 3:48 PM EST
+                        # 5. C. 1d scanned 3x a day (9:38 AM, 1:03 PM, 3:48 PM EST) — 1 baseline pull/24h + stitched from fresh 5m cache!
                         now = get_market_now()
-                        is_open_scan = (now.hour == 9 and 37 <= now.minute <= 39 and not reports_sent.get("daily_open", False))
-                        is_mid_scan  = (now.hour == 13 and 2 <= now.minute <= 4 and not reports_sent.get("daily_mid", False))
-                        is_close_scan = (now.hour == 15 and 47 <= now.minute <= 49 and not reports_sent.get("daily_close", False))
+                        is_open_scan = (now.hour == 9 and 35 <= now.minute <= 44 and not reports_sent.get("daily_open", False))
+                        is_mid_scan  = (now.hour == 13 and 0 <= now.minute <= 14 and not reports_sent.get("daily_mid", False))
+                        is_close_scan = (now.hour == 15 and 45 <= now.minute <= 54 and not reports_sent.get("daily_close", False))
                         if is_open_scan:
                             reports_sent["daily_open"] = True
                             scan_market('1d', '2y', 100)
@@ -1304,28 +1341,6 @@ if __name__ == "__main__":
                             reports_sent["daily_close"] = True
                             scan_market('1d', '2y', 100)
 
-                        # D. Continuous 25-ticker rolling 5m chunk sweep via Public.com during quiet gaps between Engine 1 cycles
-                        batch = TICKERS[sweep_cursor:sweep_cursor + 25]
-                        sweep_cursor = (sweep_cursor + 25) % max(1, len(TICKERS))
-                        spy_bullish, spy_30m_ret, vix_slope = get_macro_context()
-                        now = get_market_now()
-                        hour_of_day = now.hour + now.minute / 60.0
-                        for sym in batch:
-                            # Immediately pause if Engine 1 starts its 5m priority scan
-                            while PRIORITY_SCAN_ACTIVE.is_set():
-                                time.sleep(0.25)
-                            try:
-                                df = get_public_bars_sync(sym, '5m')
-                                if not df.empty:
-                                    evaluate_ticker_data(sym, df, '5m', 200, spy_bullish, hour_of_day, now, spy_30m_ret, vix_slope)
-                                time.sleep(0.10)
-                            except Exception:
-                                pass
-                        try:
-                            from priority_queue import flush_priority_queue
-                            flush_priority_queue()
-                        except Exception:
-                            pass
                         time.sleep(2.0)
                     else:
                         time.sleep(60)
