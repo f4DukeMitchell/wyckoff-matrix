@@ -452,32 +452,57 @@ def execute_exit_position(ticker, quantity=None, direction=None):
 
 def get_live_prices(tickers):
     """
-    Fetches real-time market prices for a list of tickers via Public.com API quotes.
-    Falls back to yfinance if not available.
+    Fetches real-time market prices for a list of tickers via Public.com API quotes (chunked by 50).
+    100% Pure Public.com API (Zero Yahoo Finance).
     """
     if not tickers:
         return {}
     prices = {}
+    clean_list = []
+    orig_map = {}
+    for t in tickers:
+        if not t:
+            continue
+        raw = str(t).strip().upper()
+        norm = raw.replace("-", ".")
+        orig_map[norm] = raw
+        if norm not in clean_list:
+            clean_list.append(norm)
+
     try:
         client = get_client()
         acc_id = get_account_id()
-        instruments = [OrderInstrument(symbol=t.upper(), type='EQUITY') for t in tickers]
-        quotes = client.get_quotes(instruments, account_id=acc_id)
-        for q in quotes:
-            sym = getattr(getattr(q, 'instrument', None), 'symbol', None)
-            if sym and getattr(q, 'last', None):
-                prices[sym.upper()] = float(q.last)
+        for i in range(0, len(clean_list), 50):
+            chunk = clean_list[i:i + 50]
+            try:
+                instruments = [OrderInstrument(symbol=sym, type='EQUITY') for sym in chunk]
+                quotes = client.get_quotes(instruments, account_id=acc_id)
+                for q in quotes:
+                    sym = getattr(getattr(q, 'instrument', None), 'symbol', None)
+                    if sym and getattr(q, 'last', None):
+                        s_up = sym.upper()
+                        val = float(q.last)
+                        prices[s_up] = val
+                        if s_up in orig_map:
+                            prices[orig_map[s_up]] = val
+            except Exception as chunk_err:
+                print(f"Public.com quotes chunk notice: {chunk_err}")
     except Exception as e:
         print(f"Error fetching Public.com quotes: {e}")
-        
-    missing = [t.upper() for t in tickers if t.upper() not in prices]
-    if missing:
+
+    # Fallback to Public.com bar close for any ticker with no active quote (e.g. extended hours)
+    missing = [sym for sym in clean_list if sym not in prices]
+    if missing and len(missing) <= 10:
         try:
-            import yfinance as yf
-            for t in missing[:5]:
-                t_obj = yf.Ticker(t)
-                prices[t] = float(t_obj.fast_info.last_price)
-        except:
+            from data_feed_public import get_public_bars_sync
+            for sym in missing:
+                df = get_public_bars_sync(sym, '5m')
+                if df is not None and not df.empty:
+                    val = float(df['Close'].iloc[-1])
+                    prices[sym] = val
+                    if sym in orig_map:
+                        prices[orig_map[sym]] = val
+        except Exception:
             pass
     return prices
 

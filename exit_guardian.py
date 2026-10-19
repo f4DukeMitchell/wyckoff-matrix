@@ -5,7 +5,6 @@ import sqlite3
 import datetime
 from decimal import Decimal
 import pandas as pd
-import yfinance as yf
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wyckoff_trades.db")
 
@@ -267,17 +266,15 @@ def run_guardian_cycle():
     except Exception:
         pass
 
-    # 2. Fallback to yfinance for any missing quotes
+    # 2. Fallback to Public.com bar close for any missing quotes (Zero Yahoo Finance)
     missing = [sym for sym in tickers if sym not in live_prices or not live_prices[sym]]
     if missing:
         try:
-            data = yf.download(missing, period="1d", interval="1m", progress=False)
-            if not data.empty and 'Close' in data:
-                last_row = data['Close'].iloc[-1]
-                for sym in missing:
-                    val = last_row.get(sym) if hasattr(last_row, 'get') else (last_row if len(missing) == 1 else None)
-                    if val is not None and not pd.isna(val):
-                        live_prices[sym] = float(val)
+            from data_feed_public import get_public_bars_sync
+            for sym in missing:
+                df = get_public_bars_sync(sym, "5m")
+                if df is not None and not df.empty:
+                    live_prices[sym] = float(df['Close'].iloc[-1])
         except Exception:
             pass
 

@@ -6,7 +6,6 @@ if hasattr(sys.stderr, 'reconfigure'):
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 import datetime
 import smtplib
-import yfinance as yf
 import pandas as pd
 import numpy as np
 from email.mime.text import MIMEText
@@ -54,9 +53,11 @@ except:
     INST_ENGINE_ENABLED = False
 
 try:
-    from data_feed_public import stream_ticker_bars, get_spy_trend_public, get_public_bars_sync
+    from data_feed_public import stream_ticker_bars, get_spy_trend_public, get_public_bars_sync, PRIORITY_SCAN_ACTIVE
     PUBLIC_DATA_ENABLED = True
 except Exception as e:
+    import threading
+    PRIORITY_SCAN_ACTIVE = threading.Event()
     PUBLIC_DATA_ENABLED = False
 
 try:
@@ -193,7 +194,7 @@ _MACRO_CACHE = {
 }
 
 def get_macro_context():
-    """Fetches and caches SPY 30m return, VIX/VIXY 30m slope, and SPY macro trend (2-min TTL) via Public.com API primary."""
+    """Fetches and caches SPY 30m return, VIXY 30m slope, and SPY macro trend (2-min TTL) via 100% Public.com API."""
     global _MACRO_CACHE
     now_ts = time.time()
     if now_ts - _MACRO_CACHE['last_time'] < 120 and _MACRO_CACHE['last_time'] > 0:
@@ -205,26 +206,16 @@ def get_macro_context():
     
     try:
         spy = get_public_bars_sync("SPY", "5m") if PUBLIC_DATA_ENABLED else pd.DataFrame()
-        if spy.empty:
-            spy = yf.download("SPY", period="5d", interval="5m", progress=False)
         if not spy.empty and len(spy) >= 7:
-            if isinstance(spy.columns, pd.MultiIndex):
-                s_c = spy['Close'].iloc[:, 0].values.astype(float)
-            else:
-                s_c = spy['Close'].values.astype(float)
+            s_c = spy['Close'].values.flatten().astype(float)
             spy_ret = float((s_c[-1] - s_c[-7]) / s_c[-7] * 100.0) if s_c[-7] > 0 else 0.0
     except Exception:
         pass
 
     try:
         vix = get_public_bars_sync("VIXY", "5m") if PUBLIC_DATA_ENABLED else pd.DataFrame()
-        if vix.empty:
-            vix = yf.download("^VIX", period="5d", interval="5m", progress=False)
         if not vix.empty and len(vix) >= 7:
-            if isinstance(vix.columns, pd.MultiIndex):
-                v_c = vix['Close'].iloc[:, 0].values.astype(float)
-            else:
-                v_c = vix['Close'].values.astype(float)
+            v_c = vix['Close'].values.flatten().astype(float)
             vix_ret = float((v_c[-1] - v_c[-7]) / v_c[-7] * 100.0) if v_c[-7] > 0 else 0.0
     except Exception:
         pass
@@ -241,11 +232,9 @@ def get_macro_context():
     return spy_bullish, spy_ret, vix_ret
 
 def get_spy_trend():
-    """Get SPY macro trend using 9-period SuperTrend via Public.com API primary."""
+    """Get SPY macro trend using 9-period SuperTrend via 100% Public.com API."""
     try:
         spy = get_public_bars_sync("SPY", "1h") if PUBLIC_DATA_ENABLED else pd.DataFrame()
-        if spy.empty:
-            spy = yf.download("SPY", period="60d", interval="1h", progress=False)
         if spy.empty: return True  # default bullish
         highs = spy['High'].values.flatten().astype(float)
         lows = spy['Low'].values.flatten().astype(float)
@@ -297,7 +286,7 @@ SECTOR_MAP = {
 _SECTOR_CACHE = {}
 
 def get_sector_return(ticker):
-    """Calculates and caches the intraday return % of the ticker's SPDR sector ETF (2-min TTL) via Public.com API primary."""
+    """Calculates and caches the intraday return % of the ticker's SPDR sector ETF (2-min TTL) via 100% Public.com API."""
     global _SECTOR_CACHE
     sec_etf = SECTOR_MAP.get(ticker, 'SPY')
     now_ts = time.time()
@@ -306,15 +295,9 @@ def get_sector_return(ticker):
         
     try:
         etf_data = get_public_bars_sync(sec_etf, "5m") if PUBLIC_DATA_ENABLED else pd.DataFrame()
-        if etf_data.empty:
-            etf_data = yf.download(sec_etf, period="1d", interval="5m", progress=False)
         if not etf_data.empty and len(etf_data) >= 2:
-            if isinstance(etf_data.columns, pd.MultiIndex):
-                c_vals = etf_data['Close'].iloc[:, 0].values.astype(float)
-                o_vals = etf_data['Open'].iloc[:, 0].values.astype(float)
-            else:
-                c_vals = etf_data['Close'].values.astype(float)
-                o_vals = etf_data['Open'].values.astype(float)
+            c_vals = etf_data['Close'].values.flatten().astype(float)
+            o_vals = etf_data['Open'].values.flatten().astype(float)
             last_date = etf_data.index[-1].date() if hasattr(etf_data.index[-1], 'date') else None
             if last_date is not None:
                 day_indices = [i for i, ts in enumerate(etf_data.index) if hasattr(ts, 'date') and ts.date() == last_date and (not hasattr(ts, 'hour') or ts.hour >= 9)]
@@ -990,95 +973,75 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
 # PUBLIC.COM LIVE MARKET SCANNER (Primary Data Feed)
 # ===================================================================
 async def scan_market_public(interval, lookback):
+    from priority_queue import get_active_5m_tickers
+    is_high_priority = interval in ('1m', '5m')
+
     if interval == '5m':
-        from priority_queue import get_active_5m_tickers
         scan_tickers = get_active_5m_tickers(TICKERS)
         tier_label = f"Dynamic Fast Queue ({len(scan_tickers)} tickers)"
     else:
-        scan_tickers = TICKERS
-        tier_label = f"Full Universe ({len(scan_tickers)} tickers)"
+        # Start with active 5m priority tickers first (built from cache in 0ms), then continue through rest of universe
+        fast_list = get_active_5m_tickers(TICKERS)
+        fast_set = set(fast_list)
+        scan_tickers = fast_list + [t for t in TICKERS if t not in fast_set]
+        tier_label = f"Full Universe ({len(scan_tickers)} tickers, Priority-First + Pause/Resume)"
 
-    print(f"\n[{get_market_now().strftime('%H:%M:%S')}] [PUBLIC.COM LIVE] Streaming {tier_label} on {interval}...")
-    try:
-        spy_bullish, spy_30m_ret, vix_slope = get_macro_context()
-    except Exception:
-        spy_bullish = await get_spy_trend_public()
-        spy_30m_ret = 0.0
-        vix_slope = 0.0
-    now = get_market_now()
-    hour_of_day = now.hour + now.minute / 60.0
-    
-    count = 0
-    async for ticker, df in stream_ticker_bars(scan_tickers, interval=interval, delay_ms=0.08):
-        count += 1
-        evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_day, now, spy_30m_ret, vix_slope)
+    if is_high_priority:
+        PRIORITY_SCAN_ACTIVE.set()
 
     try:
-        from priority_queue import flush_priority_queue
-        flush_priority_queue()
-    except Exception:
-        pass
-
-    print(f"[{get_market_now().strftime('%H:%M:%S')}] [PUBLIC.COM LIVE] Finished {count} tickers on {interval}.")
-
-# Fallback bulk scanner (yfinance)
-def scan_market(interval, period, lookback):
-    if PUBLIC_DATA_ENABLED:
-        import asyncio
-        asyncio.run(scan_market_public(interval, lookback))
-        return
-
-    if interval == '5m':
-        from priority_queue import get_active_5m_tickers
-        scan_tickers = get_active_5m_tickers(TICKERS)
-    else:
-        scan_tickers = TICKERS
-        
-    print(f"\n[{get_market_now().strftime('%H:%M:%S')}] [FALLBACK YFINANCE] Scanning {len(scan_tickers)} tickers on {interval}...")
-    data = yf.download(scan_tickers, period=period, interval=interval, group_by='ticker', progress=False)
-    try:
-        spy_bullish, spy_30m_ret, vix_slope = get_macro_context()
-    except Exception:
-        spy_bullish = get_spy_trend()
-        spy_30m_ret = 0.0
-        vix_slope = 0.0
-    now = get_market_now()
-    hour_of_day = now.hour + now.minute / 60.0
-    for ticker in scan_tickers:
+        print(f"\n[{get_market_now().strftime('%H:%M:%S')}] [PUBLIC.COM LIVE] Streaming {tier_label} on {interval}...")
         try:
-            df = data[ticker].dropna() if len(scan_tickers) > 1 else data.dropna()
+            spy_bullish, spy_30m_ret, vix_slope = get_macro_context()
+        except Exception:
+            spy_bullish = await get_spy_trend_public()
+            spy_30m_ret = 0.0
+            vix_slope = 0.0
+        now = get_market_now()
+        hour_of_day = now.hour + now.minute / 60.0
+        
+        count = 0
+        async for ticker, df in stream_ticker_bars(
+            scan_tickers,
+            interval=interval,
+            delay_ms=0.08,
+            respect_priority_pause=(not is_high_priority)
+        ):
+            count += 1
             evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_day, now, spy_30m_ret, vix_slope)
-        except: pass
 
-    try:
-        from priority_queue import flush_priority_queue
-        flush_priority_queue()
-    except Exception:
-        pass
+        try:
+            from priority_queue import flush_priority_queue
+            flush_priority_queue()
+        except Exception:
+            pass
+
+        print(f"[{get_market_now().strftime('%H:%M:%S')}] [PUBLIC.COM LIVE] Finished {count} tickers on {interval}.")
+    finally:
+        if is_high_priority:
+            PRIORITY_SCAN_ACTIVE.clear()
+
+# Pure Public.com scanner entrypoint (Zero Yahoo Finance)
+def scan_market(interval, period, lookback):
+    import asyncio
+    asyncio.run(scan_market_public(interval, lookback))
 
 
 last_report_date = None
 reports_sent = {"morning": False, "lunch": False, "power": False}
 
 def send_market_report(session_name):
-    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Generating {session_name} Report...")
+    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Generating {session_name} Report via Public.com...")
     scan_tickers = TICKERS[:25]
-    data = yf.download(scan_tickers, period="10d", interval="1h", group_by='ticker', progress=False)
-    
     exhausted = []
     for ticker in scan_tickers:
         try:
-            df = data[ticker].dropna() if len(TICKERS) > 1 else data.dropna()
-            if df.empty or len(df) < 50: continue
-            
-            if isinstance(df.columns, pd.MultiIndex):
-                highs = df['High'].iloc[:, 0].values.astype(float)
-                lows = df['Low'].iloc[:, 0].values.astype(float)
-                closes = df['Close'].iloc[:, 0].values.astype(float)
-            else:
-                highs = df['High'].values.astype(float)
-                lows = df['Low'].values.astype(float)
-                closes = df['Close'].values.astype(float)
+            df = get_public_bars_sync(ticker, '1h')
+            if df is None or df.empty or len(df) < 50:
+                continue
+            highs = df['High'].values.flatten().astype(float)
+            lows = df['Low'].values.flatten().astype(float)
+            closes = df['Close'].values.flatten().astype(float)
             
             u9 = get_supertrend(highs, lows, closes, 9, 9.0)
             u14 = get_supertrend(highs, lows, closes, 14, 14.0)
@@ -1095,7 +1058,8 @@ def send_market_report(session_name):
                 regime = "BULLISH" if is_bull else "BEARISH"
                 target = "UTAD (Short)" if is_bull else "SPRING (Long)"
                 exhausted.append((ticker, regime, bars, target))
-        except: pass
+        except Exception:
+            pass
             
     exhausted.sort(key=lambda x: x[2], reverse=True)
     
@@ -1118,11 +1082,6 @@ def send_market_report(session_name):
     msg.attach(MIMEText(body, 'plain', 'utf-8'))
     
     try:
-        # server = smtplib.SMTP('smtp.gmail.com', 587)
-        # server.starttls()()
-        # server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        # server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
-        # server.quit()
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {session_name} REPORT SENT!")
     except Exception as e:
         print(f"Error sending report: {e}")
@@ -1135,24 +1094,17 @@ def send_market_report(session_name):
             print(f"Error sending Telegram radar: {e}")
 
 def send_daily_recap():
-    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Generating Daily Recap...")
+    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Generating Daily Recap via Public.com...")
     scan_tickers = TICKERS[:25]
-    data = yf.download(scan_tickers, period="10d", interval="1h", group_by='ticker', progress=False)
-    
     exhausted = []
     for ticker in scan_tickers:
         try:
-            df = data[ticker].dropna() if len(TICKERS) > 1 else data.dropna()
-            if df.empty or len(df) < 50: continue
-            
-            if isinstance(df.columns, pd.MultiIndex):
-                highs = df['High'].iloc[:, 0].values.astype(float)
-                lows = df['Low'].iloc[:, 0].values.astype(float)
-                closes = df['Close'].iloc[:, 0].values.astype(float)
-            else:
-                highs = df['High'].values.astype(float)
-                lows = df['Low'].values.astype(float)
-                closes = df['Close'].values.astype(float)
+            df = get_public_bars_sync(ticker, '1h')
+            if df is None or df.empty or len(df) < 50:
+                continue
+            highs = df['High'].values.flatten().astype(float)
+            lows = df['Low'].values.flatten().astype(float)
+            closes = df['Close'].values.flatten().astype(float)
             
             u9 = get_supertrend(highs, lows, closes, 9, 9.0)
             u14 = get_supertrend(highs, lows, closes, 14, 14.0)
@@ -1169,7 +1121,8 @@ def send_daily_recap():
                 regime = "BULLISH" if is_bull else "BEARISH"
                 target = "UTAD (Short)" if is_bull else "SPRING (Long)"
                 exhausted.append((ticker, regime, bars, target))
-        except: pass
+        except Exception:
+            pass
             
     exhausted.sort(key=lambda x: x[2], reverse=True)
     
@@ -1192,11 +1145,6 @@ def send_daily_recap():
     msg.attach(MIMEText(body, 'plain', 'utf-8'))
     
     try:
-        # server = smtplib.SMTP('smtp.gmail.com', 587)
-        # server.starttls()()
-        # server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        # server.sendmail(GMAIL_USER, DESTINATION_EMAIL, msg.as_string())
-        # server.quit()
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Daily Recap Sent!")
     except Exception as e:
         print(f"Error sending recap: {e}")
@@ -1215,17 +1163,17 @@ def send_ai_progress_report(trigger_reason="Daily Post-Market Evolution"):
 
 if __name__ == "__main__":
     print("========================================")
-    print("WYCKOFF LIVE ALERT BOT v11.0 (HYBRID)")
+    print("WYCKOFF LIVE ALERT BOT v12.0 (100% PUBLIC.COM)")
     print("========================================")
-    print(f"Targeting: {len(TICKERS)} Mega-Cap Stocks")
-    print(f"Data: yfinance (bulk) + Public.com (execution)")
-    print(f"Intervals: 5m, 15m, 1h, 1d")
+    print(f"Targeting: {len(TICKERS)} Institutional Equities")
+    print(f"Data: 100% Public.com Native API (Zero Yahoo Finance) + Priority Preemption")
+    print(f"Intervals: 5m (Priority), 15m (Pause/Resume + Cache Resample), 1h & 1d (Offset Down-Periods)")
     print("Bot is now running. Press Ctrl+C to stop.\n")
     
     # Send initial report on boot
     if TELEGRAM_ENABLED:
         from telegram_notifier import send_message
-        send_message("Wyckoff Bot v11.0 (Hybrid) initialized. Scanning all timeframes.")
+        send_message("Wyckoff Bot v12.0 (100% Public.com Native + Priority Preemption Scheduler) initialized.")
     
 
     try:
@@ -1235,11 +1183,11 @@ if __name__ == "__main__":
         print(f"Error launching Exit Guardian daemon: {e}")
 
     # Launch Engine 2: Background Multi-Timeframe (15m/1h/1d) & Broad 5M Universe Sweeper via Public.com API
-    # Keeps Engine 1 (5M Priority Queue Scanner) 100% non-blocking with zero Yahoo Finance IP rate-limit errors.
+    # Coordinates with Engine 1 via PRIORITY_SCAN_ACTIVE so 15m/1h/1d automatically PAUSE whenever 5m runs and RESUME after.
     def start_broad_5m_sweeper():
         import threading
         def sweeper_loop():
-            print("[Engine 2] Background Multi-TF (15m/1h/1d) & Broad 5M Public.com Sweeper daemon started (616 stocks).")
+            print(f"[Engine 2] Background Multi-TF (15m/1h/1d) & Broad 5M Public.com Sweeper started ({len(TICKERS)} stocks).")
             sweep_cursor = 0
             while True:
                 try:
@@ -1247,9 +1195,15 @@ if __name__ == "__main__":
                     is_weekday = now.weekday() < 5
                     is_scanning_hours = is_weekday and (7 <= now.hour < 17)
                     if is_scanning_hours:
-                        # A. 15m wide-net sweep (full 616 tickers) on 15m candle closes (:00, :15, :30, :45) or initial boot
+                        # Wait if Engine 1 is currently executing a high-priority 5m scan
+                        while PRIORITY_SCAN_ACTIVE.is_set():
+                            time.sleep(0.25)
+
+                        # A. 15m wide-net sweep on 15m candle closes (:00, :15, :30, :45) right after 5m finishes
+                        # Starts with cached 5m priority tickers (0ms) then streams remaining universe, pausing on next 5m pull!
+                        now = get_market_now()
                         current_quarter = (now.minute // 15) * 15
-                        is_15m_due = (now.minute % 15 == 0 and not reports_sent.get(f"m15_{current_quarter}", False)) or not reports_sent.get("m15_init", False)
+                        is_15m_due = (now.minute % 15 in (0, 1) and not reports_sent.get(f"m15_{current_quarter}", False)) or not reports_sent.get("m15_init", False)
                         if is_15m_due:
                             reports_sent[f"m15_{current_quarter}"] = True
                             reports_sent["m15_init"] = True
@@ -1258,19 +1212,20 @@ if __name__ == "__main__":
                                     reports_sent[f"m15_{m}"] = False
                             scan_market('15m', '20d', 80)
 
-                        # B. 1h scanned at the top of each hour (between :00 and :10)
+                        # B. 1h scanned in OFFSET 5m down-period (:02 to :04 past the hour, never colliding with :00 or :05!)
+                        # Synthesizes current 1h bars from collected 5m/15m cache where available.
                         now = get_market_now()
-                        if now.minute < 10 and not reports_sent.get("hourly_1h_scanned", False):
+                        if 2 <= now.minute <= 4 and not reports_sent.get("hourly_1h_scanned", False):
                             reports_sent["hourly_1h_scanned"] = True
                             scan_market('1h', '60d', 100)
                         elif now.minute >= 10:
                             reports_sent["hourly_1h_scanned"] = False
 
-                        # C. 1d scanned 3x a day: Open (9:35am), Midday (1:00pm), Close (3:45pm)
+                        # C. 1d scanned 3x a day in OFFSET 5m down-periods: 9:38 AM, 1:03 PM, 3:48 PM EST
                         now = get_market_now()
-                        is_open_scan = (now.hour == 9 and 35 <= now.minute < 45 and not reports_sent.get("daily_open", False))
-                        is_mid_scan  = (now.hour == 13 and now.minute < 15 and not reports_sent.get("daily_mid", False))
-                        is_close_scan = (now.hour == 15 and 45 <= now.minute < 58 and not reports_sent.get("daily_close", False))
+                        is_open_scan = (now.hour == 9 and 37 <= now.minute <= 39 and not reports_sent.get("daily_open", False))
+                        is_mid_scan  = (now.hour == 13 and 2 <= now.minute <= 4 and not reports_sent.get("daily_mid", False))
+                        is_close_scan = (now.hour == 15 and 47 <= now.minute <= 49 and not reports_sent.get("daily_close", False))
                         if is_open_scan:
                             reports_sent["daily_open"] = True
                             scan_market('1d', '2y', 100)
@@ -1281,18 +1236,21 @@ if __name__ == "__main__":
                             reports_sent["daily_close"] = True
                             scan_market('1d', '2y', 100)
 
-                        # D. Continuous 25-ticker rolling 5m chunk sweep via Public.com to promote boundary testers
+                        # D. Continuous 25-ticker rolling 5m chunk sweep via Public.com during quiet gaps between Engine 1 cycles
                         batch = TICKERS[sweep_cursor:sweep_cursor + 25]
                         sweep_cursor = (sweep_cursor + 25) % max(1, len(TICKERS))
                         spy_bullish, spy_30m_ret, vix_slope = get_macro_context()
                         now = get_market_now()
                         hour_of_day = now.hour + now.minute / 60.0
                         for sym in batch:
+                            # Immediately pause if Engine 1 starts its 5m priority scan
+                            while PRIORITY_SCAN_ACTIVE.is_set():
+                                time.sleep(0.25)
                             try:
                                 df = get_public_bars_sync(sym, '5m')
                                 if not df.empty:
                                     evaluate_ticker_data(sym, df, '5m', 200, spy_bullish, hour_of_day, now, spy_30m_ret, vix_slope)
-                                time.sleep(0.12)
+                                time.sleep(0.10)
                             except Exception:
                                 pass
                         try:
@@ -1316,7 +1274,7 @@ if __name__ == "__main__":
         print(f"Error launching Broad 5M Sweeper: {e_sw}")
 
     # Immediate start of live scanner without blocking boot
-    print(f"[{get_market_now().strftime('%H:%M:%S')}] Entering live market scanning loop (Engine 1: Non-Blocking 20s 5M Priority Cadence)...")
+    print(f"[{get_market_now().strftime('%H:%M:%S')}] Entering live market scanning loop (Engine 1: Priority 5M Cadence with Engine 2 Preemption)...")
     
     while True:
         check_telegram_commands()
@@ -1329,7 +1287,7 @@ if __name__ == "__main__":
         is_regular_market = is_weekday and ((now.hour > 9 or (now.hour == 9 and now.minute >= 30)) and (now.hour < 16))
 
         if is_scanning_hours:
-            # Engine 1: 5m Fast Priority Queue scanned EVERY cycle (~20-25s) without ever blocking on 15m/1h/1d sweeps!
+            # Engine 1: Preempts Engine 2 (pausing any running 15m/1h/1d sweep) and scans 5m Fast Priority Queue
             scan_market('5m', '5d', 200)
         else:
             print(f"[{now.strftime('%H:%M:%S')}] Outside scanning hours (Mon-Fri 7:00am-5:00pm EST). Scan paused.")

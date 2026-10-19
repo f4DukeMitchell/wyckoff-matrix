@@ -1,5 +1,4 @@
 import sqlite3
-import yfinance as yf
 import datetime
 import os
 import pandas as pd
@@ -315,9 +314,9 @@ def get_latest_price(ticker):
     except Exception:
         pass
     try:
-        ticker_obj = yf.Ticker(ticker)
-        data = ticker_obj.history(period="1d")
-        if not data.empty:
+        from data_feed_public import get_public_bars_sync
+        data = get_public_bars_sync(ticker, "5m")
+        if data is not None and not data.empty:
             return float(data['Close'].iloc[-1])
     except Exception as e:
         print(f"Error fetching price for {ticker}: {e}")
@@ -345,15 +344,13 @@ def check_open_trades():
         missing_tickers = [s for s in unique_tickers if s not in prices or not prices[s]]
         if missing_tickers:
             try:
-                data = yf.download(missing_tickers, period="1d", interval="1m", progress=False)
-                if not data.empty and 'Close' in data:
-                    latest = data['Close'].iloc[-1]
-                    for sym in missing_tickers:
-                        val = latest.get(sym) if hasattr(latest, 'get') else (latest if len(missing_tickers) == 1 else None)
-                        if val is not None and not pd.isna(val):
-                            prices[sym] = float(val)
+                from data_feed_public import get_public_bars_sync
+                for sym in missing_tickers:
+                    df = get_public_bars_sync(sym, "5m")
+                    if df is not None and not df.empty:
+                        prices[sym] = float(df['Close'].iloc[-1])
             except Exception as e:
-                print(f"Batch price download error: {e}")
+                print(f"Batch price fallback notice: {e}")
 
         for trade in open_trades:
             trade_id = trade['id']
@@ -528,15 +525,13 @@ def check_ghost_trades():
         missing_ghosts = [s for s in unique_tickers if s not in prices or not prices[s]]
         if missing_ghosts:
             try:
-                data = yf.download(missing_ghosts, period="1d", interval="1m", progress=False)
-                if not data.empty and 'Close' in data:
-                    latest = data['Close'].iloc[-1]
-                    for sym in missing_ghosts:
-                        val = latest.get(sym) if hasattr(latest, 'get') else (latest if len(missing_ghosts) == 1 else None)
-                        if val is not None and not pd.isna(val):
-                            prices[sym] = float(val)
+                from data_feed_public import get_public_bars_sync
+                for sym in missing_ghosts:
+                    df = get_public_bars_sync(sym, "5m")
+                    if df is not None and not df.empty:
+                        prices[sym] = float(df['Close'].iloc[-1])
             except Exception as e:
-                print(f"Batch ghost price download error: {e}")
+                print(f"Batch ghost price fallback notice: {e}")
 
         for g in ghosts:
             g_id = g['id']

@@ -2,6 +2,7 @@ import os
 import asyncio
 import time
 import datetime
+import threading
 import pandas as pd
 import numpy as np
 from dotenv import load_dotenv
@@ -11,8 +12,85 @@ from public_api_sdk.models import BarPeriod, InstrumentType, BarAggregation
 load_dotenv()
 API_KEY = os.getenv('PUBLIC_API_KEY')
 
-import threading
 _THREAD_LOCAL = threading.local()
+
+# Global Priority Preemption Event:
+# When SET, 1m / 5m high-priority scans own the Public.com API pipe and
+# any background 15m / 1h / 1d universe sweep automatically pauses between tickers
+# and resumes from its exact cursor once 1m + 5m finish.
+PRIORITY_SCAN_ACTIVE = threading.Event()
+
+# Thread-safe in-memory OHLCV cache: (ticker, interval) -> (timestamp, DataFrame)
+_CACHE_LOCK = threading.Lock()
+_BAR_CACHE = {}
+
+def normalize_public_symbol(ticker: str) -> str:
+    return (ticker or "").strip().upper().replace("-", ".")
+
+def _store_cache(ticker: str, interval: str, df: pd.DataFrame):
+    if df is None or df.empty:
+        return
+    sym = normalize_public_symbol(ticker)
+    with _CACHE_LOCK:
+        _BAR_CACHE[(sym, interval)] = (time.time(), df)
+
+def _get_cache(ticker: str, interval: str, max_age_sec: float = None):
+    sym = normalize_public_symbol(ticker)
+    with _CACHE_LOCK:
+        entry = _BAR_CACHE.get((sym, interval))
+    if not entry:
+        return None
+    ts, df = entry
+    if max_age_sec is not None and (time.time() - ts) > max_age_sec:
+        return None
+    return df
+
+def _resample_ohlcv(df: pd.DataFrame, rule: str) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame()
+    try:
+        res = df.resample(rule, label='left', closed='left').agg({
+            'Open': 'first',
+            'High': 'max',
+            'Low': 'min',
+            'Close': 'last',
+            'Volume': 'sum'
+        }).dropna(subset=['Open', 'High', 'Low', 'Close'])
+        return res[res['Close'] > 0]
+    except Exception:
+        return pd.DataFrame()
+
+def build_from_collected_cache(ticker: str, interval: str):
+    """
+    Builds or updates 15m, 1h, and 1d bars directly from previously collected 5m/15m pulls
+    when available, avoiding redundant Public.com API calls.
+    Returns DataFrame if constructed from cache, or None if a fresh Public.com pull is needed.
+    """
+    sym = normalize_public_symbol(ticker)
+    if interval == '15m':
+        # If 5m bars were pulled within the last 4.5 minutes, build 15m directly from 5m (~170 bars)
+        df_5m = _get_cache(sym, '5m', max_age_sec=270)
+        if df_5m is not None and len(df_5m) >= 240:
+            df_15m = _resample_ohlcv(df_5m, '15min')
+            if len(df_15m) >= 80:
+                _store_cache(sym, '15m', df_15m)
+                return df_15m
+    elif interval in ('1h', '1d'):
+        # If we have a baseline 1h or 1d history in cache + fresh intraday 5m or 15m bars,
+        # merge the resampled intraday bars onto the baseline without hitting the API again.
+        base_df = _get_cache(sym, interval, max_age_sec=86400)
+        intraday_df = _get_cache(sym, '5m', max_age_sec=1800)
+        if intraday_df is None or intraday_df.empty:
+            intraday_df = _get_cache(sym, '15m', max_age_sec=1800)
+        if base_df is not None and len(base_df) >= 80 and intraday_df is not None and not intraday_df.empty:
+            rule = '1h' if interval == '1h' else '1D'
+            recent_agg = _resample_ohlcv(intraday_df, rule)
+            if not recent_agg.empty:
+                merged = pd.concat([base_df, recent_agg])
+                merged = merged[~merged.index.duplicated(keep='last')].sort_index()
+                _store_cache(sym, interval, merged)
+                return merged
+    return None
 
 def get_async_client():
     client = getattr(_THREAD_LOCAL, 'async_client', None)
@@ -23,7 +101,7 @@ def get_async_client():
         _THREAD_LOCAL.async_client = client
     return client
 
-# Interval mapping
+# Interval mapping (100% Pure Public.com API)
 AGG_MAP = {
     '1m': (BarAggregation.ONE_MINUTE, BarPeriod.DAY),
     '5m': (BarAggregation.FIVE_MINUTES, BarPeriod.WEEK),
@@ -68,20 +146,26 @@ def parse_bars_to_df(response):
         df = df[~df.index.duplicated(keep='last')]
     return df
 
-async def fetch_ticker_bars(client, ticker, interval='5m', delay_ms=0.08):
-    """Fetch single ticker bars from Public.com safely with small pacing delay."""
+async def fetch_ticker_bars(client, ticker, interval='5m', delay_ms=0.08, allow_cache_build=True):
+    """Fetch single ticker bars from Public.com safely with local cache synthesis and pacing delay."""
     if interval not in AGG_MAP:
         raise ValueError(f"Unsupported interval: {interval}")
-        
+
+    sym = normalize_public_symbol(ticker)
+    if allow_cache_build and interval in ('15m', '1h', '1d'):
+        cached_built = build_from_collected_cache(sym, interval)
+        if cached_built is not None and not cached_built.empty:
+            return ticker, cached_built
+
     agg, period = AGG_MAP[interval]
     try:
-        res = await client.get_bars(ticker, period=period, aggregation=agg)
+        res = await client.get_bars(sym, period=period, aggregation=agg)
         df = parse_bars_to_df(res)
 
         # Supplement with DAY period on 5m to ensure active pre-market candles (7:00 AM+) are merged
         if interval == '5m' and period == BarPeriod.WEEK:
             try:
-                res_day = await client.get_bars(ticker, period=BarPeriod.DAY, aggregation=agg)
+                res_day = await client.get_bars(sym, period=BarPeriod.DAY, aggregation=agg)
                 df_day = parse_bars_to_df(res_day)
                 if not df_day.empty:
                     df = pd.concat([df, df_day])
@@ -89,10 +173,13 @@ async def fetch_ticker_bars(client, ticker, interval='5m', delay_ms=0.08):
             except Exception:
                 pass
 
+        if not df.empty:
+            _store_cache(sym, interval, df)
+
         if delay_ms > 0:
             await asyncio.sleep(delay_ms)
         return ticker, df
-    except Exception as e:
+    except Exception:
         if delay_ms > 0:
             await asyncio.sleep(delay_ms)
         return ticker, pd.DataFrame()
@@ -110,21 +197,27 @@ async def batch_fetch_bars(tickers, interval='5m', delay_ms=0.08):
             results[sym] = df
     return results
 
-def get_public_bars_sync(ticker, interval='5m'):
-    """Synchronous convenience wrapper for single ticker (used in UI / charts / tests)."""
+def get_public_bars_sync(ticker, interval='5m', allow_cache_build=True):
+    """Synchronous wrapper for single ticker using 100% Pure Public.com API (Zero Yahoo Finance)."""
     if interval not in AGG_MAP:
         return pd.DataFrame()
+    sym = normalize_public_symbol(ticker)
+    if allow_cache_build and interval in ('15m', '1h', '1d'):
+        cached_built = build_from_collected_cache(sym, interval)
+        if cached_built is not None and not cached_built.empty:
+            return cached_built
+
     agg, period = AGG_MAP[interval]
     try:
         from public_executor import get_client
         client = get_client()
-        res = client.get_bars(ticker.upper(), period=period, aggregation=agg)
+        res = client.get_bars(sym, period=period, aggregation=agg)
         df = parse_bars_to_df(res)
 
         # Merge DAY bars on 5m to include today's pre-market session
         if interval == '5m' and period == BarPeriod.WEEK:
             try:
-                res_day = client.get_bars(ticker.upper(), period=BarPeriod.DAY, aggregation=agg)
+                res_day = client.get_bars(sym, period=BarPeriod.DAY, aggregation=agg)
                 df_day = parse_bars_to_df(res_day)
                 if not df_day.empty:
                     df = pd.concat([df, df_day])
@@ -133,33 +226,38 @@ def get_public_bars_sync(ticker, interval='5m'):
                 pass
 
         if not df.empty:
+            _store_cache(sym, interval, df)
             return df
     except Exception as e:
-        print(f"Public API sync bars notice for {ticker}: {e}")
+        print(f"Public API sync bars notice for {sym}: {e}")
 
-    # Fallback to yfinance if broker has zero bars or temporary connection hiccup
-    try:
-        import yfinance as yf
-        yf_map = {'5m': ('5d', '5m'), '15m': ('5d', '15m'), '1h': ('1mo', '1h'), '1d': ('1y', '1d')}
-        p, i = yf_map.get(interval, ('5d', '5m'))
-        t = yf.Ticker(ticker.upper())
-        df_yf = t.history(period=p, interval=i)
-        if not df_yf.empty:
-            df_yf = df_yf[['Open', 'High', 'Low', 'Close', 'Volume']].dropna()
-            return df_yf
-    except Exception as yfe:
-        print(f"Fallback yfinance error for {ticker}: {yfe}")
-
+    # Return last cached copy if available (Zero Yahoo Finance calls)
+    cached_fallback = _get_cache(sym, interval)
+    if cached_fallback is not None:
+        return cached_fallback
     return pd.DataFrame()
 
-async def stream_ticker_bars(tickers, interval='5m', delay_ms=0.08):
+async def stream_ticker_bars(tickers, interval='5m', delay_ms=0.08, respect_priority_pause=False):
     """
     Asynchronous generator that yields (ticker, df) one by one.
-    Allows processing indicators immediately without waiting for all 510 to finish downloading.
+    When respect_priority_pause=True (used by 15m/1h/1d background sweeps), automatically
+    PAUSES whenever a 1m/5m priority scan is active and RESUMES at the exact next ticker.
     """
     client = get_async_client()
     for sym in tickers:
-        _, df = await fetch_ticker_bars(client, sym, interval=interval, delay_ms=delay_ms)
+        if respect_priority_pause and PRIORITY_SCAN_ACTIVE.is_set():
+            print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ⏸️ [SCHEDULER] Pausing {interval} scan at {sym} while 1m/5m priority scan executes...")
+            while PRIORITY_SCAN_ACTIVE.is_set():
+                await asyncio.sleep(0.25)
+            print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ▶️ [SCHEDULER] Resuming {interval} scan from {sym}...")
+
+        _, df = await fetch_ticker_bars(
+            client,
+            sym,
+            interval=interval,
+            delay_ms=delay_ms,
+            allow_cache_build=(interval in ('15m', '1h', '1d'))
+        )
         if not df.empty:
             yield sym, df
 
@@ -200,13 +298,14 @@ async def get_spy_trend_public(client=None):
                 if in_uptrend[i] and lowerband[i] < lowerband[i-1]: lowerband[i] = lowerband[i-1]
                 if not in_uptrend[i] and upperband[i] > upperband[i-1]: upperband[i] = upperband[i-1]
         return bool(in_uptrend[-1])
-    except Exception as e:
+    except Exception:
         return True
 
 if __name__ == '__main__':
-    print("Testing Public.com Data Feed Module...")
+    print("Testing Public.com Data Feed Module (Pure Public.com + Local Resampler)...")
     t0 = time.time()
     df = get_public_bars_sync("NVDA", "5m")
     print(f"NVDA 5m bars retrieved: {len(df)} in {time.time()-t0:.2f}s")
-    if not df.empty:
-        print(f"Latest Close: ${df['Close'].iloc[-1]:.2f} at {df.index[-1]}")
+    t1 = time.time()
+    df15 = get_public_bars_sync("NVDA", "15m")
+    print(f"NVDA 15m bars synthesized from cache: {len(df15)} in {(time.time()-t1)*1000:.2f}ms")
