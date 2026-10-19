@@ -11,18 +11,21 @@ from public_api_sdk.models import BarPeriod, InstrumentType, BarAggregation
 load_dotenv()
 API_KEY = os.getenv('PUBLIC_API_KEY')
 
-_ASYNC_CLIENT = None
+import threading
+_THREAD_LOCAL = threading.local()
 
 def get_async_client():
-    global _ASYNC_CLIENT
-    if _ASYNC_CLIENT is None:
+    client = getattr(_THREAD_LOCAL, 'async_client', None)
+    if client is None:
         if not API_KEY:
             raise ValueError("PUBLIC_API_KEY not configured in environment.")
-        _ASYNC_CLIENT = AsyncPublicApiClient(auth_config=ApiKeyAuthConfig(api_secret_key=API_KEY))
-    return _ASYNC_CLIENT
+        client = AsyncPublicApiClient(auth_config=ApiKeyAuthConfig(api_secret_key=API_KEY))
+        _THREAD_LOCAL.async_client = client
+    return client
 
 # Interval mapping
 AGG_MAP = {
+    '1m': (BarAggregation.ONE_MINUTE, BarPeriod.DAY),
     '5m': (BarAggregation.FIVE_MINUTES, BarPeriod.WEEK),
     '15m': (BarAggregation.FIFTEEN_MINUTES, BarPeriod.WEEK),
     '1h': (BarAggregation.ONE_HOUR, BarPeriod.MONTH),

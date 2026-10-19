@@ -308,10 +308,17 @@ def log_alert(ticker, direction, entry_price, stop_loss, take_profit, regime,
 
 def get_latest_price(ticker):
     try:
+        from public_executor import get_live_prices
+        lp = get_live_prices([ticker])
+        if lp and lp.get(ticker):
+            return float(lp[ticker])
+    except Exception:
+        pass
+    try:
         ticker_obj = yf.Ticker(ticker)
         data = ticker_obj.history(period="1d")
         if not data.empty:
-            return data['Close'].iloc[-1]
+            return float(data['Close'].iloc[-1])
     except Exception as e:
         print(f"Error fetching price for {ticker}: {e}")
     return None
@@ -323,29 +330,38 @@ def check_open_trades():
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM alerts WHERE outcome = 'OPEN' AND (user_active = 0 OR user_active IS NULL)")
-        open_trades = cursor.fetchall()
+        open_trades = [dict(r) for r in cursor.fetchall()]
         if not open_trades:
             return closed_trades
             
-        unique_tickers = list(set(trade['ticker'] for trade in open_trades))
+        unique_tickers = list(set(trade['ticker'] for trade in open_trades if trade.get('ticker')))
         prices = {}
         try:
-            data = yf.download(unique_tickers, period="1d", interval="1m", progress=False)
-            if not data.empty and 'Close' in data:
-                latest = data['Close'].iloc[-1]
-                for sym in unique_tickers:
-                    if sym in latest and not pd.isna(latest[sym]):
-                        prices[sym] = float(latest[sym])
+            from public_executor import get_live_prices
+            prices = get_live_prices(unique_tickers) or {}
         except Exception as e:
-            print(f"Batch price download error: {e}")
+            print(f"Public.com batch price notice: {e}")
+
+        missing_tickers = [s for s in unique_tickers if s not in prices or not prices[s]]
+        if missing_tickers:
+            try:
+                data = yf.download(missing_tickers, period="1d", interval="1m", progress=False)
+                if not data.empty and 'Close' in data:
+                    latest = data['Close'].iloc[-1]
+                    for sym in missing_tickers:
+                        val = latest.get(sym) if hasattr(latest, 'get') else (latest if len(missing_tickers) == 1 else None)
+                        if val is not None and not pd.isna(val):
+                            prices[sym] = float(val)
+            except Exception as e:
+                print(f"Batch price download error: {e}")
 
         for trade in open_trades:
             trade_id = trade['id']
             ticker = trade['ticker']
-            direction = trade['direction'].upper()
-            entry_price = trade['entry_price']
-            stop_loss = trade['stop_loss']
-            take_profit = trade['take_profit']
+            direction = (trade.get('direction') or 'LONG').upper()
+            entry_price = float(trade.get('entry_price') or 0.0)
+            stop_loss = float(trade.get('stop_loss') or 0.0)
+            take_profit = float(trade.get('take_profit') or 0.0)
             
             price = prices.get(ticker) or get_latest_price(ticker)
             if price is None:
@@ -371,18 +387,22 @@ def check_open_trades():
                     exit_price = price
 
             # --- EOD Session Flatten for Paper Day Trades (1m, 5m, 15m) ---
-            # Strictly applies to non-broker paper simulations after 3:55 PM EST (America/New_York)
+            # Strictly applies to non-broker paper simulations after 3:55 PM EST (or stale prior-day trades)
             if outcome == 'OPEN' and trade.get('user_active') != 1 and str(trade.get('timeframe', '5m')).lower() in ['1m', '5m', '15m']:
-                now_t = get_est_now().time()
-                if now_t >= datetime.time(15, 55) or now_t < datetime.time(9, 30):
+                now_est = get_est_now()
+                now_t = now_est.time()
+                ts_str = str(trade.get('timestamp') or '')[:10]
+                today_str = now_est.strftime('%Y-%m-%d')
+                is_prior_day = bool(ts_str and len(ts_str) == 10 and ts_str < today_str)
+                if now_t >= datetime.time(15, 55) or is_prior_day:
                     outcome = 'CLOSED'
                     exit_price = price
 
             # --- Feature 1: Breakeven Stop Ratchet (+0.75R) ---
             if outcome == 'OPEN':
-                b_set = trade.get('breakeven_set', 0) if isinstance(trade, dict) else (trade['breakeven_set'] if 'breakeven_set' in trade.keys() else 0)
+                b_set = trade.get('breakeven_set', 0)
                 if not b_set:
-                    init_sl = trade.get('initial_stop_loss') if isinstance(trade, dict) else (trade['initial_stop_loss'] if 'initial_stop_loss' in trade.keys() else None)
+                    init_sl = trade.get('initial_stop_loss')
                     init_risk = abs(entry_price - (init_sl or stop_loss))
                     if init_risk <= 0.0001:
                         init_risk = abs(take_profit - entry_price) / 1.5 if abs(take_profit - entry_price) > 0 else 0.01
@@ -391,7 +411,6 @@ def check_open_trades():
                     if curr_r >= 0.75:
                         cursor.execute("UPDATE alerts SET stop_loss = ?, breakeven_set = 1 WHERE id = ?", (entry_price, trade_id))
                         conn.commit()
-                        trade = dict(trade)
                         trade['breakeven_set'] = 1
                         trade['stop_loss'] = entry_price
                         closed_trades.append({
@@ -408,11 +427,11 @@ def check_open_trades():
                         })
                     
             if outcome != 'OPEN':
-                b_set = trade.get('breakeven_set', 0) if isinstance(trade, dict) else (trade['breakeven_set'] if 'breakeven_set' in trade.keys() else 0)
+                b_set = trade.get('breakeven_set', 0)
                 is_be_level = abs(stop_loss - entry_price) < 0.001
 
                 # Derive initial risk safely so pnl_r never divides by 0 or collapses to 0 on WIN
-                init_sl = trade.get('initial_stop_loss') if isinstance(trade, dict) else (trade['initial_stop_loss'] if 'initial_stop_loss' in trade.keys() else None)
+                init_sl = trade.get('initial_stop_loss')
                 if not init_sl or abs(init_sl - entry_price) < 0.001:
                     init_risk = abs(take_profit - entry_price) / 1.5 if abs(take_profit - entry_price) > 0 else 0.01
                 else:
@@ -454,9 +473,9 @@ def check_open_trades():
                     'exit_price': exit_price,
                     'outcome': outcome,
                     'pnl_r': pnl_r,
-                    'user_active': trade['user_active'] if 'user_active' in trade.keys() else 0,
-                    'telegram_alerted': trade['telegram_alerted'] if 'telegram_alerted' in trade.keys() else 0,
-                    'timeframe': trade['timeframe'] if 'timeframe' in trade.keys() else '5m'
+                    'user_active': trade.get('user_active', 0),
+                    'telegram_alerted': trade.get('telegram_alerted', 0),
+                    'timeframe': trade.get('timeframe', '5m')
                 })
                 
     except Exception as e:
@@ -491,24 +510,33 @@ def check_ghost_trades():
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM alerts WHERE ghost_status = 'MONITORING'")
-        ghosts = cursor.fetchall()
+        ghosts = [dict(r) for r in cursor.fetchall()]
         if not ghosts:
             return resolved_ghosts
 
         now = get_est_now()
         is_after_market = (now.hour >= 16) if hasattr(now, 'hour') else False
 
-        unique_tickers = list(set(g['ticker'] for g in ghosts))
+        unique_tickers = list(set(g['ticker'] for g in ghosts if g.get('ticker')))
         prices = {}
         try:
-            data = yf.download(unique_tickers, period="1d", interval="1m", progress=False)
-            if not data.empty and 'Close' in data:
-                latest = data['Close'].iloc[-1]
-                for sym in unique_tickers:
-                    if sym in latest and not pd.isna(latest[sym]):
-                        prices[sym] = float(latest[sym])
+            from public_executor import get_live_prices
+            prices = get_live_prices(unique_tickers) or {}
         except Exception as e:
-            print(f"Batch ghost price download error: {e}")
+            print(f"Public.com ghost price notice: {e}")
+
+        missing_ghosts = [s for s in unique_tickers if s not in prices or not prices[s]]
+        if missing_ghosts:
+            try:
+                data = yf.download(missing_ghosts, period="1d", interval="1m", progress=False)
+                if not data.empty and 'Close' in data:
+                    latest = data['Close'].iloc[-1]
+                    for sym in missing_ghosts:
+                        val = latest.get(sym) if hasattr(latest, 'get') else (latest if len(missing_ghosts) == 1 else None)
+                        if val is not None and not pd.isna(val):
+                            prices[sym] = float(val)
+            except Exception as e:
+                print(f"Batch ghost price download error: {e}")
 
         for g in ghosts:
             g_id = g['id']

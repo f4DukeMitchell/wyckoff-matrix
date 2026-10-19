@@ -1453,8 +1453,26 @@ def trigger_system_update():
         env["GIT_TERMINAL_PROMPT"] = "0"
         repo_dir = os.path.dirname(os.path.abspath(__file__))
 
+        # Preserve live VM state files (priority_queue.json, terminal_config.json) and recent VM alerts across git reset
+        pq_path = os.path.join(repo_dir, "priority_queue.json")
+        cfg_path = os.path.join(repo_dir, "terminal_config.json")
+        pq_backup = open(pq_path, "rb").read() if os.path.exists(pq_path) else None
+        cfg_backup = open(cfg_path, "rb").read() if os.path.exists(cfg_path) else None
+
         subprocess.run([git_bin, "fetch", "origin", "main"], cwd=repo_dir, capture_output=True, text=True, timeout=25, env=env)
         pull_res = subprocess.run([git_bin, "reset", "--hard", "origin/main"], cwd=repo_dir, capture_output=True, text=True, timeout=25, env=env)
+
+        if pq_backup:
+            try:
+                open(pq_path, "wb").write(pq_backup)
+            except Exception:
+                pass
+        if cfg_backup:
+            try:
+                open(cfg_path, "wb").write(cfg_backup)
+            except Exception:
+                pass
+
         py_exe = sys.executable or shutil.which("python3") or "python3"
         mig_res = subprocess.run([py_exe, "migrate_db.py"], cwd=repo_dir, capture_output=True, text=True, timeout=30, env=env)
 

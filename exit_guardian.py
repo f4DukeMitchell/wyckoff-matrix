@@ -4,12 +4,17 @@ import threading
 import sqlite3
 import datetime
 from decimal import Decimal
+import pandas as pd
 import yfinance as yf
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wyckoff_trades.db")
 
 def get_est_now_str():
-    return datetime.datetime.now().strftime("%H:%M:%S")
+    try:
+        import zoneinfo
+        return datetime.datetime.now(zoneinfo.ZoneInfo("America/New_York")).strftime("%H:%M:%S")
+    except Exception:
+        return datetime.datetime.now().strftime("%H:%M:%S")
 
 def send_tg(msg: str):
     try:

@@ -164,7 +164,8 @@ def execute_autonomous_second_spring_buy(parent_trade_id, ticker, price, ml_conf
     4. UNIFIED STRUCTURAL STOP: Strictly preserves original initial_stop_loss.
     5. Dispatches Telegram notification.
     """
-    if not AUTO_BUY_ENABLED:
+    cfg = get_config()
+    if not cfg.get("auto_buy_enabled", True):
         return False, "AUTO_BUY_DISABLED"
 
     if (timeframe or "").lower() not in AUTO_BUY_ALLOWED_TIMEFRAMES:
@@ -189,7 +190,7 @@ def execute_autonomous_second_spring_buy(parent_trade_id, ticker, price, ml_conf
     c = conn.cursor()
     c.execute("""
         SELECT id, ticker, entry_price, initial_stop_loss, stop_loss, initial_shares, 
-               partial_tier_done, second_spring_added
+               partial_tier_done, second_spring_added, take_profit
         FROM alerts WHERE id = ?
     """, (parent_trade_id,))
     row = c.fetchone()
@@ -218,7 +219,7 @@ def execute_autonomous_second_spring_buy(parent_trade_id, ticker, price, ml_conf
     dollar_alloc = sizing['final_alloc']
 
     try:
-        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ⚡ EXECUTING 2X SECOND SPRING BUY: {ticker} (${dollar_alloc:.2f}) on Public.com...")
+        print(f"[{get_market_time().strftime('%H:%M:%S')}] ⚡ EXECUTING 2X SECOND SPRING BUY: {ticker} (${dollar_alloc:.2f}) on Public.com...")
         order_res = execute_dollar_buy(ticker.upper(), dollar_alloc)
         status = order_res.get('status', 'SUBMITTED')
         order_uuid = order_res.get('order_id', 'N/A')
@@ -230,8 +231,8 @@ def execute_autonomous_second_spring_buy(parent_trade_id, ticker, price, ml_conf
         new_total_shares = old_shares + (dollar_alloc / price)
         blended_entry = old_entry
         try:
-            from public_executor import get_live_positions
-            broker_pos = get_live_positions()
+            from public_executor import get_broker_portfolio_positions
+            broker_pos = get_broker_portfolio_positions()
             for p in broker_pos:
                 if p['ticker'].upper() == ticker.upper():
                     new_total_shares = float(p['quantity'])
@@ -334,8 +335,8 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
         # Allow broker 1.5s to settle fill and sync initial_shares
         time.sleep(1.5)
         try:
-            from public_executor import get_live_positions
-            broker_pos = get_live_positions()
+            from public_executor import get_broker_portfolio_positions
+            broker_pos = get_broker_portfolio_positions()
             for p in broker_pos:
                 if p['ticker'].upper() == ticker.upper():
                     qty = float(p['quantity'])
