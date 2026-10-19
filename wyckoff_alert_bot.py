@@ -625,6 +625,12 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         
         current_time = time.time()
         
+        # Pre-Market / Post-Market Guard: Priority Queue (update_ticker_in_queue) is already updated above,
+        # but actual intraday trade entries (Spring / UTAD, options flow, auto-buyer) ONLY fire during RTH (09:30 - 16:00 EST)
+        is_rth = (now.hour > 9 or (now.hour == 9 and now.minute >= 30)) and now.hour < 16
+        if not is_rth and interval in ("1m", "5m", "15m", "1h"):
+            return
+
         if is_spring and (current_time - last_alerted.get(ticker, 0) > 900):
             open_second_spring = None
             if TRACKER_ENABLED and (has_open_alerted_trade(ticker, interval) or has_open_trade(ticker, interval)):

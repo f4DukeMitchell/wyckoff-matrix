@@ -432,7 +432,7 @@ def get_covered_calls_scanner_data(force_refresh=False):
     """
     global _COVERED_CALLS_CACHE
     import time, datetime
-    import yfinance as yf
+    from public_executor import get_live_prices
     now = time.time()
     if not force_refresh and _COVERED_CALLS_CACHE["data"] and (now - _COVERED_CALLS_CACHE["timestamp"] < CACHE_TTL):
         return _COVERED_CALLS_CACHE["data"]
@@ -445,12 +445,12 @@ def get_covered_calls_scanner_data(force_refresh=False):
 
     setups = []
     holdings_summary = []
+    live_px_map = get_live_prices([c["ticker"] for c in configs])
 
     for cfg in configs:
         sym = cfg["ticker"]
         try:
-            t = yf.Ticker(sym)
-            price = float(t.fast_info.last_price or 0.0)
+            price = float(live_px_map.get(sym) or 0.0)
             if price <= 0:
                 continue
 

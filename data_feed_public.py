@@ -191,10 +191,12 @@ async def fetch_ticker_bars(client, ticker, interval='5m', delay_ms=0.08, allow_
             if not df_day.empty:
                 df = pd.concat([base_5m, df_day])
                 df = df[~df.index.duplicated(keep='last')].sort_index()
-                _store_cache(sym, '5m', df)
-                if delay_ms > 0:
-                    await asyncio.sleep(delay_ms)
-                return ticker, df
+            else:
+                df = base_5m
+            _store_cache(sym, '5m', df)
+            if delay_ms > 0:
+                await asyncio.sleep(delay_ms)
+            return ticker, df
 
         res = await client.get_bars(sym, period=period, aggregation=agg)
         df = parse_bars_to_df(res)
@@ -258,8 +260,10 @@ def get_public_bars_sync(ticker, interval='5m', allow_cache_build=True):
             if not df_day.empty:
                 df = pd.concat([base_5m, df_day])
                 df = df[~df.index.duplicated(keep='last')].sort_index()
-                _store_cache(sym, '5m', df)
-                return df
+            else:
+                df = base_5m
+            _store_cache(sym, '5m', df)
+            return df
 
         res = client.get_bars(sym, period=period, aggregation=agg)
         df = parse_bars_to_df(res)

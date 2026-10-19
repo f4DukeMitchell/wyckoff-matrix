@@ -108,34 +108,40 @@ def run_covered_call_cycle():
     if not active_trades:
         return
 
-    import yfinance as yf
-    from public_executor import execute_option_buy_to_close, execute_option_sell_to_open
+    from public_executor import execute_option_buy_to_close, execute_option_sell_to_open, get_live_prices, get_client
+    from public_api_sdk.models import OptionChainRequest, OrderInstrument
     from telegram_notifier import send_message, is_configured
+
+    live_px_map = get_live_prices(list({t["ticker"] for t in active_trades}))
+    client = get_client()
+    accounts = client.get_accounts()
+    acct_id = accounts.accounts[0].account_id if (accounts and accounts.accounts) else None
 
     for t in active_trades:
         sym = t["ticker"]
         opt_sym = t["option_symbol"]
-        strike = t["strike"]
+        strike = float(t["strike"])
         qty = t["quantity"]
         entry_prem = t["entry_premium"]
 
         try:
-            # 1. Fetch live stock price & current option mark
-            ticker_obj = yf.Ticker(sym)
-            stock_price = float(ticker_obj.fast_info.last_price or 0.0)
+            # 1. Fetch live stock price & current option mark via Public.com
+            stock_price = float(live_px_map.get(sym) or 0.0)
             if stock_price <= 0:
                 continue
 
-            # Fetch option chain to find current mark
             current_mid = None
             try:
-                chain = ticker_obj.option_chain(t["expiry"])
-                c_row = chain.calls[chain.calls["strike"] == strike]
-                if not c_row.empty:
-                    bid = float(c_row.iloc[0].bid or 0.0)
-                    ask = float(c_row.iloc[0].ask or 0.0)
-                    current_mid = round((bid + ask) / 2.0, 2)
-                    t["last_mid"] = current_mid
+                if acct_id:
+                    inst = OrderInstrument(symbol=sym, type="EQUITY")
+                    chain = client.get_option_chain(OptionChainRequest(instrument=inst, expiration_date=t["expiry"]), account_id=acct_id)
+                    for c in (chain.calls or []):
+                        if c.option_details and abs(float(c.option_details.strike_price or 0.0) - strike) < 0.01:
+                            bid = float(c.bid or 0.0)
+                            ask = float(c.ask or 0.0)
+                            current_mid = round(float(c.option_details.mid_price or (bid + ask) / 2.0), 2)
+                            t["last_mid"] = current_mid
+                            break
             except Exception:
                 pass
 

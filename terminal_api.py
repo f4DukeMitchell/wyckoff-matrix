@@ -1578,7 +1578,7 @@ def bot_health():
 
         bot_log_tail = ""
         try:
-            j_res = subprocess.run("journalctl -u wyckoff-bot.service -n 30 --no-pager 2>/dev/null", shell=True, capture_output=True, text=True, timeout=4)
+            j_res = subprocess.run("sudo -n journalctl -u wyckoff-bot.service -n 35 --no-pager 2>/dev/null || journalctl -u wyckoff-bot.service -n 35 --no-pager 2>/dev/null", shell=True, capture_output=True, text=True, timeout=4)
             if j_res.stdout and j_res.stdout.strip():
                 bot_log_tail = j_res.stdout
         except:
