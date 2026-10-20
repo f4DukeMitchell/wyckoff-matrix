@@ -506,6 +506,37 @@ def get_live_prices(tickers):
             pass
     return prices
 
+def get_single_quote(ticker: str) -> dict:
+    """
+    Fetches real-time quote for a single equity from Public.com SDK.
+    Returns last, bid, ask, spread dollar, and spread percentage.
+    """
+    sym = str(ticker).strip().upper().replace('-', '.')
+    try:
+        client = get_client()
+        acc_id = get_account_id()
+        inst = OrderInstrument(symbol=sym, type='EQUITY')
+        quotes = client.get_quotes([inst], account_id=acc_id)
+        if not quotes:
+            return {"ticker": sym, "last": None, "bid": None, "ask": None, "spread": None, "spread_pct": None}
+        q = quotes[0]
+        last = float(q.last) if getattr(q, 'last', None) is not None else None
+        bid = float(q.bid) if getattr(q, 'bid', None) is not None else None
+        ask = float(q.ask) if getattr(q, 'ask', None) is not None else None
+        spread = (ask - bid) if (bid is not None and ask is not None) else None
+        spread_pct = ((ask - bid) / last * 100.0) if (spread is not None and last and last > 0) else None
+        return {
+            "ticker": sym,
+            "last": round(last, 4) if last is not None else None,
+            "bid": round(bid, 4) if bid is not None else None,
+            "ask": round(ask, 4) if ask is not None else None,
+            "spread": round(spread, 4) if spread is not None else None,
+            "spread_pct": round(spread_pct, 3) if spread_pct is not None else None
+        }
+    except Exception as e:
+        print(f"Error fetching single quote for {sym}: {e}")
+        return {"ticker": sym, "last": None, "bid": None, "ask": None, "spread": None, "spread_pct": None, "error": str(e)}
+
 # Backward compatibility alias
 execute_exit_sell = execute_exit_position
 

@@ -4445,11 +4445,50 @@
     }
 
     // --- BROKER EXECUTION HANDLERS ---
+    async function getQuotePreview(ticker, tradeId) {
+      let previewText = '';
+      try {
+        const qRes = await fetch(`/api/order/quote/${encodeURIComponent(ticker)}`);
+        if (qRes.ok) {
+          const qData = await qRes.json();
+          const q = qData.quote;
+          if (q && q.last) {
+            previewText += `\n\n--- REAL-TIME BROKER QUOTE ---` +
+              `\nLast: $${q.last.toFixed(2)} | Bid: $${q.bid !== null ? q.bid.toFixed(2) : '--'} | Ask: $${q.ask !== null ? q.ask.toFixed(2) : '--'}` +
+              `\nSpread: $${q.spread !== null ? q.spread.toFixed(2) : '--'} (${q.spread_pct !== null ? q.spread_pct.toFixed(2) + '%' : '--'})`;
+            
+            if (tradeId) {
+              const found = (paperTradesData || []).find(a => a.id === tradeId) || 
+                            (rawStalkerData || []).find(a => a.id === tradeId) || 
+                            (rawScannerData || []).find(a => a.id === tradeId);
+              if (found && found.entry_price) {
+                const alertPrice = parseFloat(found.entry_price);
+                const driftPct = ((q.last - alertPrice) / alertPrice * 100.0);
+                previewText += `\nAlert Trigger: $${alertPrice.toFixed(2)} (Drift: ${driftPct >= 0 ? '+' : ''}${driftPct.toFixed(2)}%)`;
+                if (Math.abs(driftPct) > 1.5) {
+                  previewText += `\n⚠️ CAUTION: Price drifted >1.5% from alert signal!`;
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Quote preview error:', e);
+      }
+      return previewText;
+    }
+
     async function executeBuy(ticker, tradeId) {
       const sizing = getSelectedRiskSizing();
       let defaultDollars = sizing.dollarAmount.toFixed(2);
       
-      const userInput = prompt(`Execute BUY for ${ticker} on Public.com\n\nEnter dollar amount to trade (Default: ${sizing.label} = $${defaultDollars}):`, defaultDollars);
+      const quotePreview = await getQuotePreview(ticker, tradeId);
+      const promptMsg = `Execute BUY for ${ticker} on Public.com` +
+        quotePreview +
+        `\n--------------------------------------------` +
+        `\nEnter dollar amount to trade (Default: ${sizing.label} = $${defaultDollars}):`;
+      
+      const userInput = prompt(promptMsg, defaultDollars);
       if (userInput === null) return; // User clicked Cancel
       
       const parsedAmount = parseFloat(userInput);
@@ -4468,7 +4507,11 @@
         let d = {};
         try { d = JSON.parse(text); } catch (e) { d = { detail: text }; }
         if (res.ok && d.success) {
-          alert(`Order Submitted: ${ticker} ($${parsedAmount.toFixed(2)}) on Public.com!`);
+          if (d.fill && d.fill.fill_price) {
+            alert(`✅ Order Executed & Synced: ${ticker}\n• Actual Fill Price: $${d.fill.fill_price.toFixed(2)} (${d.fill.shares} shares)\n• Stop Loss: $${d.fill.stop_loss.toFixed(2)}\n• Take Profit: $${d.fill.take_profit.toFixed(2)}\n\nExit Guardian is actively protecting your position.`);
+          } else {
+            alert(`Order Submitted: ${ticker} ($${parsedAmount.toFixed(2)}) on Public.com!`);
+          }
           fetchState();
         } else {
           alert(`Broker Error (${res.status}): ${d.detail || text || 'Execution failed'}`);
@@ -4482,7 +4525,13 @@
       const sizing = getSelectedRiskSizing();
       let defaultDollars = sizing.dollarAmount.toFixed(2);
       
-      const userInput = prompt(`Execute SHORT for ${ticker} on Public.com\n(Note: Shorts are executed in whole integer shares)\n\nEnter dollar target to short (Default: ${sizing.label} = $${defaultDollars}):`, defaultDollars);
+      const quotePreview = await getQuotePreview(ticker, tradeId);
+      const promptMsg = `Execute SHORT for ${ticker} on Public.com\n(Note: Shorts are executed in whole integer shares)` +
+        quotePreview +
+        `\n--------------------------------------------` +
+        `\nEnter dollar target to short (Default: ${sizing.label} = $${defaultDollars}):`;
+      
+      const userInput = prompt(promptMsg, defaultDollars);
       if (userInput === null) return; // User clicked Cancel
       
       const parsedAmount = parseFloat(userInput);
@@ -4501,7 +4550,11 @@
         let d = {};
         try { d = JSON.parse(text); } catch (e) { d = { detail: text }; }
         if (res.ok && d.success) {
-          alert(`Short Order Submitted: ${ticker} (${d.order.shares} share(s) @ ~$${d.order.share_price.toFixed(2)}) on Public.com!`);
+          if (d.fill && d.fill.fill_price) {
+            alert(`✅ Short Executed & Synced: ${ticker}\n• Actual Fill Price: $${d.fill.fill_price.toFixed(2)} (${d.fill.shares} shares)\n• Stop Loss: $${d.fill.stop_loss.toFixed(2)}\n• Take Profit: $${d.fill.take_profit.toFixed(2)}\n\nExit Guardian is actively protecting your position.`);
+          } else {
+            alert(`Short Order Submitted: ${ticker} (${d.order.shares} share(s) @ ~$${d.order.share_price.toFixed(2)}) on Public.com!`);
+          }
           fetchState();
         } else {
           alert(`Short Execution Error (${res.status}): ${d.detail || text || 'Failed'}`);

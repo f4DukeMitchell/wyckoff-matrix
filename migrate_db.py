@@ -202,6 +202,42 @@ def migrate():
     conn.commit()
     print("Reconciled DJT and ACHR as CLOSED_MANUAL (broker positions exited by user).")
 
+    # 11. Reconcile open user_active trades with actual Public.com broker executions (e.g. TPR, RL)
+    try:
+        from public_executor import get_broker_portfolio_positions
+        broker_holdings = get_broker_portfolio_positions()
+        for bh in broker_holdings:
+            sym = bh.get('ticker')
+            cost = float(bh.get('entry_price') or 0.0)
+            qty = float(bh.get('quantity') or 0.0)
+            if sym and cost > 0 and qty > 0:
+                c.execute("SELECT id, direction, entry_price, stop_loss, take_profit FROM alerts WHERE ticker = ? AND outcome = 'OPEN' AND user_active = 1", (sym,))
+                rows = c.fetchall()
+                for r in rows:
+                    t_id, direction, orig_entry, orig_sl, orig_tp = r
+                    if orig_entry and orig_sl and orig_tp:
+                        risk = abs(orig_entry - orig_sl)
+                        reward = abs(orig_tp - orig_entry)
+                        if (direction or 'LONG').upper() == 'LONG':
+                            new_sl = round(cost - risk, 4)
+                            new_tp = round(cost + reward, 4)
+                        else:
+                            new_sl = round(cost + risk, 4)
+                            new_tp = round(cost - reward, 4)
+                        c.execute("""
+                            UPDATE alerts
+                            SET entry_price = ?,
+                                initial_shares = ?,
+                                stop_loss = ?,
+                                initial_stop_loss = ?,
+                                take_profit = ?
+                            WHERE id = ?
+                        """, (cost, qty, new_sl, new_sl, new_tp, t_id))
+                        print(f"Reconciled {sym} (id {t_id}) with broker fill ${cost:.2f} ({qty} shares), SL=${new_sl}, TP=${new_tp}")
+        conn.commit()
+    except Exception as recon_err:
+        print(f"Error during broker holdings reconciliation: {recon_err}")
+
     # Clear stalker cache on disk
     stalker_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stalker_radar.json")
     try:

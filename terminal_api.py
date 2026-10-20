@@ -24,7 +24,8 @@ import secrets
 
 from public_executor import (
     get_account_capital_summary, calculate_test_allocation, execute_dollar_buy,
-    execute_short_sell, execute_exit_sell, get_live_prices, get_broker_portfolio_positions
+    execute_short_sell, execute_exit_sell, get_live_prices, get_broker_portfolio_positions,
+    get_single_quote
 )
 from data_feed_public import get_public_bars_sync
 from options_flow import get_options_flow, get_public_quotes
@@ -774,33 +775,134 @@ class OrderPayload(BaseModel):
     amount: float
     trade_id: int | None = None
 
+@app.get("/api/order/quote/{ticker}")
+def get_order_quote(ticker: str):
+    """Fetches real-time Public.com quote (bid, ask, last, spread) for pre-trade preview."""
+    try:
+        q = get_single_quote(ticker)
+        return {"status": "success", "quote": q}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/order/buy")
 def place_buy(order: OrderPayload):
-    """Executes fractional dollar buy on Public.com directly from the terminal."""
+    """Executes fractional dollar buy on Public.com directly from the terminal with real-time fill sync."""
     try:
         res = execute_dollar_buy(order.ticker.upper(), order.amount)
+        fill_info = None
         if order.trade_id:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute("UPDATE alerts SET user_active = 1 WHERE id = ?", (order.trade_id,))
-            conn.commit()
-            conn.close()
-        return {"success": True, "order": res}
+            import time
+            time.sleep(1.5)  # Wait for broker execution to settle
+            try:
+                broker_holdings = get_broker_portfolio_positions()
+                matching = next((bh for bh in broker_holdings if bh['ticker'] == order.ticker.upper()), None)
+                if matching and matching.get('entry_price', 0) > 0:
+                    fill_price = float(matching['entry_price'])
+                    fill_qty = float(matching['quantity'])
+                    
+                    conn = sqlite3.connect(DB_PATH)
+                    c = conn.cursor()
+                    c.execute("SELECT direction, entry_price, stop_loss, take_profit FROM alerts WHERE id = ?", (order.trade_id,))
+                    row = c.fetchone()
+                    if row:
+                        direction, orig_entry, orig_sl, orig_tp = row
+                        risk = abs((orig_entry or fill_price) - (orig_sl or fill_price))
+                        reward = abs((orig_tp or fill_price) - (orig_entry or fill_price))
+                        new_sl = round(fill_price - risk, 4)
+                        new_tp = round(fill_price + reward, 4)
+                        c.execute("""
+                            UPDATE alerts 
+                            SET user_active = 1,
+                                entry_price = ?,
+                                initial_shares = ?,
+                                stop_loss = ?,
+                                initial_stop_loss = ?,
+                                take_profit = ?
+                            WHERE id = ?
+                        """, (fill_price, fill_qty, new_sl, new_sl, new_tp, order.trade_id))
+                        conn.commit()
+                        fill_info = {
+                            "fill_price": fill_price,
+                            "shares": fill_qty,
+                            "stop_loss": new_sl,
+                            "take_profit": new_tp
+                        }
+                    conn.close()
+                else:
+                    conn = sqlite3.connect(DB_PATH)
+                    c = conn.cursor()
+                    c.execute("UPDATE alerts SET user_active = 1 WHERE id = ?", (order.trade_id,))
+                    conn.commit()
+                    conn.close()
+            except Exception as sync_err:
+                print(f"[ORDER SYNC ERROR] Could not sync fill for trade {order.trade_id}: {sync_err}")
+                conn = sqlite3.connect(DB_PATH)
+                c = conn.cursor()
+                c.execute("UPDATE alerts SET user_active = 1 WHERE id = ?", (order.trade_id,))
+                conn.commit()
+                conn.close()
+        return {"success": True, "order": res, "fill": fill_info}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/order/short")
 def place_short(order: OrderPayload):
-    """Executes integer whole-share short sale on Public.com directly from the terminal."""
+    """Executes integer whole-share short sale on Public.com directly from the terminal with real-time fill sync."""
     try:
         res = execute_short_sell(order.ticker.upper(), order.amount)
+        fill_info = None
         if order.trade_id:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute("UPDATE alerts SET user_active = 1 WHERE id = ?", (order.trade_id,))
-            conn.commit()
-            conn.close()
-        return {"success": True, "order": res}
+            import time
+            time.sleep(1.5)  # Wait for broker execution to settle
+            try:
+                broker_holdings = get_broker_portfolio_positions()
+                matching = next((bh for bh in broker_holdings if bh['ticker'] == order.ticker.upper()), None)
+                if matching and matching.get('entry_price', 0) > 0:
+                    fill_price = float(matching['entry_price'])
+                    fill_qty = float(matching['quantity'])
+                    
+                    conn = sqlite3.connect(DB_PATH)
+                    c = conn.cursor()
+                    c.execute("SELECT direction, entry_price, stop_loss, take_profit FROM alerts WHERE id = ?", (order.trade_id,))
+                    row = c.fetchone()
+                    if row:
+                        direction, orig_entry, orig_sl, orig_tp = row
+                        risk = abs((orig_sl or fill_price) - (orig_entry or fill_price))
+                        reward = abs((orig_entry or fill_price) - (orig_tp or fill_price))
+                        new_sl = round(fill_price + risk, 4)
+                        new_tp = round(fill_price - reward, 4)
+                        c.execute("""
+                            UPDATE alerts 
+                            SET user_active = 1,
+                                entry_price = ?,
+                                initial_shares = ?,
+                                stop_loss = ?,
+                                initial_stop_loss = ?,
+                                take_profit = ?
+                            WHERE id = ?
+                        """, (fill_price, fill_qty, new_sl, new_sl, new_tp, order.trade_id))
+                        conn.commit()
+                        fill_info = {
+                            "fill_price": fill_price,
+                            "shares": fill_qty,
+                            "stop_loss": new_sl,
+                            "take_profit": new_tp
+                        }
+                    conn.close()
+                else:
+                    conn = sqlite3.connect(DB_PATH)
+                    c = conn.cursor()
+                    c.execute("UPDATE alerts SET user_active = 1 WHERE id = ?", (order.trade_id,))
+                    conn.commit()
+                    conn.close()
+            except Exception as sync_err:
+                print(f"[ORDER SYNC ERROR] Could not sync fill for trade {order.trade_id}: {sync_err}")
+                conn = sqlite3.connect(DB_PATH)
+                c = conn.cursor()
+                c.execute("UPDATE alerts SET user_active = 1 WHERE id = ?", (order.trade_id,))
+                conn.commit()
+                conn.close()
+        return {"success": True, "order": res, "fill": fill_info}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
