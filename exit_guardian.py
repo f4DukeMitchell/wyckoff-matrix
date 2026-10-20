@@ -6,7 +6,7 @@ import datetime
 from decimal import Decimal
 import pandas as pd
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wyckoff_trades.db")
+from data_paths import DB_PATH  # runtime DB lives outside the git tree (survives git reset --hard)
 
 def get_est_now_str():
     try:

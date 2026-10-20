@@ -2,7 +2,7 @@ import os
 import json
 import threading
 
-CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "auto_buyer_config.json")
+from data_paths import CONFIG_PATH  # runtime config lives outside the git tree
 _config_lock = threading.Lock()
 
 DEFAULT_CONFIG = {

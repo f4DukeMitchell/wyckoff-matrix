@@ -1482,6 +1482,13 @@ if __name__ == "__main__":
             send_daily_recap()
             reports_sent["recap"] = True
             
+        # Rolling safety backup of the live trade DB (consistent online snapshot, rate-limited to ~30 min)
+        try:
+            from data_paths import backup_db
+            backup_db()
+        except Exception:
+            pass
+
         # Engine 1 Cadence: 20 seconds during active scanning hours (7:00 AM - 5:00 PM EST), 300s outside
         if is_scanning_hours:
             time.sleep(20)

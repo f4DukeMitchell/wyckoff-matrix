@@ -4,12 +4,18 @@ import subprocess
 import shutil
 import signal
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wyckoff_trades.db")
+from data_paths import DB_PATH  # runtime DB lives outside the git tree (survives git reset --hard)
 
 def migrate():
     if not os.path.exists(DB_PATH):
         print(f"Database {DB_PATH} not found. Skipping migration.")
         return
+
+    try:
+        from data_paths import backup_db
+        backup_db(force=True, tag="premigrate")
+    except Exception as e:
+        print(f"Pre-migration backup skipped: {e}")
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()

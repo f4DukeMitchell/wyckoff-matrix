@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 API_KEY = os.getenv('PUBLIC_API_KEY')
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wyckoff_trades.db")
+from data_paths import DB_PATH  # runtime DB lives outside the git tree (survives git reset --hard)
 
 _cached_client = None
 def get_client():

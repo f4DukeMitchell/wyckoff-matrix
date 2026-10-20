@@ -6,8 +6,7 @@ import sqlite3
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wyckoff_trades.db")
-MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wyckoff_model.pkl")
+from data_paths import DB_PATH, MODEL_PATH  # runtime state lives outside the git tree
 
 def init_history_table():
     try:

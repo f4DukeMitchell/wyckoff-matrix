@@ -1,5 +1,6 @@
 import requests
 import datetime
+from data_paths import DB_PATH as _DB_PATH  # runtime DB lives outside the git tree
 
 # User must fill these in with valid credentials
 TELEGRAM_BOT_TOKEN = '8870935798:AAFx5-TdD0qEwQ4nTSRIFw4RvdI87GSXnDc'
@@ -256,7 +257,7 @@ def check_callbacks():
                         
                         # Mark trade active in database
                         import sqlite3
-                        conn = sqlite3.connect("wyckoff_trades.db")
+                        conn = sqlite3.connect(_DB_PATH)
                         c = conn.cursor()
                         c.execute("UPDATE alerts SET user_active = 1 WHERE id = ?", (trade_id,))
                         conn.commit()
@@ -293,7 +294,7 @@ def check_callbacks():
                         
                         # Mark trade active in database
                         import sqlite3
-                        conn = sqlite3.connect("wyckoff_trades.db")
+                        conn = sqlite3.connect(_DB_PATH)
                         c = conn.cursor()
                         c.execute("UPDATE alerts SET user_active = 1 WHERE id = ?", (trade_id,))
                         conn.commit()
@@ -321,7 +322,7 @@ def check_callbacks():
                     try:
                         trade_id = int(data.split("_")[2])
                         import sqlite3
-                        conn = sqlite3.connect("wyckoff_trades.db")
+                        conn = sqlite3.connect(_DB_PATH)
                         c = conn.cursor()
                         c.execute("UPDATE alerts SET user_active = 1 WHERE id = ?", (trade_id,))
                         conn.commit()

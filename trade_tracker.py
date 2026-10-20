@@ -14,7 +14,7 @@ def get_est_now():
     return datetime.datetime.now()
 
 DB_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(DB_DIR, "wyckoff_trades.db")
+from data_paths import DB_PATH, MODEL_PATH  # runtime state lives outside the git tree
 
 def init_db():
     try:
@@ -101,11 +101,11 @@ def get_ml_model():
     global _cached_ml_model, _cached_ml_mtime
     try:
         import pickle
-        if os.path.exists("wyckoff_model.pkl"):
-            mtime = os.path.getmtime("wyckoff_model.pkl")
+        if os.path.exists(MODEL_PATH):
+            mtime = os.path.getmtime(MODEL_PATH)
             if _cached_ml_model is not None and mtime == _cached_ml_mtime:
                 return _cached_ml_model
-            with open("wyckoff_model.pkl", "rb") as f:
+            with open(MODEL_PATH, "rb") as f:
                 _cached_ml_model = pickle.load(f)
                 _cached_ml_mtime = mtime
                 return _cached_ml_model

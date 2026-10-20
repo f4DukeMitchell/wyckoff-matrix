@@ -70,8 +70,7 @@ async def basic_auth_middleware(request: Request, call_next):
     return await call_next(request)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "wyckoff_trades.db")
-MODEL_PATH = os.path.join(BASE_DIR, "wyckoff_model.pkl")
+from data_paths import DB_PATH, MODEL_PATH  # runtime state lives outside the git tree
 
 # --- WEBSOCKET CLIENT MANAGER ---
 class ConnectionManager:

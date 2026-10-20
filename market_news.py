@@ -113,7 +113,7 @@ def get_ticker_news(ticker: str) -> List[Dict[str, Any]]:
 
 def get_today_actions() -> Dict[str, Any]:
     """Retrieves today's triggered Wyckoff setups, trade executions, and P&L ledger."""
-    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wyckoff_trades.db")
+    from data_paths import DB_PATH as db_path
     today_alerts = []
     closed_today = []
     active_trades = []
