@@ -1965,6 +1965,8 @@ def trigger_system_restart():
             start_new_session=True,
             env=env
         )
+        import threading
+        threading.Timer(1.0, lambda: os._exit(0)).start()
         return {"success": True, "message": "Services restarting: wyckoff-bot and wyckoff-terminal"}
     except Exception as e:
         return {"success": False, "error": str(e)}

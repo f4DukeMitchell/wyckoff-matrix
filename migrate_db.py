@@ -264,7 +264,7 @@ def migrate():
         print(f"Error initializing priority queue: {e}")
 
     # Recycle services (only if run standalone from CLI, not when called from terminal_api)
-    if os.name != 'nt' and os.environ.get("FROM_TERMINAL_UPDATE") != "1":
+    if os.name != 'nt':
         try:
             p_out = subprocess.run(["ps", "-eo", "pid,user,cmd"], capture_output=True, text=True).stdout
             term_procs = [l for l in p_out.splitlines() if any(k in l for k in ['terminal', 'uvicorn', 'wyckoff'])]
