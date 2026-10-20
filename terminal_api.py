@@ -1738,6 +1738,7 @@ def trigger_system_update():
         env["PATH"] = current_path
         env["HOME"] = "/home/matt_smith"
         env["GIT_TERMINAL_PROMPT"] = "0"
+        env["FROM_TERMINAL_UPDATE"] = "1"
         repo_dir = os.path.dirname(os.path.abspath(__file__))
 
         # Preserve live VM state files (priority_queue.json, terminal_config.json) and recent VM alerts across git reset
