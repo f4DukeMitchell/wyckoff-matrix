@@ -47,17 +47,44 @@
       font-variant-numeric: tabular-nums;
     }
 
-    /* TOP HEADER & COMMAND LINE */
+    /* TOP HEADER & COMMAND LINE (2-TIER CLEAN Bloomberg/TradingView RIBBON) */
     #top-bar {
-      height: 34px;
       background: var(--wsr-panel-alt);
       border-bottom: 1px solid var(--wsr-border);
       display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      z-index: 100;
+    }
+
+    .top-bar-row {
+      display: flex;
       align-items: center;
-      padding: 0 8px;
+      padding: 0 10px;
       gap: 10px;
+      box-sizing: border-box;
+    }
+
+    .top-bar-nav {
+      height: 32px;
+      border-bottom: 1px solid #1a1a1a;
+      justify-content: space-between;
       overflow-x: auto;
-      overflow-y: hidden;
+      scrollbar-width: none;
+    }
+    .top-bar-nav::-webkit-scrollbar {
+      display: none;
+    }
+
+    .top-bar-controls {
+      height: 28px;
+      background: #080808;
+      justify-content: space-between;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .top-bar-controls::-webkit-scrollbar {
+      display: none;
     }
 
     .brand {
@@ -67,19 +94,38 @@
       letter-spacing: 0.5px;
       white-space: nowrap;
       flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .brand-ver {
+      color: var(--wsr-muted);
+      font-size: 10px;
+      font-weight: 500;
+    }
+
+    .top-nav-actions {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+      flex-shrink: 0;
+      margin-left: auto;
     }
 
     #command-container {
       flex: 0 0 240px;
-      min-width: 220px;
+      min-width: 200px;
       max-width: 280px;
+      height: 22px;
       display: flex;
       align-items: center;
       background: var(--wsr-black);
       border: 1px solid var(--wsr-border-active);
-      padding: 2px 8px;
+      padding: 0 8px;
       box-sizing: border-box;
       cursor: text;
+      border-radius: 2px;
+      flex-shrink: 0;
     }
 
     .prompt-label {
@@ -89,6 +135,7 @@
       white-space: nowrap;
       user-select: none;
       flex-shrink: 0;
+      font-size: 10px;
     }
 
     #cmd-input {
@@ -97,21 +144,36 @@
       outline: none;
       color: var(--wsr-white);
       font-family: inherit;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
       width: 100%;
-      min-width: 120px;
+      min-width: 100px;
     }
 
     .top-meta {
       display: flex;
-      gap: 12px;
+      gap: 14px;
       font-size: 11px;
       white-space: nowrap;
+      align-items: center;
+      flex-shrink: 0;
+      margin-left: auto;
     }
 
     .meta-val {
       font-weight: 600;
+    }
+
+    .meta-divider {
+      color: #333333;
+      user-select: none;
+      font-size: 10px;
+    }
+
+    .risk-sizing-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
     }
 
     /* MAIN TERMINAL GRID */
@@ -504,6 +566,13 @@
       text-transform: uppercase;
       letter-spacing: 0.5px;
       transition: all 0.15s ease;
+      white-space: nowrap !important;
+      flex-shrink: 0;
+      border-radius: 2px;
+      display: inline-flex;
+      align-items: center;
+      height: 24px;
+      box-sizing: border-box;
     }
     .view-tab:hover {
       background: #1f1f1f;
@@ -1452,43 +1521,55 @@
 </head>
 <body>
 
-  <!-- TOP COMMAND BAR -->
+  <!-- TOP COMMAND BAR (2-TIER CLEAN WORKSPACE HEADER) -->
   <div id="top-bar">
-    <div class="brand">WSR TERMINAL // v12.0</div>
-    <div class="view-tabs">
-      <button id="tab-terminal" class="view-tab active" onclick="switchView('terminal')">📊 TRADING</button>
-      <button id="tab-charts" class="view-tab" onclick="switchView('charts')" style="border-color: #00d26a; color: #00ff88;" title="Multi-Chart Matrix: Toggle 1, 2, or 4 Charts with individual ticker & timeframe selection">📈 CHARTS</button>
-      <button id="tab-pulse" class="view-tab" onclick="switchView('pulse')" style="border-color: #ff9900; color: #ff9900;" title="Market Pulse: Today's Action, AI Bot Intelligence Briefs, Macro Wire & Ticker News">📰 MARKET PULSE</button>
-      <button id="tab-pnl" class="view-tab" onclick="switchView('pnl')" style="border-color: #ffd700; color: #ffd700;" title="P&L Station: Deep trade-by-trade analysis, execution autopsies, realized returns and win metrics for all manual and VM trades">💰 P&L STATION</button>
-      <button id="tab-mllab" class="view-tab" onclick="switchView('mllab')">🧠 AI / ML LAB</button>
-      <button id="tab-options" class="view-tab" onclick="switchView('options')" style="border-color: #a855f7; color: #c084fc;" title="Dedicated Options Matrix: Real-time 0.65 Delta Weekly Calls & Multi-Tranche Exits">⚡ OPTIONS MATRIX</button>
-      <button id="tab-paper" class="view-tab" onclick="switchView('paper')" style="border-color: #00e5ff; color: #00e5ff;" title="AI Learning Model Simulated Paper Trades (Air-gapped from live broker trades)">🤖 ML PAPER LAB</button>
-      <button id="tab-telegram" class="view-tab" onclick="switchView('telegram')" style="border-color: #00e5ff; color: #00e5ff;" title="Dedicated Live Telegram Broadcasts: Stream all Day and Swing trade alerts">📢 TELEGRAM</button>
-      <button id="tab-toggle-drawer" class="view-tab" onclick="toggleBottomDrawer()" style="border-color: #00e5ff; color: #00e5ff;" title="Toggle bottom intel drawer to maximize vertical chart height">🔽 BOTTOM: ON</button>
-      <button id="tab-restart" class="view-tab" onclick="triggerServiceRestart()" style="border-color: var(--wsr-orange); color: var(--wsr-orange);" title="Restart Wyckoff Bot & Terminal Services on Cloud VM">⚡ RESTART</button>
-      <button id="tab-flatten" class="view-tab" onclick="executeFlattenAll()" style="border-color: #e63946; color: #ff4d4d;" title="Emergency: Flatten all open algo positions immediately">🚨 FLATTEN</button>
+    <!-- ROW 1: WORKSPACE VIEWS & SYSTEM ACTIONS -->
+    <div class="top-bar-row top-bar-nav">
+      <div class="brand">WSR TERMINAL <span class="brand-ver">// v12.0</span></div>
+      <div class="view-tabs">
+        <button id="tab-terminal" class="view-tab active" onclick="switchView('terminal')">📊 TRADING</button>
+        <button id="tab-charts" class="view-tab" onclick="switchView('charts')" style="border-color: #00d26a; color: #00ff88;" title="Multi-Chart Matrix: Toggle 1, 2, or 4 Charts with individual ticker & timeframe selection">📈 CHARTS</button>
+        <button id="tab-pulse" class="view-tab" onclick="switchView('pulse')" style="border-color: #ff9900; color: #ff9900;" title="Market Pulse: Today's Action, AI Bot Intelligence Briefs, Macro Wire & Ticker News">📰 MARKET PULSE</button>
+        <button id="tab-pnl" class="view-tab" onclick="switchView('pnl')" style="border-color: #ffd700; color: #ffd700;" title="P&L Station: Deep trade-by-trade analysis, execution autopsies, realized returns and win metrics for all manual and VM trades">💰 P&L STATION</button>
+        <button id="tab-mllab" class="view-tab" onclick="switchView('mllab')">🧠 AI / ML LAB</button>
+        <button id="tab-options" class="view-tab" onclick="switchView('options')" style="border-color: #a855f7; color: #c084fc;" title="Dedicated Options Matrix: Real-time 0.65 Delta Weekly Calls & Multi-Tranche Exits">⚡ OPTIONS MATRIX</button>
+        <button id="tab-paper" class="view-tab" onclick="switchView('paper')" style="border-color: #00e5ff; color: #00e5ff;" title="AI Learning Model Simulated Paper Trades (Air-gapped from live broker trades)">🤖 ML PAPER LAB</button>
+        <button id="tab-telegram" class="view-tab" onclick="switchView('telegram')" style="border-color: #00e5ff; color: #00e5ff;" title="Dedicated Live Telegram Broadcasts: Stream all Day and Swing trade alerts">📢 TELEGRAM</button>
+      </div>
+      <div class="top-nav-actions">
+        <button id="tab-toggle-drawer" class="view-tab" onclick="toggleBottomDrawer()" style="border-color: #00e5ff; color: #00e5ff;" title="Toggle bottom intel drawer to maximize vertical chart height">🔽 BOTTOM: ON</button>
+        <button id="tab-restart" class="view-tab" onclick="triggerServiceRestart()" style="border-color: var(--wsr-orange); color: var(--wsr-orange);" title="Restart Wyckoff Bot & Terminal Services on Cloud VM">⚡ RESTART</button>
+        <button id="tab-flatten" class="view-tab" onclick="executeFlattenAll()" style="border-color: #e63946; color: #ff4d4d;" title="Emergency: Flatten all open algo positions immediately">🚨 FLATTEN</button>
+        <span class="badge-status" style="margin-left: 6px; display: inline-flex; align-items: center; gap: 4px;">● PUBLIC LIVE</span>
+      </div>
     </div>
-    <div id="command-container" onclick="document.getElementById('cmd-input').focus()">
-      <span class="prompt-label">COMMAND &gt;</span>
-      <input type="text" id="cmd-input" placeholder="TICKER (e.g. NVDA, AMD)" autofocus autocomplete="off" />
-    </div>
-    <div class="top-meta">
-      <span>BUYING POWER: <b class="meta-val c-green" id="bp-val">$--</b></span>
-      <span style="display: inline-flex; align-items: center; gap: 4px;">
-        RISK SIZING:
-        <select id="size-mode" onchange="onSizeModeChange()" style="background: #141414; color: var(--wsr-white); border: 1px solid var(--wsr-border); font-family: inherit; font-size: 10px; padding: 1px 3px;">
-          <option value="pct" selected>% OF BP</option>
-          <option value="fixed">$ FIXED</option>
-        </select>
-        <input type="number" id="custom-size-val" value="1.0" min="0.1" max="100" step="0.5" oninput="updateCalculatedSlot()" onchange="saveSizingToServer()" style="width: 48px; background: #000; color: var(--wsr-yellow); border: 1px solid var(--wsr-yellow); font-family: inherit; font-size: 11px; text-align: center; font-weight: bold; padding: 1px 2px;" />
-        <b class="meta-val c-yellow" id="slot-val">($--)</b>
-      </span>
-      <label title="Target-Weighted Sizing dynamically scales risk: 0.60x for 0.65-0.79R, 1.00x for 0.80-1.19R, 1.25x for >=1.20R" style="display: inline-flex; align-items: center; gap: 4px; cursor: pointer; color: #00ffff; font-size: 10px; user-select: none;">
-        <input type="checkbox" id="toggle-weighted-sizing" checked onchange="saveSizingToServer()" style="accent-color: #00ffff; cursor: pointer;" />
-        <span>TARGET-WEIGHTED SIZING</span>
-      </label>
-      <span>ENGINE: <span class="badge-status">PUBLIC LIVE</span></span>
-      <span id="clock" class="c-muted">00:00:00</span>
+
+    <!-- ROW 2: COMMAND LOOKUP & RISK SIZING RIBBON -->
+    <div class="top-bar-row top-bar-controls">
+      <div id="command-container" onclick="document.getElementById('cmd-input').focus()">
+        <span class="prompt-label">COMMAND &gt;</span>
+        <input type="text" id="cmd-input" placeholder="TICKER (e.g. NVDA, AMD)" autofocus autocomplete="off" />
+      </div>
+      <div class="top-meta">
+        <span>BUYING POWER: <b class="meta-val c-green" id="bp-val">$--</b></span>
+        <span class="meta-divider">|</span>
+        <span class="risk-sizing-wrap">
+          <span style="color: var(--wsr-muted);">RISK SIZING:</span>
+          <select id="size-mode" onchange="onSizeModeChange()" style="background: #141414; color: var(--wsr-white); border: 1px solid var(--wsr-border); font-family: inherit; font-size: 10px; padding: 1px 3px; border-radius: 2px;">
+            <option value="pct" selected>% OF BP</option>
+            <option value="fixed">$ FIXED</option>
+          </select>
+          <input type="number" id="custom-size-val" value="1.0" min="0.1" max="100" step="0.5" oninput="updateCalculatedSlot()" onchange="saveSizingToServer()" style="width: 48px; background: #000; color: var(--wsr-yellow); border: 1px solid var(--wsr-yellow); font-family: inherit; font-size: 11px; text-align: center; font-weight: bold; padding: 1px 2px; border-radius: 2px;" />
+          <b class="meta-val c-yellow" id="slot-val">($--)</b>
+        </span>
+        <span class="meta-divider">|</span>
+        <label title="Target-Weighted Sizing dynamically scales risk: 0.60x for 0.65-0.79R, 1.00x for 0.80-1.19R, 1.25x for >=1.20R" style="display: inline-flex; align-items: center; gap: 5px; cursor: pointer; color: #00ffff; font-size: 10px; user-select: none;">
+          <input type="checkbox" id="toggle-weighted-sizing" checked onchange="saveSizingToServer()" style="accent-color: #00ffff; cursor: pointer;" />
+          <span>TARGET-WEIGHTED SIZING</span>
+        </label>
+        <span class="meta-divider">|</span>
+        <span id="clock" class="c-muted" style="font-weight: 600;">00:00:00</span>
+      </div>
     </div>
   </div>
 
