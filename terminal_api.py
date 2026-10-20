@@ -375,14 +375,15 @@ def update_terminal_config(req: ConfigUpdateRequest):
         "sizing": sizing_info
     }
 
-# In-memory cache for DOM volume profiles to keep response times fast (<30ms)
+# In-memory cache for DOM volume profiles and quotes to prevent API rate limits
 _DOM_VOL_CACHE = {}
+_DOM_QUOTE_CACHE = {}
 
 @app.get("/api/dom/{ticker}")
 def get_dom(ticker: str):
     """
     Returns real-time Depth of Market (DOM) ladder and Time & Sales data for a ticker.
-    Uses 100% native Public.com API quotes, bid/ask sizes, and intraday volume distribution.
+    Protected by 1.8s quote throttle and 30s bar cache to ensure zero rate limit issues with Public.com.
     """
     try:
         from public_executor import get_client, get_account_id, OrderInstrument
@@ -390,22 +391,48 @@ def get_dom(ticker: str):
         import time
 
         sym = str(ticker).strip().upper().replace('-', '.')
-        client = get_client()
-        acc_id = get_account_id()
-        inst = OrderInstrument(symbol=sym, type='EQUITY')
-        quotes = client.get_quotes([inst], account_id=acc_id)
-        if not quotes:
-            raise HTTPException(status_code=404, detail="Symbol quote not available")
-        
-        q = quotes[0]
-        last = float(q.last) if getattr(q, 'last', None) is not None else 0.0
-        bid = float(q.bid) if getattr(q, 'bid', None) is not None else (last - 0.05)
-        ask = float(q.ask) if getattr(q, 'ask', None) is not None else (last + 0.05)
-        bid_sz = int(q.bid_size) if getattr(q, 'bid_size', None) is not None else 10
-        ask_sz = int(q.ask_size) if getattr(q, 'ask_size', None) is not None else 10
-        volume = int(q.volume) if getattr(q, 'volume', None) is not None else 0
-        spread = round(max(0.01, ask - bid), 4)
-        spread_pct = round((spread / last * 100.0), 3) if last > 0 else 0.0
+        now_ts = time.time()
+
+        # 1. Check quote cache (1.8s TTL throttle) to strictly bound API request rate
+        cached_q = _DOM_QUOTE_CACHE.get(sym)
+        if cached_q and (now_ts - cached_q['ts'] < 1.8):
+            last = cached_q['last']
+            bid = cached_q['bid']
+            ask = cached_q['ask']
+            bid_sz = cached_q['bid_sz']
+            ask_sz = cached_q['ask_sz']
+            volume = cached_q['volume']
+            spread = cached_q['spread']
+            spread_pct = cached_q['spread_pct']
+        else:
+            client = get_client()
+            acc_id = get_account_id()
+            inst = OrderInstrument(symbol=sym, type='EQUITY')
+            quotes = client.get_quotes([inst], account_id=acc_id)
+            if not quotes:
+                raise HTTPException(status_code=404, detail="Symbol quote not available")
+            
+            q = quotes[0]
+            last = float(q.last) if getattr(q, 'last', None) is not None else 0.0
+            bid = float(q.bid) if getattr(q, 'bid', None) is not None else (last - 0.05)
+            ask = float(q.ask) if getattr(q, 'ask', None) is not None else (last + 0.05)
+            bid_sz = int(q.bid_size) if getattr(q, 'bid_size', None) is not None else 10
+            ask_sz = int(q.ask_size) if getattr(q, 'ask_size', None) is not None else 10
+            volume = int(q.volume) if getattr(q, 'volume', None) is not None else 0
+            spread = round(max(0.01, ask - bid), 4)
+            spread_pct = round((spread / last * 100.0), 3) if last > 0 else 0.0
+
+            _DOM_QUOTE_CACHE[sym] = {
+                'ts': now_ts,
+                'last': last,
+                'bid': bid,
+                'ask': ask,
+                'bid_sz': bid_sz,
+                'ask_sz': ask_sz,
+                'volume': volume,
+                'spread': spread,
+                'spread_pct': spread_pct
+            }
 
         # Auto-determine tick interval
         if last > 200:

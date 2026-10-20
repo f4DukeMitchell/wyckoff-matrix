@@ -7326,10 +7326,16 @@
       fetchState();
       setInterval(fetchState, 15000); // 15-second state polling
       setInterval(() => {
+        if (document.hidden) return; // Pause polling when tab is inactive/minimized to prevent API quota burn
         if (currentView === 'terminal' && currentTicker) {
           fetchDOMData(currentTicker);
         }
-      }, 2500);
+      }, 3000);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && currentView === 'terminal' && currentTicker) {
+          fetchDOMData(currentTicker);
+        }
+      });
     };
 
     // ========================================================
