@@ -1356,7 +1356,99 @@
       border-radius: 2px;
       font-weight: 700;
     }
-  </style>
+  
+    /* TRADINGVIEW LUXALGO STYLE DEPTH OF MARKET (DOM) */
+    #tbl-dom tr {
+      height: 19px;
+      line-height: 19px;
+      border-bottom: 1px solid #141820;
+      transition: background 0.12s ease;
+    }
+    #tbl-dom tr:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .dom-row-last {
+      background: rgba(255, 215, 0, 0.16) !important;
+      border-top: 1px solid #ffd700 !important;
+      border-bottom: 1px solid #ffd700 !important;
+    }
+    .dom-row-best-bid {
+      background: rgba(0, 210, 106, 0.09);
+    }
+    .dom-row-best-ask {
+      background: rgba(255, 51, 68, 0.09);
+    }
+    .dom-vol-bar {
+      display: inline-block;
+      height: 11px;
+      background: rgba(255, 170, 0, 0.35);
+      border-right: 2px solid #ffaa00;
+      vertical-align: middle;
+      border-radius: 1px;
+    }
+    .dom-depth-ask {
+      display: inline-block;
+      height: 13px;
+      background: linear-gradient(90deg, rgba(255, 51, 68, 0.65), rgba(255, 51, 68, 0.2));
+      border-left: 2px solid #ff3344;
+      vertical-align: middle;
+      border-radius: 1px;
+    }
+    .dom-depth-bid {
+      display: inline-block;
+      height: 13px;
+      background: linear-gradient(90deg, rgba(0, 210, 106, 0.2), rgba(0, 210, 106, 0.65));
+      border-right: 2px solid #00d26a;
+      vertical-align: middle;
+      border-radius: 1px;
+    }
+    .dom-act-btn {
+      padding: 1px 4px;
+      font-size: 8px;
+      font-weight: bold;
+      border-radius: 2px;
+      cursor: pointer;
+      border: none;
+      line-height: 12px;
+    }
+    .dom-act-btn.buy {
+      background: rgba(0, 210, 106, 0.25);
+      color: #00ff88;
+      border: 1px solid rgba(0, 210, 106, 0.5);
+    }
+    .dom-act-btn.buy:hover {
+      background: #00d26a;
+      color: #000;
+    }
+    .dom-act-btn.short {
+      background: rgba(255, 51, 68, 0.25);
+      color: #ff6677;
+      border: 1px solid rgba(255, 51, 68, 0.5);
+    }
+    .dom-act-btn.short:hover {
+      background: #ff3344;
+      color: #fff;
+    }
+    .dom-act-btn.mkt {
+      background: rgba(255, 215, 0, 0.25);
+      color: #ffd700;
+      border: 1px solid rgba(255, 215, 0, 0.5);
+    }
+    .dom-act-btn.mkt:hover {
+      background: #ffd700;
+      color: #000;
+    }
+    .dom-marker-pill {
+      font-size: 7.5px;
+      font-weight: bold;
+      padding: 1px 3px;
+      border-radius: 2px;
+      margin-left: 3px;
+    }
+    .dom-marker-entry { background: #00e5ff; color: #000; }
+    .dom-marker-stop { background: #ff3344; color: #fff; }
+    .dom-marker-target { background: #00ff88; color: #000; }
+</style>
 </head>
 <body>
 
@@ -1371,6 +1463,7 @@
       <button id="tab-mllab" class="view-tab" onclick="switchView('mllab')">🧠 AI / ML LAB</button>
       <button id="tab-options" class="view-tab" onclick="switchView('options')" style="border-color: #a855f7; color: #c084fc;" title="Dedicated Options Matrix: Real-time 0.65 Delta Weekly Calls & Multi-Tranche Exits">⚡ OPTIONS MATRIX</button>
       <button id="tab-paper" class="view-tab" onclick="switchView('paper')" style="border-color: #00e5ff; color: #00e5ff;" title="AI Learning Model Simulated Paper Trades (Air-gapped from live broker trades)">🤖 ML PAPER LAB</button>
+      <button id="tab-telegram" class="view-tab" onclick="switchView('telegram')" style="border-color: #00e5ff; color: #00e5ff;" title="Dedicated Live Telegram Broadcasts: Stream all Day and Swing trade alerts">📢 TELEGRAM</button>
       <button id="tab-toggle-drawer" class="view-tab" onclick="toggleBottomDrawer()" style="border-color: #00e5ff; color: #00e5ff;" title="Toggle bottom intel drawer to maximize vertical chart height">🔽 BOTTOM: ON</button>
       <button id="tab-restart" class="view-tab" onclick="triggerServiceRestart()" style="border-color: var(--wsr-orange); color: var(--wsr-orange);" title="Restart Wyckoff Bot & Terminal Services on Cloud VM">⚡ RESTART</button>
       <button id="tab-flatten" class="view-tab" onclick="executeFlattenAll()" style="border-color: #e63946; color: #ff4d4d;" title="Emergency: Flatten all open algo positions immediately">🚨 FLATTEN</button>
@@ -1433,39 +1526,67 @@
           </tbody>
         </table>
 
-        <!-- Live Telegram Broadcast Alerts -->
-        <div id="section-telegram-alerts" style="margin-top: 14px; border-top: 1px solid #222; padding-top: 6px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; padding: 3px 5px; background: rgba(0, 180, 255, 0.05); border-left: 2px solid var(--wsr-cyan); flex-wrap: wrap; gap: 4px;">
-            <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-              <span style="font-size: 10px; font-weight: bold; color: #00e5ff;">📢 LIVE TELEGRAM BROADCASTS</span>
-              <div style="display: inline-flex; gap: 2px; background: rgba(0,0,0,0.5); padding: 1px 3px; border-radius: 3px; border: 1px solid #333;">
-                <button id="tg-filter-all" class="term-btn" onclick="filterTelegram('ALL')" style="font-size: 8px; padding: 1px 5px; background: #00e5ff; color: #000; font-weight: bold; border-radius: 2px;">ALL</button>
-                <button id="tg-filter-day" class="term-btn" onclick="filterTelegram('DAY')" style="font-size: 8px; padding: 1px 5px; background: transparent; color: #aaa; border-radius: 2px;">⚡ DAY TRADES</button>
-                <button id="tg-filter-swing" class="term-btn" onclick="filterTelegram('SWING')" style="font-size: 8px; padding: 1px 5px; background: transparent; color: #aaa; border-radius: 2px;">🌊 SWING TRADES</button>
-              </div>
+                <!-- TRADINGVIEW STYLE DEPTH OF MARKET (DOM) & BID/ASK LADDER -->
+        <div id="section-dom-ladder" style="margin-top: 10px; border-top: 1px solid #333; display: flex; flex-direction: column; flex: 1; overflow: hidden; background: #07090c;">
+          <!-- DOM Header & Controls -->
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; background: rgba(0, 229, 255, 0.05); border-left: 2px solid var(--wsr-orange); flex-wrap: wrap; gap: 4px;">
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <span style="font-size: 10px; font-weight: bold; color: var(--wsr-orange); letter-spacing: 0.5px;">⚡ DEPTH OF MARKET (DOM)</span>
+              <b id="dom-active-ticker" class="c-cyan" style="font-size: 11px; cursor: pointer;">--</b>
+              <span id="dom-active-price" style="font-size: 10.5px; font-weight: bold; color: #fff;">$--</span>
             </div>
             <div style="display: flex; gap: 4px; align-items: center;">
-              <span id="tg-count-badge" style="font-size: 8.5px; color: #aaa; background: rgba(0, 229, 255, 0.15); padding: 1px 4px; border-radius: 2px;">0 ALERTS</span>
-              <span style="font-size: 8.5px; color: #777;">REAL-TIME</span>
+              <span id="dom-spread-badge" style="font-size: 8.5px; color: #aaa; background: #111; padding: 1px 5px; border: 1px solid #333; border-radius: 2px;">SPREAD: $--</span>
+              <button class="term-btn" onclick="centerDOMLadder()" style="font-size: 8.5px; padding: 1px 5px; border-color: #00e5ff; color: #00e5ff;" title="Re-center ladder on market price">🎯 CENTER</button>
+              <button class="term-btn" onclick="toggleDOMTape()" id="btn-toggle-tape" style="font-size: 8.5px; padding: 1px 5px; color: var(--wsr-yellow);">📜 TAPE: ON</button>
             </div>
           </div>
-          <table id="tbl-telegram-alerts" style="font-size: 10px; table-layout: auto; width: 100%;">
-            <thead>
-              <tr>
-                <th style="padding: 3px 4px; cursor: pointer; user-select: none;" onclick="sortTelegram('channel')">CHANNEL <span id="th-tg-channel">&#x25B4;&#x25BE;</span></th>
-                <th style="padding: 3px 4px; cursor: pointer; user-select: none;" onclick="sortTelegram('ticker')">SYM <span id="th-tg-ticker">&#x25B4;&#x25BE;</span></th>
-                <th style="padding: 3px 4px; cursor: pointer; user-select: none;" onclick="sortTelegram('direction')">DIR <span id="th-tg-dir">&#x25B4;&#x25BE;</span></th>
-                <th style="padding: 3px 4px; cursor: pointer; user-select: none;" onclick="sortTelegram('entry_price')">ENTRY <span id="th-tg-price">&#x25B4;&#x25BE;</span></th>
-                <th style="padding: 3px 4px; cursor: pointer; user-select: none;" onclick="sortTelegram('timeframe')">TF <span id="th-tg-tf">&#x25B4;&#x25BE;</span></th>
-                <th style="padding: 3px 4px; cursor: pointer; user-select: none;" onclick="sortTelegram('ml_confidence')">CONF <span id="th-tg-conf">&#x25B4;&#x25BE;</span></th>
-                <th style="padding: 3px 4px; cursor: pointer; user-select: none;" onclick="sortTelegram('timestamp')">TIME (EST) <span id="th-tg-time">&#x25B4;&#x25BE;</span></th>
-                <th style="padding: 3px 4px; text-align: center;">CHART</th>
-              </tr>
-            </thead>
-            <tbody id="tbl-telegram-alerts-body">
-              <!-- Populated via JS -->
-            </tbody>
-          </table>
+
+          <!-- Bid / Ask NBBO Banner -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 3px 6px; background: #0a0c10; border-bottom: 1px solid #222; font-size: 9.5px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0, 210, 106, 0.12); padding: 3px 8px; border: 1px solid rgba(0, 210, 106, 0.4); border-radius: 2px;">
+              <span style="color: #00ff88; font-weight: bold;">BID</span>
+              <span id="dom-bid-val" style="font-weight: bold; color: #fff; font-size: 11px;">$--</span>
+              <span id="dom-bid-sz" style="color: #888; font-size: 9px;">(--)</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 51, 68, 0.12); padding: 3px 8px; border: 1px solid rgba(255, 51, 68, 0.4); border-radius: 2px;">
+              <span style="color: #ff4d4d; font-weight: bold;">ASK</span>
+              <span id="dom-ask-val" style="font-weight: bold; color: #fff; font-size: 11px;">$--</span>
+              <span id="dom-ask-sz" style="color: #888; font-size: 9px;">(--)</span>
+            </div>
+          </div>
+
+          <!-- DOM Ladder Table -->
+          <div id="dom-table-scroll" style="flex: 1; overflow-y: auto; max-height: 290px; position: relative; border-bottom: 1px solid #222;">
+            <table id="tbl-dom" style="width: 100%; font-size: 9px; border-collapse: collapse; table-layout: fixed; font-family: 'SF Mono', Consolas, monospace;">
+              <thead>
+                <tr style="background: #10141a; color: #667; position: sticky; top: 0; z-index: 5; border-bottom: 1px solid #252b36; font-size: 8.5px;">
+                  <th style="width: 14%; text-align: left; padding: 3px 4px;">VOL</th>
+                  <th style="width: 24%; text-align: center; padding: 3px 2px;">DEPTH</th>
+                  <th style="width: 11%; text-align: right; padding: 3px 2px; color: #00ff88;">BID</th>
+                  <th style="width: 25%; text-align: center; padding: 3px 2px; font-weight: bold; color: #fff;">PRICE</th>
+                  <th style="width: 11%; text-align: left; padding: 3px 2px; color: #ff5566;">ASK</th>
+                  <th style="width: 15%; text-align: center; padding: 3px 2px;">ACT</th>
+                </tr>
+              </thead>
+              <tbody id="tbl-dom-body">
+                <tr><td colspan="6" style="text-align: center; padding: 20px; color: #666;">Loading DOM Ladder...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Real-Time Time & Sales Tape -->
+          <div id="dom-tape-section" style="background: #050608; max-height: 95px; overflow-y: auto; border-top: 1px solid #222;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 2px 6px; font-size: 8px; background: #0c0f14; color: #777; border-bottom: 1px solid #1a202c;">
+              <span>LIVE TIME & SALES (TAPE)</span>
+              <span style="color: #00ff88;">● STREAMING</span>
+            </div>
+            <table id="tbl-dom-tape" style="width: 100%; font-size: 8.5px; font-family: 'SF Mono', Consolas, monospace; border-collapse: collapse;">
+              <tbody id="tbl-dom-tape-body">
+                <tr><td colspan="4" style="text-align: center; padding: 8px; color: #555;">Waiting for prints...</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -2383,6 +2504,47 @@
       </div>
     </div>
 
+  </div>
+
+  <!-- DEDICATED TELEGRAM BROADCAST ALERTS VIEW -->
+  <div id="telegram-page-grid" style="display: none; flex-direction: column; height: calc(100vh - 65px); padding: 8px 10px; box-sizing: border-box; background: var(--wsr-bg);">
+    <div class="pane" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #333;">
+      <div class="pane-header" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: rgba(0, 229, 255, 0.08); border-bottom: 1px solid #333;">
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <span style="font-size: 13px; font-weight: bold; color: #00e5ff; letter-spacing: 0.5px;">📢 LIVE TELEGRAM BROADCASTS</span>
+          <div style="display: inline-flex; gap: 3px; background: rgba(0,0,0,0.5); padding: 2px 4px; border-radius: 3px; border: 1px solid #444;">
+            <button id="tg-filter-all" class="term-btn active-tf" onclick="filterTelegram('ALL')" style="font-size: 9.5px; padding: 2px 8px; background: #00e5ff; color: #000; font-weight: bold;">ALL</button>
+            <button id="tg-filter-day" class="term-btn" onclick="filterTelegram('DAY')" style="font-size: 9.5px; padding: 2px 8px; background: transparent; color: #aaa;">⚡ DAY TRADES</button>
+            <button id="tg-filter-swing" class="term-btn" onclick="filterTelegram('SWING')" style="font-size: 9.5px; padding: 2px 8px; background: transparent; color: #aaa;">🌊 SWING TRADES</button>
+          </div>
+          <input type="text" id="tg-page-search" placeholder="FILTER SYM..." oninput="filterTelegramSearch(this.value)" style="background: #111; border: 1px solid #444; color: #fff; font-size: 10px; padding: 2px 8px; border-radius: 3px; width: 110px; text-transform: uppercase;">
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span id="tg-count-badge" style="font-size: 10px; color: #00e5ff; background: rgba(0, 229, 255, 0.15); padding: 2px 8px; border-radius: 3px; font-weight: bold;">0 ALERTS</span>
+          <span style="font-size: 9.5px; color: #00ff88; font-weight: bold;">● STREAMING LIVE</span>
+          <button class="term-btn" onclick="fetchState()" style="font-size: 9.5px; padding: 2px 8px;">🔄 REFRESH</button>
+        </div>
+      </div>
+      <div class="pane-content" style="flex: 1; overflow-y: auto;">
+        <table id="tbl-telegram-alerts" class="data-table" style="width: 100%;">
+          <thead>
+            <tr>
+              <th style="padding: 6px 8px; cursor: pointer; user-select: none;" onclick="sortTelegram('channel')">CHANNEL <span id="th-tg-channel">&#x25B4;&#x25BE;</span></th>
+              <th style="padding: 6px 8px; cursor: pointer; user-select: none;" onclick="sortTelegram('ticker')">SYMBOL <span id="th-tg-ticker">&#x25B4;&#x25BE;</span></th>
+              <th style="padding: 6px 8px; cursor: pointer; user-select: none;" onclick="sortTelegram('direction')">DIRECTION <span id="th-tg-dir">&#x25B4;&#x25BE;</span></th>
+              <th style="padding: 6px 8px; cursor: pointer; user-select: none;" onclick="sortTelegram('entry_price')">ENTRY PRICE <span id="th-tg-price">&#x25B4;&#x25BE;</span></th>
+              <th style="padding: 6px 8px; cursor: pointer; user-select: none;" onclick="sortTelegram('timeframe')">TIMEFRAME <span id="th-tg-tf">&#x25B4;&#x25BE;</span></th>
+              <th style="padding: 6px 8px; cursor: pointer; user-select: none;" onclick="sortTelegram('ml_confidence')">ML CONFIDENCE <span id="th-tg-conf">&#x25B4;&#x25BE;</span></th>
+              <th style="padding: 6px 8px; cursor: pointer; user-select: none;" onclick="sortTelegram('timestamp')">SIGNAL TIME (EST) <span id="th-tg-time">&#x25B4;&#x25BE;</span></th>
+              <th style="padding: 6px 8px; text-align: center;">CHART</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-telegram-alerts-body">
+            <tr><td colspan="8" style="text-align: center; padding: 20px; color: #666;">Loading live telegram broadcasts...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <!-- DEDICATED MULTI-CHART MATRIX VIEW -->
@@ -3454,6 +3616,7 @@
           throw new Error(`HTTP ${res.status}`);
         }
         const data = await res.json();
+        fetchDOMData(currentTicker);
         
         if (data.bars && data.bars.length > 0) {
           candleSeries.setData(data.bars);
@@ -4606,6 +4769,8 @@
       const tabOpt = document.getElementById('tab-options');
       const tabPaper = document.getElementById('tab-paper');
 
+      const tgGrid = document.getElementById('telegram-page-grid');
+      const tabTelegram = document.getElementById('tab-telegram');
       terminalGrid.style.display = 'none';
       mlGrid.style.display = 'none';
       if (optGrid) optGrid.style.display = 'none';
@@ -4613,6 +4778,7 @@
       if (chartsGrid) chartsGrid.style.display = 'none';
       if (pulseGrid) pulseGrid.style.display = 'none';
       if (pnlGrid) pnlGrid.style.display = 'none';
+      if (tgGrid) tgGrid.style.display = 'none';
       tabTerm.classList.remove('active');
       if (tabCharts) tabCharts.classList.remove('active');
       if (tabPulse) tabPulse.classList.remove('active');
@@ -4620,6 +4786,7 @@
       tabML.classList.remove('active');
       if (tabOpt) tabOpt.classList.remove('active');
       if (tabPaper) tabPaper.classList.remove('active');
+      if (tabTelegram) tabTelegram.classList.remove('active');
 
       if (view === 'charts') {
         if (chartsGrid) chartsGrid.style.display = 'flex';
@@ -4645,9 +4812,14 @@
         if (paperGrid) paperGrid.style.display = 'flex';
         if (tabPaper) tabPaper.classList.add('active');
         fetchMLPaperTrades();
+      } else if (view === 'telegram') {
+        if (tgGrid) tgGrid.style.display = 'flex';
+        if (tabTelegram) tabTelegram.classList.add('active');
+        renderTelegramAlertsTable();
       } else {
         terminalGrid.style.display = 'grid';
         tabTerm.classList.add('active');
+        if (currentTicker) fetchDOMData(currentTicker);
         // Trigger chart resize if needed
         if (chart) {
           const container = document.getElementById('chart-view');
@@ -7153,7 +7325,172 @@
       loadChartData("NVDA", "5m");
       fetchState();
       setInterval(fetchState, 15000); // 15-second state polling
+      setInterval(() => {
+        if (currentView === 'terminal' && currentTicker) {
+          fetchDOMData(currentTicker);
+        }
+      }, 2500);
     };
+
+    // ========================================================
+    // --- TRADINGVIEW STYLE DEPTH OF MARKET (DOM) & LADDER ---
+    // ========================================================
+    let currentDOMData = null;
+    let domTapeVisible = true;
+    let domPollingTimer = null;
+    let domIsFetching = false;
+    let tgSearchQuery = '';
+
+    function filterTelegramSearch(val) {
+      tgSearchQuery = (val || '').trim().toUpperCase();
+      renderTelegramAlertsTable();
+    }
+
+    async function fetchDOMData(ticker) {
+      const sym = (ticker || currentTicker || '').toUpperCase();
+      if (!sym || domIsFetching) return;
+      domIsFetching = true;
+      try {
+        const res = await fetch(`/api/dom/${encodeURIComponent(sym)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data && data.status === 'success') {
+          currentDOMData = data;
+          renderDOMLadder(data);
+          renderDOMTape(data.recent_trades);
+        }
+      } catch (err) {
+        console.warn('DOM fetch notice:', err);
+      } finally {
+        domIsFetching = false;
+      }
+    }
+
+    function renderDOMLadder(d) {
+      if (!d) return;
+      const tickerEl = document.getElementById('dom-active-ticker');
+      const priceEl = document.getElementById('dom-active-price');
+      const spreadEl = document.getElementById('dom-spread-badge');
+      const bidValEl = document.getElementById('dom-bid-val');
+      const bidSzEl = document.getElementById('dom-bid-sz');
+      const askValEl = document.getElementById('dom-ask-val');
+      const askSzEl = document.getElementById('dom-ask-sz');
+      const tbody = document.getElementById('tbl-dom-body');
+
+      if (tickerEl) tickerEl.textContent = d.ticker;
+      if (priceEl) priceEl.textContent = `$${d.last.toFixed(2)}`;
+      if (spreadEl) spreadEl.textContent = `SPREAD: $${d.spread.toFixed(2)} (${d.spread_pct.toFixed(2)}%)`;
+      if (bidValEl) bidValEl.textContent = `$${d.bid.toFixed(2)}`;
+      if (bidSzEl) bidSzEl.textContent = `(${d.bid_size})`;
+      if (askValEl) askValEl.textContent = `$${d.ask.toFixed(2)}`;
+      if (askSzEl) askSzEl.textContent = `(${d.ask_size})`;
+
+      if (!tbody || !d.rungs) return;
+
+      let html = '';
+      d.rungs.forEach((r, idx) => {
+        let rowClass = '';
+        if (r.is_last) rowClass = 'dom-row-last';
+        else if (r.is_best_bid) rowClass = 'dom-row-best-bid';
+        else if (r.is_best_ask) rowClass = 'dom-row-best-ask';
+
+        // Volume profile mini bar
+        const volText = r.vol > 0 ? (r.vol >= 1000 ? `${(r.vol / 1000).toFixed(1)}k` : r.vol) : '';
+        const volBar = r.vol_pct > 0 ? `<span class="dom-vol-bar" style="width: ${Math.max(4, Math.min(32, r.vol_pct * 0.32))}px;"></span> <span style="color:#aaa; font-size:8px;">${volText}</span>` : '';
+
+        // Depth bar
+        let depthBar = '';
+        if (r.is_ask_side && r.depth_pct > 0) {
+          depthBar = `<span class="dom-depth-ask" style="width: ${Math.max(6, Math.min(75, r.depth_pct * 0.75))}px;"></span>`;
+        } else if (r.is_bid_side && r.depth_pct > 0) {
+          depthBar = `<span class="dom-depth-bid" style="width: ${Math.max(6, Math.min(75, r.depth_pct * 0.75))}px;"></span>`;
+        }
+
+        // Active Trade Marker
+        let markerHtml = '';
+        if (r.marker === 'ENTRY') markerHtml = '<span class="dom-marker-pill dom-marker-entry">ENTRY</span>';
+        else if (r.marker === 'STOP') markerHtml = '<span class="dom-marker-pill dom-marker-stop">STOP</span>';
+        else if (r.marker === 'TARGET') markerHtml = '<span class="dom-marker-pill dom-marker-target">TARGET</span>';
+
+        // Price formatting
+        let priceHtml = `$${r.price.toFixed(2)}`;
+        if (r.is_last) {
+          priceHtml = `<b style="color: #ffd700; font-size: 10px;">$${r.price.toFixed(2)} ◀</b>`;
+        }
+
+        // Action Button
+        let actBtn = '';
+        if (r.is_last) {
+          actBtn = `<button class="dom-act-btn mkt" onclick="executeBuyOrShortFromDOM('${d.ticker}', 'BUY', ${r.price})">⚡ MKT</button>`;
+        } else if (r.is_ask_side) {
+          actBtn = `<button class="dom-act-btn short" onclick="executeBuyOrShortFromDOM('${d.ticker}', 'SHORT', ${r.price})">SELL</button>`;
+        } else if (r.is_bid_side) {
+          actBtn = `<button class="dom-act-btn buy" onclick="executeBuyOrShortFromDOM('${d.ticker}', 'BUY', ${r.price})">BUY</button>`;
+        }
+
+        html += `<tr class="${rowClass}" data-price="${r.price}" id="dom-rung-${idx}">
+          <td style="padding: 1px 4px; overflow: hidden; white-space: nowrap;">${volBar}</td>
+          <td style="text-align: center; padding: 1px 2px;">${depthBar}</td>
+          <td style="text-align: right; padding: 1px 4px; color: ${r.is_best_bid ? '#00ff88' : '#4ade80'}; font-weight: ${r.is_best_bid ? 'bold' : 'normal'}; font-size: ${r.is_best_bid ? '9.5px' : '8.5px'};">${r.bid_size || ''}</td>
+          <td style="text-align: center; padding: 1px 4px; color: ${r.is_last ? '#ffd700' : '#ddd'}; font-weight: ${r.is_last ? 'bold' : 'normal'};">${priceHtml}${markerHtml}</td>
+          <td style="text-align: left; padding: 1px 4px; color: ${r.is_best_ask ? '#ff4d4d' : '#f87171'}; font-weight: ${r.is_best_ask ? 'bold' : 'normal'}; font-size: ${r.is_best_ask ? '9.5px' : '8.5px'};">${r.ask_size || ''}</td>
+          <td style="text-align: center; padding: 1px 2px;">${actBtn}</td>
+        </tr>`;
+      });
+
+      tbody.innerHTML = html;
+    }
+
+    function centerDOMLadder() {
+      const scrollContainer = document.getElementById('dom-table-scroll');
+      const lastRow = document.querySelector('.dom-row-last');
+      if (scrollContainer && lastRow) {
+        const rowTop = lastRow.offsetTop;
+        const rowHeight = lastRow.clientHeight;
+        const containerHeight = scrollContainer.clientHeight;
+        scrollContainer.scrollTop = rowTop - (containerHeight / 2) + (rowHeight / 2);
+      }
+    }
+
+    function toggleDOMTape() {
+      domTapeVisible = !domTapeVisible;
+      const sec = document.getElementById('dom-tape-section');
+      const btn = document.getElementById('btn-toggle-tape');
+      if (sec) sec.style.display = domTapeVisible ? 'block' : 'none';
+      if (btn) btn.textContent = domTapeVisible ? '📜 TAPE: ON' : '📜 TAPE: OFF';
+    }
+
+    function renderDOMTape(trades) {
+      const tbody = document.getElementById('tbl-dom-tape-body');
+      if (!tbody) return;
+      if (!trades || trades.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 6px; color: #555;">Waiting for prints...</td></tr>';
+        return;
+      }
+
+      let html = '';
+      [...trades].reverse().forEach(t => {
+        const isBuy = (t.side === 'BUY');
+        const color = isBuy ? '#00ff88' : '#ff4d4d';
+        const arrow = isBuy ? '▲' : '▼';
+        html += `<tr style="border-bottom: 1px solid #10141a;">
+          <td style="padding: 2px 6px; color: #777;">${t.time}</td>
+          <td style="padding: 2px 6px; font-weight: bold; color: ${color};">${arrow} $${t.price.toFixed(2)}</td>
+          <td style="padding: 2px 6px; text-align: right; color: #ccc;">${t.size}</td>
+          <td style="padding: 2px 6px; text-align: center; font-size: 8px; color: ${color}; font-weight: bold;">${t.side}</td>
+        </tr>`;
+      });
+      tbody.innerHTML = html;
+    }
+
+    function executeBuyOrShortFromDOM(ticker, side, price) {
+      if (side === 'BUY' || side === 'MARKET') {
+        executeBuy(ticker, null);
+      } else {
+        executeShort(ticker, null);
+      }
+    }
+
   </script>
 </body>
 </html>

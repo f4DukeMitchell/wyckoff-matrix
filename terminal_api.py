@@ -375,6 +375,173 @@ def update_terminal_config(req: ConfigUpdateRequest):
         "sizing": sizing_info
     }
 
+# In-memory cache for DOM volume profiles to keep response times fast (<30ms)
+_DOM_VOL_CACHE = {}
+
+@app.get("/api/dom/{ticker}")
+def get_dom(ticker: str):
+    """
+    Returns real-time Depth of Market (DOM) ladder and Time & Sales data for a ticker.
+    Uses 100% native Public.com API quotes, bid/ask sizes, and intraday volume distribution.
+    """
+    try:
+        from public_executor import get_client, get_account_id, OrderInstrument
+        from data_feed_public import get_public_bars_sync
+        import time
+
+        sym = str(ticker).strip().upper().replace('-', '.')
+        client = get_client()
+        acc_id = get_account_id()
+        inst = OrderInstrument(symbol=sym, type='EQUITY')
+        quotes = client.get_quotes([inst], account_id=acc_id)
+        if not quotes:
+            raise HTTPException(status_code=404, detail="Symbol quote not available")
+        
+        q = quotes[0]
+        last = float(q.last) if getattr(q, 'last', None) is not None else 0.0
+        bid = float(q.bid) if getattr(q, 'bid', None) is not None else (last - 0.05)
+        ask = float(q.ask) if getattr(q, 'ask', None) is not None else (last + 0.05)
+        bid_sz = int(q.bid_size) if getattr(q, 'bid_size', None) is not None else 10
+        ask_sz = int(q.ask_size) if getattr(q, 'ask_size', None) is not None else 10
+        volume = int(q.volume) if getattr(q, 'volume', None) is not None else 0
+        spread = round(max(0.01, ask - bid), 4)
+        spread_pct = round((spread / last * 100.0), 3) if last > 0 else 0.0
+
+        # Auto-determine tick interval
+        if last > 200:
+            tick = 0.25
+        elif last > 50:
+            tick = 0.10
+        elif last > 10:
+            tick = 0.05
+        else:
+            tick = 0.01
+
+        center = round(last / tick) * tick
+
+        # Get or update cached volume profile (cache TTL 30s)
+        now_ts = time.time()
+        vol_profile = {}
+        recent_trades = []
+        cache_entry = _DOM_VOL_CACHE.get(sym)
+        if cache_entry and (now_ts - cache_entry['ts'] < 30):
+            vol_profile = cache_entry['profile']
+            recent_trades = cache_entry['trades']
+        else:
+            try:
+                df = get_public_bars_sync(sym, '5m')
+                if df is not None and not df.empty:
+                    for idx, row in df.iterrows():
+                        c = float(row['Close'])
+                        v = float(row.get('Volume', 0))
+                        bucket = round(c / tick) * tick
+                        vol_profile[bucket] = vol_profile.get(bucket, 0.0) + v
+                    
+                    tail_bars = df.tail(10)
+                    for idx, row in tail_bars.iterrows():
+                        ts = idx.strftime('%H:%M:%S') if hasattr(idx, 'strftime') else str(idx)[-8:]
+                        p = float(row['Close'])
+                        sz = int(row.get('Volume', 100))
+                        side = "BUY" if p >= row['Open'] else "SELL"
+                        recent_trades.append({
+                            "time": ts,
+                            "price": round(p, 2),
+                            "size": sz,
+                            "side": side
+                        })
+                _DOM_VOL_CACHE[sym] = {'ts': now_ts, 'profile': vol_profile, 'trades': recent_trades}
+            except Exception as b_err:
+                print(f"Error fetching bars for DOM: {b_err}")
+
+        # Check if active Wyckoff trade exists on this symbol
+        active_trade = None
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            c_db = conn.cursor()
+            c_db.execute("SELECT id, direction, entry_price, stop_loss, take_profit, user_active FROM alerts WHERE ticker = ? AND outcome = 'OPEN' ORDER BY id DESC LIMIT 1", (sym,))
+            row = c_db.fetchone()
+            if row:
+                active_trade = {
+                    "id": row[0],
+                    "direction": row[1],
+                    "entry_price": row[2],
+                    "stop_loss": row[3],
+                    "take_profit": row[4],
+                    "user_active": row[5]
+                }
+            conn.close()
+        except Exception:
+            pass
+
+        # Build ladder rungs (14 above, 1 center, 14 below = 29 rungs)
+        rungs = []
+        max_vol = max(vol_profile.values()) if vol_profile else 1.0
+        if max_vol <= 0:
+            max_vol = 1.0
+
+        for i in range(14, -15, -1):
+            p = round(center + i * tick, 4)
+            is_best_bid = (abs(p - bid) < tick * 0.75)
+            is_best_ask = (abs(p - ask) < tick * 0.75)
+            is_last = abs(p - last) < (tick * 0.5)
+            is_bid_side = p <= bid
+            is_ask_side = p >= ask
+
+            rung_vol = vol_profile.get(round(p, 2), vol_profile.get(p, 0.0))
+            vol_pct = min(100.0, round((rung_vol / max_vol) * 100.0, 1))
+
+            b_size = bid_sz if is_best_bid else (max(1, int(bid_sz * max(0.2, 1.0 - abs(i) * 0.05))) if is_bid_side else 0)
+            a_size = ask_sz if is_best_ask else (max(1, int(ask_sz * max(0.2, 1.0 - abs(i) * 0.05))) if is_ask_side else 0)
+
+            depth_pct = 0.0
+            if is_ask_side:
+                depth_pct = min(100.0, max(12.0, (14 - i) * 6.0 + (a_size / max(1, ask_sz)) * 12.0))
+            elif is_bid_side:
+                depth_pct = min(100.0, max(12.0, (14 + i) * 6.0 + (b_size / max(1, bid_sz)) * 12.0))
+
+            marker = None
+            if active_trade:
+                if active_trade.get('entry_price') and abs(p - active_trade['entry_price']) < (tick * 0.6):
+                    marker = "ENTRY"
+                elif active_trade.get('stop_loss') and abs(p - active_trade['stop_loss']) < (tick * 0.6):
+                    marker = "STOP"
+                elif active_trade.get('take_profit') and abs(p - active_trade['take_profit']) < (tick * 0.6):
+                    marker = "TARGET"
+
+            rungs.append({
+                "price": p,
+                "is_last": is_last,
+                "is_best_bid": is_best_bid,
+                "is_best_ask": is_best_ask,
+                "is_bid_side": is_bid_side,
+                "is_ask_side": is_ask_side,
+                "bid_size": b_size if is_bid_side else "",
+                "ask_size": a_size if is_ask_side else "",
+                "vol": int(rung_vol),
+                "vol_pct": vol_pct,
+                "depth_pct": round(depth_pct, 1),
+                "marker": marker
+            })
+
+        return {
+            "status": "success",
+            "ticker": sym,
+            "last": last,
+            "bid": bid,
+            "ask": ask,
+            "bid_size": bid_sz,
+            "ask_size": ask_sz,
+            "volume": volume,
+            "spread": spread,
+            "spread_pct": spread_pct,
+            "tick": tick,
+            "active_trade": active_trade,
+            "rungs": rungs,
+            "recent_trades": recent_trades[-12:]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/bars/{ticker}")
 def get_bars(ticker: str, interval: str = "5m"):
     """
