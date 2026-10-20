@@ -29,8 +29,8 @@ LAST_EOD_FLATTEN_DATE = None
 
 def check_eod_flatten(trades, live_prices, conn):
     """
-    Automated 3:55 PM EST EOD Flatten Rule:
-    Closes all active algo trades at 3:55 PM EST during regular market days
+    Automated 3:58 PM EST EOD Flatten Rule:
+    Closes all active algo trades at 3:58 PM EST during regular market days
     to ensure 100% cash conversion and zero overnight risk.
     """
     global LAST_EOD_FLATTEN_DATE
@@ -42,8 +42,8 @@ def check_eod_flatten(trades, live_prices, conn):
 
     current_date = now_est.date()
     is_weekday = now_est.weekday() < 5
-    # Trigger strictly within the 3:55 PM - 4:00 PM EST window
-    is_eod_window = is_weekday and (now_est.hour == 15 and 55 <= now_est.minute < 60)
+    # Trigger strictly within the 3:58 PM - 4:00 PM EST window
+    is_eod_window = is_weekday and (now_est.hour == 15 and 58 <= now_est.minute < 60)
 
     if not is_eod_window or not trades:
         return False
@@ -59,7 +59,7 @@ def check_eod_flatten(trades, live_prices, conn):
 
         # CRITICAL SWING TRADE PROTECTION:
         # 1H and 1D Swing Trades are multi-day positions designed to be held overnight.
-        # Only intraday day scalps (1m, 5m, 15m) are subject to the 3:55 PM EOD flatten!
+        # Only intraday day scalps (1m, 5m, 15m) are subject to the 3:58 PM EOD flatten!
         tf = str(t.get('timeframe') or '5m').lower()
         if tf in ['1h', '1d', 'port', 'swing']:
             continue
@@ -94,7 +94,7 @@ def check_eod_flatten(trades, live_prices, conn):
 
     if summary_lines:
         eod_msg = (
-            f"🌅 [GUARDIAN] 3:55 PM EOD FLATTEN EXECUTED!\n"
+            f"🌅 [GUARDIAN] 3:58 PM EOD FLATTEN EXECUTED!\n"
             f"All active algo positions closed at market:\n"
             + "\n".join(summary_lines) +
             "\n\n🛡️ 100% Cash Secured. Zero overnight gap risk."
@@ -278,7 +278,7 @@ def run_guardian_cycle():
         except Exception:
             pass
 
-    # Check if 3:55 PM EST EOD Flatten applies
+    # Check if 3:58 PM EST EOD Flatten applies
     if check_eod_flatten(trades, live_prices, conn):
         conn.close()
         return
@@ -489,7 +489,7 @@ def run_guardian_cycle():
             t5_msg = (
                 f"🚀 [GUARDIAN] TIER 5 FULL TARGET HIT (100%): {sym} reaches +{curr_r:.2f}R (+{t5_thresh_r:.2f}R target)!\n"
                 f"• Action: Banked 25% ({sell_qty} shares, 85% total banked!).\n"
-                f"• Runner: Final 15% moonbag trailing 0.25R below peak into 3:55 PM EOD flatten."
+                f"• Runner: Final 15% moonbag trailing 0.25R below peak into 3:58 PM EOD flatten."
             )
             print(f"[{get_est_now_str()}] {t5_msg}")
             send_tg(t5_msg)

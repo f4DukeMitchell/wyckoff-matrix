@@ -31,9 +31,9 @@ AUTO_BUY_MIN_ML_CONF = float(os.getenv("AUTO_BUY_MIN_ML_CONF", "55.0"))
 # Allowed Auto-Buy Timeframes: 5m Day Trades & 1m Stalker Radar Micro-Sparks (No higher TF swings)
 AUTO_BUY_ALLOWED_TIMEFRAMES = ["5m", "1m"]
 
-# Window: 9:40 AM to 3:55 PM EST (Skip 9:30-9:40 AM open order imbalance; capture expansion through afternoon closing cross)
+# Window: 9:40 AM to 3:58 PM EST (Skip 9:30-9:40 AM open order imbalance; capture expansion through afternoon closing cross)
 AUTO_BUY_START_TIME = datetime.time(9, 40)
-AUTO_BUY_END_TIME = datetime.time(15, 55)
+AUTO_BUY_END_TIME = datetime.time(15, 58)
 LUNCH_START_TIME = datetime.time(12, 30)
 LUNCH_END_TIME = datetime.time(13, 30)
 
@@ -107,9 +107,9 @@ def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     if current_t < AUTO_BUY_START_TIME:
         return False, f"WAITING_FOR_940AM_CONFIRMATION (Current: {current_t.strftime('%H:%M:%S')})"
 
-    # 2. End-of-Day Cutoff (Active through 3:55 PM EST ahead of market close)
+    # 2. End-of-Day Cutoff (Active through 3:58 PM EST ahead of market close)
     if current_t > AUTO_BUY_END_TIME:
-        return False, f"AFTER_3:55PM_CUTOFF (Current: {current_t.strftime('%H:%M:%S')})"
+        return False, f"AFTER_3:58PM_CUTOFF (Current: {current_t.strftime('%H:%M:%S')})"
 
     # 3. Time-of-day lunch block removed: empirical data shows Longs hold 66.7% win rate during lunch
     # All setups evaluated strictly by structural Wyckoff quality and ML confidence floor
@@ -178,7 +178,7 @@ def execute_autonomous_second_spring_buy(parent_trade_id, ticker, price, ml_conf
         return False, "WAITING_FOR_940AM_CONFIRMATION"
 
     if current_t > AUTO_BUY_END_TIME:
-        return False, "AFTER_3:55PM_CUTOFF"
+        return False, "AFTER_3:58PM_CUTOFF"
 
 
     if ml_conf is not None and ml_conf < AUTO_BUY_MIN_ML_CONF:
@@ -376,7 +376,7 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
             f"• Tier 3 (+{t3_r:+.2f}R | 50%): Bank 15% (Stop to BREAKEVEN $0.00 Free Trade)\n"
             f"• Tier 4 (+{t4_r:+.2f}R | 85%): Bank 25% (Front-Run Resistance)\n"
             f"• Tier 5 (+{t5_r:+.2f}R | 100%): Bank 25% (Full Target Tag)\n"
-            f"• Tier 6 (Runner 15%): Trailed into 3:55 PM EST Flatten"
+            f"• Tier 6 (Runner 15%): Trailed into 3:58 PM EST Flatten"
         )
         send_message(msg, force=True)
         try:
