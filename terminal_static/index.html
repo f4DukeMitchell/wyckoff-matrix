@@ -584,6 +584,25 @@
       border-color: var(--wsr-orange);
     }
 
+    #tbl-ml-history tbody tr {
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    #tbl-ml-history tbody tr:hover {
+      background: #1c1c1c !important;
+    }
+    .ml-ver-pill {
+      font-weight: 700;
+      color: var(--wsr-yellow);
+      border-bottom: 1px dotted var(--wsr-yellow);
+      padding: 1px 2px;
+      transition: background 0.15s ease;
+    }
+    .ml-ver-pill:hover {
+      background: rgba(255, 212, 0, 0.2);
+      border-radius: 2px;
+    }
+
     /* DEDICATED ML LAB VIEW */
     #ml-lab-grid {
       flex: 1;
@@ -2926,6 +2945,109 @@
     <option value="WULF"></option>
   </datalist>
 
+  <!-- MODEL VERSION TRADE AUDIT MODAL -->
+  <div id="modal-ml-version-trades" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 99999; backdrop-filter: blur(5px);">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 1050px; max-width: 95vw; height: 86vh; background: #0c0c0c; border: 1px solid var(--wsr-border-active); box-shadow: 0 16px 50px rgba(0,0,0,0.95); display: flex; flex-direction: column; overflow: hidden; border-radius: 2px;">
+      
+      <!-- MODAL HEADER -->
+      <div style="padding: 12px 16px; background: #141414; border-bottom: 1px solid var(--wsr-border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 13px; font-weight: 700; color: var(--wsr-yellow); letter-spacing: 0.5px;">🤖 MODEL VERSION AUDIT // <span id="mv-header-ver" style="color: #fff; background: #222; padding: 2px 6px; border-radius: 2px; border: 1px solid #444;">--</span></span>
+          <span id="mv-header-status"></span>
+          <span id="mv-header-meta" style="font-size: 10px; color: var(--wsr-muted);">DEPLOYED: -- | ACCURACY: -- | TOP FACTOR: --</span>
+        </div>
+        <button onclick="closeMLVersionTradesModal()" style="background: transparent; border: 1px solid #333; color: #888; font-size: 13px; font-family: inherit; font-weight: 700; padding: 2px 8px; cursor: pointer; border-radius: 2px;">✕ CLOSE (ESC)</button>
+      </div>
+
+      <!-- KPI METRIC CARDS -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--wsr-border); border-bottom: 1px solid var(--wsr-border); flex-shrink: 0;">
+        <div style="background: #0d0d0d; padding: 8px 14px;">
+          <div style="font-size: 9px; color: var(--wsr-muted); text-transform: uppercase;">Realized Out-of-Sample WR</div>
+          <div style="display: flex; align-items: baseline; gap: 6px; margin-top: 2px;">
+            <b id="mv-kpi-realized-wr" class="c-green" style="font-size: 16px;">--%</b>
+            <span id="mv-kpi-realized-record" style="font-size: 10px; color: #aaa;">(--W - --L - --BE)</span>
+          </div>
+        </div>
+        <div style="background: #0d0d0d; padding: 8px 14px;">
+          <div style="font-size: 9px; color: var(--wsr-muted); text-transform: uppercase;">Realized Net Expectancy</div>
+          <div style="display: flex; align-items: baseline; gap: 6px; margin-top: 2px;">
+            <b id="mv-kpi-realized-netr" class="c-green" style="font-size: 16px;">--R</b>
+            <span id="mv-kpi-realized-avgr" style="font-size: 10px; color: #aaa;">(--R avg)</span>
+          </div>
+        </div>
+        <div style="background: #0d0d0d; padding: 8px 14px;">
+          <div style="font-size: 9px; color: var(--wsr-muted); text-transform: uppercase;">Training Dataset Samples</div>
+          <div style="display: flex; align-items: baseline; gap: 6px; margin-top: 2px;">
+            <b id="mv-kpi-train-samples" class="c-yellow" style="font-size: 16px;">--</b>
+            <span id="mv-kpi-train-wr" style="font-size: 10px; color: #aaa;">(Pre-Train WR: --%)</span>
+          </div>
+        </div>
+        <div style="background: #0d0d0d; padding: 8px 14px;">
+          <div style="font-size: 9px; color: var(--wsr-muted); text-transform: uppercase;">Model Accuracy & Top Factor</div>
+          <div style="display: flex; flex-direction: column; margin-top: 2px;">
+            <b id="mv-kpi-fit" class="c-green" style="font-size: 14px;">--% Fit</b>
+            <span id="mv-kpi-factor" style="font-size: 9.5px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">--</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- FILTER & TAB CONTROLS -->
+      <div style="padding: 8px 14px; background: #111; border-bottom: 1px solid var(--wsr-border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; gap: 10px;">
+        <div style="display: flex; gap: 4px; align-items: center;">
+          <button id="mv-tab-realized" class="term-btn" onclick="switchMLModalTab('realized')" style="font-weight: 700; border-color: var(--wsr-green); color: var(--wsr-green);">⚡ REALIZED TRADES (<span id="mv-badge-realized-cnt">0</span>)</button>
+          <button id="mv-tab-training" class="term-btn" onclick="switchMLModalTab('training')" style="font-weight: 700; border-color: #555; color: #888;">📚 TRAINING CORPUS (<span id="mv-badge-train-cnt">0</span>)</button>
+          <span style="color: #333; margin: 0 4px;">|</span>
+          <span style="font-size: 9px; color: var(--wsr-muted); text-transform: uppercase;">OUTCOME:</span>
+          <button id="mv-filter-all" class="term-btn" onclick="filterMLModalOutcome('ALL')" style="font-size: 9px; padding: 2px 6px; border-color: #fff;">ALL</button>
+          <button id="mv-filter-win" class="term-btn" onclick="filterMLModalOutcome('WIN')" style="font-size: 9px; padding: 2px 6px; color: var(--wsr-green);">WINS</button>
+          <button id="mv-filter-loss" class="term-btn" onclick="filterMLModalOutcome('LOSS')" style="font-size: 9px; padding: 2px 6px; color: var(--wsr-red);">LOSSES</button>
+          <button id="mv-filter-be" class="term-btn" onclick="filterMLModalOutcome('BREAKEVEN')" style="font-size: 9px; padding: 2px 6px; color: var(--wsr-yellow);">BREAKEVENS</button>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="text" id="mv-search-ticker" placeholder="FILTER TICKER (e.g. NVDA)..." oninput="onMLModalSearchInput()" style="background: #000; border: 1px solid var(--wsr-border); color: #fff; font-family: inherit; font-size: 10px; padding: 3px 8px; width: 180px; border-radius: 2px;" />
+          <span id="mv-filter-count" style="font-size: 10px; color: var(--wsr-muted);">Showing 0 trades</span>
+        </div>
+      </div>
+
+      <!-- SCROLLABLE TABLE BODY -->
+      <div style="flex: 1; overflow-y: auto; background: var(--wsr-black);">
+        <table id="tbl-mv-trades" style="width: 100%; border-collapse: collapse; font-size: 10px;">
+          <thead style="position: sticky; top: 0; background: #161616; border-bottom: 1px solid var(--wsr-border); z-index: 10;">
+            <tr>
+              <th style="padding: 6px 8px; text-align: left; cursor: pointer;" onclick="sortMVTrades('timestamp')">TIMESTAMP &#x25B4;&#x25BE;</th>
+              <th style="padding: 6px 8px; text-align: left; cursor: pointer;" onclick="sortMVTrades('ticker')">SYM &#x25B4;&#x25BE;</th>
+              <th style="padding: 6px 8px; text-align: left; cursor: pointer;" onclick="sortMVTrades('direction')">DIR &#x25B4;&#x25BE;</th>
+              <th style="padding: 6px 8px; text-align: left;">TF</th>
+              <th style="padding: 6px 8px; text-align: left;">REGIME</th>
+              <th style="padding: 6px 8px; text-align: right;">ENTRY</th>
+              <th style="padding: 6px 8px; text-align: right;">EXIT</th>
+              <th style="padding: 6px 8px; text-align: center; cursor: pointer;" onclick="sortMVTrades('outcome')">OUTCOME &#x25B4;&#x25BE;</th>
+              <th style="padding: 6px 8px; text-align: right; cursor: pointer;" onclick="sortMVTrades('pnl_r')">NET R &#x25B4;&#x25BE;</th>
+              <th style="padding: 6px 8px; text-align: center;">ML CONF</th>
+              <th style="padding: 6px 8px; text-align: left;">KEY SIGNALS & FEATURES</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-mv-trades-body">
+            <!-- Populated dynamically via JS -->
+          </tbody>
+        </table>
+        <div id="mv-loading-spinner" style="display: none; padding: 40px; text-align: center; color: var(--wsr-yellow); font-size: 12px;">
+          FETCHING COMPLETE TRADE AUDIT FROM CLOUD VM DATABASE...
+        </div>
+        <div id="mv-empty-notice" style="display: none; padding: 40px; text-align: center; color: var(--wsr-muted); font-size: 11px;">
+          No trades matched the current filter criteria for this model version.
+        </div>
+      </div>
+
+      <!-- MODAL FOOTER -->
+      <div style="padding: 6px 14px; background: #0a0a0a; border-top: 1px solid var(--wsr-border); display: flex; justify-content: space-between; align-items: center; font-size: 9.5px; color: var(--wsr-muted); flex-shrink: 0;">
+        <span>Tip: Click any ticker to view its 3D depth ladder & chart in the terminal.</span>
+        <span>Press <b style="color:var(--wsr-yellow);">ESC</b> to close</span>
+      </div>
+
+    </div>
+  </div>
+
   <!-- HELP MODAL (F1) -->
   <div id="help-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 99999; backdrop-filter: blur(4px);">
     <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 560px; max-width: 90%; background: #0d0d0d; border: 1px solid var(--wsr-border); box-shadow: 0 10px 40px rgba(0,0,0,0.9); padding: 24px; font-family: 'Consolas', monospace; color: #eee;">
@@ -5131,6 +5253,10 @@
 
       list.forEach(h => {
         const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.title = `Click to inspect all trades involved in ${h.version}`;
+        tr.onclick = () => openMLVersionTradesModal(h.version);
+
         const isChamp = rawMLChamp && h.version === rawMLChamp.version;
         const statusBadge = isChamp 
           ? '<span style="color:var(--wsr-yellow); font-weight:700;">★ CHAMPION</span>' 
@@ -5141,19 +5267,251 @@
         const winPct = h.realized_win_rate !== undefined ? `${h.realized_win_rate}%` : '--';
 
         tr.innerHTML = `
-          <td class="c-yellow"><b>${h.version}</b></td>
+          <td class="c-yellow"><span class="ml-ver-pill">${h.version}</span> <span style="font-size:9px; color:var(--wsr-yellow); opacity:0.8;">🔍</span></td>
           <td class="c-muted">${timeStr}</td>
-          <td>${h.training_samples}</td>
+          <td><span style="border-bottom:1px dotted #888;" title="Click to view ${h.training_samples} training corpus trades">${h.training_samples}</span></td>
           <td>${h.win_rate_before}%</td>
           <td class="c-green">${h.model_accuracy}%</td>
           <td class="c-white">${h.top_feature || '--'}</td>
-          <td class="c-dim">${h.notes || 'Automated'}</td>
+          <td class="c-dim" style="max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${h.notes || 'Automated'}</td>
           <td class="c-green">${winPct}</td>
           <td class="${(h.realized_net_r || 0) >= 0 ? 'c-green' : 'c-red'}">${netR}</td>
           <td>${statusBadge}</td>
         `;
         tbody.appendChild(tr);
       });
+    }
+
+    // --- MODEL VERSION TRADE AUDIT MODAL CONTROLLER ---
+    let currentMVVersion = null;
+    let currentMVData = null;
+    let currentMVTab = 'realized'; // 'realized' | 'training'
+    let currentMVFilter = 'ALL';
+    let currentMVSearch = '';
+    let currentMVSortCol = 'timestamp';
+    let currentMVSortAsc = false;
+
+    async function openMLVersionTradesModal(version) {
+      currentMVVersion = version;
+      currentMVTab = 'realized';
+      currentMVFilter = 'ALL';
+      currentMVSearch = '';
+      currentMVSortCol = 'timestamp';
+      currentMVSortAsc = false;
+
+      const modal = document.getElementById('modal-ml-version-trades');
+      if (!modal) return;
+      modal.style.display = 'block';
+
+      document.getElementById('mv-header-ver').innerText = version;
+      document.getElementById('mv-search-ticker').value = '';
+      document.getElementById('mv-loading-spinner').style.display = 'block';
+      document.getElementById('mv-empty-notice').style.display = 'none';
+      document.getElementById('tbl-mv-trades-body').innerHTML = '';
+
+      try {
+        const res = await fetch(`/api/ml/version_trades/${encodeURIComponent(version)}`);
+        const data = await res.json();
+        currentMVData = data;
+        renderMLVersionModal();
+      } catch (err) {
+        console.error("Error fetching version trades:", err);
+        document.getElementById('mv-loading-spinner').innerHTML = `<span style="color:red">Failed to load trades for ${version}: ${err}</span>`;
+      }
+    }
+
+    function closeMLVersionTradesModal() {
+      const modal = document.getElementById('modal-ml-version-trades');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function switchMLModalTab(tab) {
+      currentMVTab = tab;
+      const btnReal = document.getElementById('mv-tab-realized');
+      const btnTrain = document.getElementById('mv-tab-training');
+      if (tab === 'realized') {
+        btnReal.style.borderColor = 'var(--wsr-green)';
+        btnReal.style.color = 'var(--wsr-green)';
+        btnTrain.style.borderColor = '#555';
+        btnTrain.style.color = '#888';
+      } else {
+        btnTrain.style.borderColor = 'var(--wsr-yellow)';
+        btnTrain.style.color = 'var(--wsr-yellow)';
+        btnReal.style.borderColor = '#555';
+        btnReal.style.color = '#888';
+      }
+      renderMLModalTradesList();
+    }
+
+    function filterMLModalOutcome(outcome) {
+      currentMVFilter = outcome;
+      ['all', 'win', 'loss', 'be'].forEach(k => {
+        const el = document.getElementById('mv-filter-' + k);
+        if (el) el.style.borderColor = '#555';
+      });
+      const map = { 'ALL': 'all', 'WIN': 'win', 'LOSS': 'loss', 'BREAKEVEN': 'be' };
+      const activeEl = document.getElementById('mv-filter-' + map[outcome]);
+      if (activeEl) activeEl.style.borderColor = '#fff';
+      renderMLModalTradesList();
+    }
+
+    function onMLModalSearchInput() {
+      currentMVSearch = (document.getElementById('mv-search-ticker').value || '').trim().toUpperCase();
+      renderMLModalTradesList();
+    }
+
+    function sortMVTrades(col) {
+      if (currentMVSortCol === col) {
+        currentMVSortAsc = !currentMVSortAsc;
+      } else {
+        currentMVSortCol = col;
+        currentMVSortAsc = (col === 'ticker' || col === 'direction');
+      }
+      renderMLModalTradesList();
+    }
+
+    function renderMLVersionModal() {
+      if (!currentMVData) return;
+      document.getElementById('mv-loading-spinner').style.display = 'none';
+      const meta = currentMVData.metadata || {};
+      const real = currentMVData.realized || {};
+      const train = currentMVData.training || {};
+
+      // Header Meta
+      const ts = meta.timestamp ? meta.timestamp.replace('T', ' ').substring(0, 16) : '--';
+      document.getElementById('mv-header-meta').innerText = `DEPLOYED: ${ts} | MODEL FIT: ${meta.model_accuracy || '--'}% | TOP FACTOR: ${meta.top_feature || '--'}`;
+      
+      const isChamp = rawMLChamp && meta.version === rawMLChamp.version;
+      document.getElementById('mv-header-status').innerHTML = isChamp 
+        ? '<span style="color:var(--wsr-yellow); font-size:10px; font-weight:700; background:#221b00; border:1px solid var(--wsr-yellow); padding:1px 5px; border-radius:2px;">★ CHAMPION</span>'
+        : (meta.status === 'DECOMMISSIONED' ? '<span class="c-muted" style="font-size:10px; border:1px solid #444; padding:1px 4px;">RETIRED</span>' : '<span class="c-green" style="font-size:10px; border:1px solid var(--wsr-green); padding:1px 4px;">ACTIVE</span>');
+
+      // KPIs
+      document.getElementById('mv-kpi-realized-wr').innerText = `${real.win_rate !== undefined ? real.win_rate : 0.0}%`;
+      document.getElementById('mv-kpi-realized-record').innerText = `(${real.wins || 0}W - ${real.losses || 0}L - ${real.breakevens || 0}BE)`;
+
+      const netR = real.net_r !== undefined ? ((real.net_r >= 0 ? '+' : '') + real.net_r.toFixed(2) + 'R') : '0.00R';
+      const avgR = real.avg_r !== undefined ? ((real.avg_r >= 0 ? '+' : '') + real.avg_r.toFixed(2) + 'R') : '0.00R';
+      const netEl = document.getElementById('mv-kpi-realized-netr');
+      netEl.innerText = netR;
+      netEl.className = (real.net_r || 0) >= 0 ? 'c-green' : 'c-red';
+      document.getElementById('mv-kpi-realized-avgr').innerText = `(${avgR} avg)`;
+
+      document.getElementById('mv-kpi-train-samples').innerText = train.count || meta.training_samples || 0;
+      document.getElementById('mv-kpi-train-wr').innerText = `(Pre-Train WR: ${meta.win_rate_before || '--'}%)`;
+
+      document.getElementById('mv-kpi-fit').innerText = `${meta.model_accuracy || '--'}% Fit`;
+      document.getElementById('mv-kpi-factor').innerText = meta.top_feature || 'Automated Factor';
+
+      // Badges
+      document.getElementById('mv-badge-realized-cnt').innerText = real.count || 0;
+      document.getElementById('mv-badge-train-cnt').innerText = train.count || 0;
+
+      // Auto-switch to training tab if realized has 0 trades
+      if ((real.count || 0) === 0 && (train.count || 0) > 0) {
+        switchMLModalTab('training');
+      } else {
+        switchMLModalTab('realized');
+      }
+    }
+
+    function renderMLModalTradesList() {
+      if (!currentMVData) return;
+      const tbody = document.getElementById('tbl-mv-trades-body');
+      tbody.innerHTML = '';
+
+      const dataset = (currentMVTab === 'realized') ? (currentMVData.realized?.trades || []) : (currentMVData.training?.trades || []);
+      
+      let filtered = dataset.filter(t => {
+        if (currentMVFilter !== 'ALL') {
+          if (t.outcome !== currentMVFilter) return false;
+        }
+        if (currentMVSearch) {
+          if (!t.ticker || !t.ticker.toUpperCase().includes(currentMVSearch)) return false;
+        }
+        return true;
+      });
+
+      filtered.sort((a, b) => {
+        let valA = a[currentMVSortCol];
+        let valB = b[currentMVSortCol];
+        if (currentMVSortCol === 'pnl_r' || currentMVSortCol === 'entry_price' || currentMVSortCol === 'exit_price') {
+          valA = parseFloat(valA || 0);
+          valB = parseFloat(valB || 0);
+          return currentMVSortAsc ? valA - valB : valB - valA;
+        }
+        valA = (valA || '').toString().toLowerCase();
+        valB = (valB || '').toString().toLowerCase();
+        if (valA < valB) return currentMVSortAsc ? -1 : 1;
+        if (valA > valB) return currentMVSortAsc ? 1 : -1;
+        return 0;
+      });
+
+      document.getElementById('mv-filter-count').innerText = `Showing ${filtered.length} of ${dataset.length} trades`;
+      document.getElementById('mv-empty-notice').style.display = filtered.length === 0 ? 'block' : 'none';
+
+      filtered.forEach(t => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #1a1a1a';
+        tr.style.transition = 'background 0.15s ease';
+        tr.onmouseenter = () => tr.style.background = '#151515';
+        tr.onmouseleave = () => tr.style.background = 'transparent';
+
+        const tsStr = t.timestamp ? t.timestamp.replace('T', ' ').substring(0, 16) : '--';
+        const isLong = (t.direction || 'LONG').toUpperCase() === 'LONG';
+        const dirBadge = isLong 
+          ? '<span style="color:#00ff88; font-weight:700;">▲ LONG</span>' 
+          : '<span style="color:#ff4d4d; font-weight:700;">▼ SHORT</span>';
+        
+        let outcomeBadge = '<span class="c-muted">--</span>';
+        if (t.outcome === 'WIN') {
+          outcomeBadge = '<span style="background:#003816; border:1px solid #00d26a; color:#00ff88; padding:1px 5px; border-radius:2px; font-weight:700;">WIN</span>';
+        } else if (t.outcome === 'LOSS') {
+          outcomeBadge = '<span style="background:#3d0a0a; border:1px solid #ff3b30; color:#ff4d4d; padding:1px 5px; border-radius:2px; font-weight:700;">LOSS</span>';
+        } else if (t.outcome === 'BREAKEVEN') {
+          outcomeBadge = '<span style="background:#3d2f00; border:1px solid #ffd400; color:#ffd400; padding:1px 5px; border-radius:2px; font-weight:700;">BE SCRATCH</span>';
+        } else if (t.outcome) {
+          outcomeBadge = `<span class="c-muted">${t.outcome}</span>`;
+        }
+
+        const pnlRVal = parseFloat(t.pnl_r || 0);
+        const pnlRStr = (pnlRVal >= 0 ? '+' : '') + pnlRVal.toFixed(2) + 'R';
+        const pnlRClass = pnlRVal > 0 ? 'c-green' : (pnlRVal < 0 ? 'c-red' : 'c-yellow');
+
+        const entryStr = t.entry_price ? `$${parseFloat(t.entry_price).toFixed(2)}` : '--';
+        const exitStr = t.exit_price ? `$${parseFloat(t.exit_price).toFixed(2)}` : '--';
+        const confStr = t.ml_confidence ? `${Math.round(parseFloat(t.ml_confidence) * (parseFloat(t.ml_confidence) <= 1.0 ? 100 : 1))}%` : '--';
+
+        const signals = [];
+        if (t.bars_in_regime !== undefined && t.bars_in_regime !== null) signals.push(`Bars: ${t.bars_in_regime}`);
+        if (t.vwap_distance !== undefined && t.vwap_distance !== null) signals.push(`VWAP: ${parseFloat(t.vwap_distance).toFixed(2)}%`);
+        if (t.candle_clv !== undefined && t.candle_clv !== null) signals.push(`CLV: ${parseFloat(t.candle_clv).toFixed(2)}`);
+        if (t.rvol_tod !== undefined && t.rvol_tod !== null) signals.push(`RVOL: ${parseFloat(t.rvol_tod).toFixed(2)}x`);
+        const signalStr = signals.length > 0 ? signals.join(' | ') : '--';
+
+        tr.innerHTML = `
+          <td style="padding: 5px 8px; color: var(--wsr-muted); white-space: nowrap;">${tsStr}</td>
+          <td style="padding: 5px 8px;">
+            <b style="color: var(--wsr-yellow); cursor: pointer; text-decoration: underline;" onclick="selectTickerFromModal('${t.ticker}')" title="Click to view chart for ${t.ticker}">${t.ticker}</b>
+          </td>
+          <td style="padding: 5px 8px; white-space: nowrap;">${dirBadge}</td>
+          <td style="padding: 5px 8px; color: #888;">${t.timeframe || '5m'}</td>
+          <td style="padding: 5px 8px; color: #ddd;">${t.regime || '--'}</td>
+          <td style="padding: 5px 8px; text-align: right; font-family: monospace;">${entryStr}</td>
+          <td style="padding: 5px 8px; text-align: right; font-family: monospace;">${exitStr}</td>
+          <td style="padding: 5px 8px; text-align: center;">${outcomeBadge}</td>
+          <td style="padding: 5px 8px; text-align: right; font-weight: 700;" class="${pnlRClass}">${pnlRStr}</td>
+          <td style="padding: 5px 8px; text-align: center; color: #00e5ff; font-weight: 600;">${confStr}</td>
+          <td style="padding: 5px 8px; color: var(--wsr-muted); font-size: 9px; white-space: nowrap;">${signalStr}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function selectTickerFromModal(ticker) {
+      closeMLVersionTradesModal();
+      switchView('terminal');
+      loadChartData(ticker, '5m');
     }
 
     async function triggerRetrain() {
@@ -6939,6 +7297,7 @@
       if (cmd) { cmd.value = ''; cmd.blur(); }
       const modal = document.getElementById('help-modal');
       if (modal) modal.style.display = 'none';
+      closeMLVersionTradesModal();
     }
 
     // --- KEYBOARD SHORTCUTS ---

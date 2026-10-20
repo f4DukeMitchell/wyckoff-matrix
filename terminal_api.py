@@ -1504,6 +1504,131 @@ def get_ghost_trades():
         "ghost_trades": rows
     }
 
+
+@app.get("/api/ml/version_trades/{version}")
+def get_ml_version_trades(version: str):
+    """
+    Returns complete trade records and telemetry for a specific ML Model Version:
+    1. Realized (out-of-sample) trades executed under this model version.
+    2. Training corpus samples used to fit and calibrate this model version.
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+
+        # 1. Fetch version metadata from ml_model_history
+        c.execute("SELECT * FROM ml_model_history WHERE version = ? LIMIT 1", (version,))
+        ver_row = c.fetchone()
+        version_meta = dict(ver_row) if ver_row else {}
+        if version_meta:
+            try:
+                version_meta['feature_importances'] = json.loads(version_meta.get('feature_importances_json') or '{}')
+            except Exception:
+                version_meta['feature_importances'] = {}
+            try:
+                version_meta['rules'] = json.loads(version_meta.get('rules_generated') or '[]')
+            except Exception:
+                version_meta['rules'] = []
+
+        # 2. Fetch Realized (Out-of-Sample) Trades
+        c.execute("""
+            SELECT id, ticker, direction, timeframe, regime, entry_price, exit_price,
+                   initial_stop_loss, stop_loss, take_profit, pnl_r, outcome, timestamp,
+                   ml_confidence, model_version, bars_in_regime, vwap_distance, atr_expansion,
+                   effort_vs_result, cvd_delta_ratio, rvol_tod, candle_clv, user_active
+            FROM alerts
+            WHERE model_version = ?
+            ORDER BY timestamp DESC
+        """, (version,))
+        realized_rows = [dict(r) for r in c.fetchall()]
+
+        # Fallback to timestamp window if no explicit model_version tags found
+        ver_ts = version_meta.get('timestamp')
+        if not realized_rows and ver_ts:
+            c.execute("SELECT timestamp FROM ml_model_history WHERE timestamp > ? ORDER BY timestamp ASC LIMIT 1", (ver_ts,))
+            next_ver = c.fetchone()
+            next_ts = next_ver['timestamp'] if next_ver else None
+
+            if next_ts:
+                c.execute("""
+                    SELECT id, ticker, direction, timeframe, regime, entry_price, exit_price,
+                           initial_stop_loss, stop_loss, take_profit, pnl_r, outcome, timestamp,
+                           ml_confidence, model_version, bars_in_regime, vwap_distance, atr_expansion,
+                           effort_vs_result, cvd_delta_ratio, rvol_tod, candle_clv, user_active
+                    FROM alerts
+                    WHERE timestamp >= ? AND timestamp < ? AND outcome IN ('WIN', 'LOSS', 'BREAKEVEN', 'CLOSED')
+                    ORDER BY timestamp DESC
+                """, (ver_ts, next_ts))
+            else:
+                c.execute("""
+                    SELECT id, ticker, direction, timeframe, regime, entry_price, exit_price,
+                           initial_stop_loss, stop_loss, take_profit, pnl_r, outcome, timestamp,
+                           ml_confidence, model_version, bars_in_regime, vwap_distance, atr_expansion,
+                           effort_vs_result, cvd_delta_ratio, rvol_tod, candle_clv, user_active
+                    FROM alerts
+                    WHERE timestamp >= ? AND outcome IN ('WIN', 'LOSS', 'BREAKEVEN', 'CLOSED')
+                    ORDER BY timestamp DESC
+                """, (ver_ts,))
+            realized_rows = [dict(r) for r in c.fetchall()]
+
+        # 3. Fetch Training Corpus Trades
+        training_limit = version_meta.get('training_samples') or 300
+        if ver_ts:
+            c.execute("""
+                SELECT id, ticker, direction, timeframe, regime, entry_price, exit_price,
+                       initial_stop_loss, stop_loss, take_profit, pnl_r, outcome, timestamp,
+                       ml_confidence, model_version, bars_in_regime, vwap_distance, atr_expansion,
+                       effort_vs_result, cvd_delta_ratio, rvol_tod, candle_clv, user_active
+                FROM alerts
+                WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN')
+                  AND timestamp <= ?
+                  AND (timeframe IS NULL OR timeframe != '1m')
+                ORDER BY timestamp DESC
+                LIMIT ?
+            """, (ver_ts, training_limit))
+            training_rows = [dict(r) for r in c.fetchall()]
+        else:
+            training_rows = []
+
+        conn.close()
+
+        def compute_stats(rows):
+            wins = sum(1 for r in rows if r.get('outcome') == 'WIN')
+            losses = sum(1 for r in rows if r.get('outcome') == 'LOSS')
+            bes = sum(1 for r in rows if r.get('outcome') == 'BREAKEVEN')
+            net_r = sum(float(r.get('pnl_r') or 0.0) for r in rows)
+            wr = round((wins / len(rows) * 100.0), 1) if rows else 0.0
+            dir_wr = round((wins / (wins + losses) * 100.0), 1) if (wins + losses) > 0 else 0.0
+            avg_r = round(net_r / len(rows), 2) if rows else 0.0
+            return {
+                "count": len(rows),
+                "wins": wins,
+                "losses": losses,
+                "breakevens": bes,
+                "win_rate": wr,
+                "directional_win_rate": dir_wr,
+                "net_r": round(net_r, 2),
+                "avg_r": avg_r,
+                "trades": rows
+            }
+
+        return {
+            "status": "OK",
+            "version": version,
+            "metadata": version_meta,
+            "realized": compute_stats(realized_rows),
+            "training": compute_stats(training_rows)
+        }
+    except Exception as e:
+        return {
+            "status": "ERROR",
+            "error": str(e),
+            "version": version,
+            "realized": {"count": 0, "trades": []},
+            "training": {"count": 0, "trades": []}
+        }
+
 @app.post("/api/ml/evolve")
 def trigger_ml_evolution():
     """Triggers an on-demand training cycle of the Random Forest model."""
