@@ -5846,7 +5846,8 @@
           <td style="color: #00e5ff; font-weight: 600;">${mlConf}</td>
           <td style="color: #888; font-size: 9.5px;">${timeStr}</td>
           <td>
-            <button class="options-filter-btn" style="padding: 1px 5px; font-size: 9px;" onclick="openChartFromPaper('${t.ticker}', '${t.timeframe || '5m'}')">📊 CHART</button>
+            <button class="options-filter-btn" style="padding: 1px 5px; font-size: 9px; margin-right: 4px;" onclick="openChartFromPaper('${t.ticker}', '${t.timeframe || '5m'}')">📊 CHART</button>
+            ${(t.user_active === 1 || t.is_live) ? '<span style="color:#00ffcc;font-size:9px;font-weight:bold;">ARMED</span>' : (((t.direction || 'LONG').toUpperCase() === 'LONG') ? `<button class="term-btn term-btn-buy" style="padding: 1px 6px; font-size: 9px; font-weight: bold; background: #00d26a; color: #000; border-radius: 2px;" onclick="executeBuy('${t.ticker}', ${t.id || 'null'})">⚡ BUY</button>` : `<button class="term-btn term-btn-short" style="padding: 1px 6px; font-size: 9px; font-weight: bold; background: #ff3344; color: #fff; border-radius: 2px;" onclick="executeShort('${t.ticker}', ${t.id || 'null'})">⚡ SHORT</button>`)}
           </td>
         </tr>`;
       }).join('');
