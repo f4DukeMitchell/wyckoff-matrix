@@ -31,9 +31,9 @@ AUTO_BUY_MIN_ML_CONF = float(os.getenv("AUTO_BUY_MIN_ML_CONF", "55.0"))
 # Allowed Auto-Buy Timeframes: 5m Day Trades & 1m Stalker Radar Micro-Sparks (No higher TF swings)
 AUTO_BUY_ALLOWED_TIMEFRAMES = ["5m", "1m"]
 
-# Optimal Statistical Window: 9:40 AM to 3:30 PM EST (Skip 9:30-9:40 AM open order imbalance; capture 9:40+ morning expansion)
+# Window: 9:40 AM to 3:55 PM EST (Skip 9:30-9:40 AM open order imbalance; capture expansion through afternoon closing cross)
 AUTO_BUY_START_TIME = datetime.time(9, 40)
-AUTO_BUY_END_TIME = datetime.time(15, 30)
+AUTO_BUY_END_TIME = datetime.time(15, 55)
 LUNCH_START_TIME = datetime.time(12, 30)
 LUNCH_END_TIME = datetime.time(13, 30)
 
@@ -107,9 +107,9 @@ def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     if current_t < AUTO_BUY_START_TIME:
         return False, f"WAITING_FOR_940AM_CONFIRMATION (Current: {current_t.strftime('%H:%M:%S')})"
 
-    # 2. End-of-Day Cutoff (No entries after 3:30 PM EST ahead of 3:55 PM flatten)
+    # 2. End-of-Day Cutoff (Active through 3:55 PM EST ahead of market close)
     if current_t > AUTO_BUY_END_TIME:
-        return False, f"AFTER_3:30PM_CUTOFF (Current: {current_t.strftime('%H:%M:%S')})"
+        return False, f"AFTER_3:55PM_CUTOFF (Current: {current_t.strftime('%H:%M:%S')})"
 
     # 3. Time-of-day lunch block removed: empirical data shows Longs hold 66.7% win rate during lunch
     # All setups evaluated strictly by structural Wyckoff quality and ML confidence floor
@@ -178,7 +178,7 @@ def execute_autonomous_second_spring_buy(parent_trade_id, ticker, price, ml_conf
         return False, "WAITING_FOR_940AM_CONFIRMATION"
 
     if current_t > AUTO_BUY_END_TIME:
-        return False, "AFTER_3:30PM_CUTOFF"
+        return False, "AFTER_3:55PM_CUTOFF"
 
 
     if ml_conf is not None and ml_conf < AUTO_BUY_MIN_ML_CONF:
