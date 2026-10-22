@@ -182,11 +182,21 @@
       display: grid;
       grid-template-columns: 480px 1fr 380px;
       grid-template-rows: 1fr 260px;
+      grid-template-areas:
+        "trades   orderflow scanner"
+        "flow     research  chart";
       gap: 1px;
       background: var(--wsr-border);
       overflow: hidden;
       transition: grid-template-rows 0.2s ease, grid-template-columns 0.2s ease;
     }
+
+    #pane-watchlist { grid-area: trades; }
+    #pane-center-orderflow { grid-area: orderflow; }
+    #pane-scanner { grid-area: scanner; }
+    #pane-flow { grid-area: flow; }
+    #pane-signal { grid-area: research; }
+    #chart-pane { grid-area: chart; }
 
     #main-grid.drawer-collapsed {
       grid-template-rows: 1fr 0px !important;
@@ -198,8 +208,9 @@
     }
 
     #main-grid.chart-maximized {
-      grid-template-columns: 0px 0px 1fr !important;
-      grid-template-rows: 0px 1fr !important;
+      grid-template-columns: 1fr !important;
+      grid-template-rows: 1fr !important;
+      grid-template-areas: "chart" !important;
     }
     #main-grid.chart-maximized #pane-watchlist,
     #main-grid.chart-maximized #pane-center-orderflow,
@@ -411,8 +422,6 @@
 
     /* CHART CONTAINER */
     #chart-pane {
-      grid-column: 2 / 3;
-      grid-row: 1 / 2;
       min-width: 0;
       overflow: hidden;
     }
