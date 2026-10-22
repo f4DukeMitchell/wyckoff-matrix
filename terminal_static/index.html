@@ -198,14 +198,14 @@
     }
 
     #main-grid.chart-maximized {
-      grid-template-columns: 1fr 0px 0px !important;
+      grid-template-columns: 0px 0px 1fr !important;
       grid-template-rows: 0px 1fr !important;
     }
     #main-grid.chart-maximized #pane-watchlist,
     #main-grid.chart-maximized #pane-center-orderflow,
     #main-grid.chart-maximized #pane-scanner,
-    #main-grid.chart-maximized #pane-signal,
-    #main-grid.chart-maximized #pane-flow {
+    #main-grid.chart-maximized #pane-flow,
+    #main-grid.chart-maximized #pane-signal {
       display: none !important;
     }
 
@@ -1799,24 +1799,58 @@
       </div>
     </div>
 
-    <!-- PANE 4: REDUCED WYCKOFF CANDLESTICK CHART (Bottom Left) -->
-    <div class="pane" id="chart-pane">
+    <!-- PANE 4: OPTIONS FLOW & MICROSTRUCTURE (Bottom Left) -->
+    <div class="pane" id="pane-flow">
       <div class="pane-header">
-        <span id="chart-header-symbol">NVDA // 5M WYCKOFF STRUCTURE</span>
-        <div>
-          <button class="term-btn" onclick="switchInterval('5m')">5M</button>
-          <button class="term-btn" onclick="switchInterval('15m')">15M</button>
-          <button class="term-btn" onclick="switchInterval('1h')">1H</button>
-          <button class="term-btn" onclick="switchInterval('1d')">1D</button>
-          <button class="term-btn" id="btn-max-chart" onclick="toggleMaximizeChart()" style="margin-left: 6px; border-color: var(--wsr-orange); color: var(--wsr-orange);" title="Maximize chart or restore normal grid layout">⛶ FULL</button>
-        </div>
+        <span id="flow-title">OPTIONS FLOW INTEL</span>
+        <span id="flow-expiry-tag" class="c-cyan" style="font-size: 9px; font-weight: bold;">EXP: --</span>
       </div>
-      <div class="pane-content" style="padding: 0; position: relative; height: calc(100% - 28px); overflow: hidden;">
-        <div id="chart-view" style="width: 100%; height: 100%; position: relative; overflow: hidden;"></div>
+      <div class="pane-content" style="padding: 6px 8px; font-size: 10px; overflow-y: auto;">
+        <!-- Top Metrics Grid -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; margin-bottom: 6px;">
+          <div>P/C RATIO (OI): <b id="flow-pcr" class="c-yellow">--</b></div>
+          <div>SENTIMENT: <b id="flow-sent" class="c-green">--</b></div>
+          <div>VOL P/C RATIO: <b id="flow-vol-pcr" class="c-cyan">--</b></div>
+          <div>ATM IV: <b id="flow-iv" class="c-yellow">--</b></div>
+          <div>GAMMA WALL: <b id="flow-gw" class="c-white">--</b></div>
+          <div>MAX PAIN: <b id="flow-mp" class="c-muted">--</b></div>
+          <div>EXPECTED MOVE: <b id="flow-em" class="c-orange">--</b></div>
+          <div>ORDER BOOK: <b id="flow-book-imbalance" class="c-cyan">--</b></div>
+        </div>
+
+        <!-- Open Interest Bias Bar -->
+        <div style="margin-bottom: 6px; padding: 4px; background: rgba(255,255,255,0.02); border: 1px solid #222; border-radius: 3px;">
+          <div style="display: flex; justify-content: space-between; font-size: 9px; margin-bottom: 2px;">
+            <span>CALL OI: <b id="flow-calls" class="c-green">--</b> (<span id="flow-call-pct">--%</span>)</span>
+            <span>PUT OI: <b id="flow-puts" class="c-red">--</b> (<span id="flow-put-pct">--%</span>)</span>
+          </div>
+          <div style="height: 5px; width: 100%; background: #331111; border-radius: 2px; overflow: hidden; display: flex;">
+            <div id="flow-call-bar" style="width: 50%; background: var(--wsr-green, #00e676); height: 100%;"></div>
+            <div id="flow-put-bar" style="width: 50%; background: var(--wsr-red, #ff5252); height: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- Institutional Strike Concentrations (Top Walls) -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
+          <div style="background: rgba(0, 230, 118, 0.04); border-left: 2px solid #00e676; padding: 3px 5px; border-radius: 2px;">
+            <div style="font-size: 8.5px; font-weight: bold; color: #00e676; margin-bottom: 2px;">CALL CEILINGS (RESISTANCE)</div>
+            <div id="flow-top-calls" style="font-size: 9px; line-height: 1.35; color: #ccc;">--</div>
+          </div>
+          <div style="background: rgba(255, 82, 82, 0.04); border-left: 2px solid #ff5252; padding: 3px 5px; border-radius: 2px;">
+            <div style="font-size: 8.5px; font-weight: bold; color: #ff5252; margin-bottom: 2px;">PUT FLOORS (SUPPORT)</div>
+            <div id="flow-top-puts" style="font-size: 9px; line-height: 1.35; color: #ccc;">--</div>
+          </div>
+        </div>
+
+        <!-- Order Book & Microstructure Strip -->
+        <div style="border-top: 1px solid #222; padding-top: 4px; display: flex; justify-content: space-between; font-size: 8.5px; color: #888; flex-wrap: wrap; gap: 4px;">
+          <div>BID/ASK: <b id="flow-bid-ask" class="c-white">--</b></div>
+          <div>SPREAD: <b id="flow-spread" class="c-yellow">--</b></div>
+          <div>DAY VOL: <b id="flow-equity-vol" class="c-cyan">--</b></div>
+        </div>
       </div>
     </div>
 
-    <!-- PANE 5: WYCKOFF EVIDENCE & METRICS (Bottom Center) -->
     <!-- PANE 5: COMPANY RESEARCH & INTEL (Bottom Center) -->
     <div class="pane" id="pane-signal">
       <div class="pane-header">
@@ -1899,57 +1933,23 @@
       </div>
     </div>
 
-    <!-- PANE 6: OPTIONS FLOW & MICROSTRUCTURE (Bottom Right) -->
-    <div class="pane" id="pane-flow">
+    <!-- PANE 6: REDUCED WYCKOFF CANDLESTICK CHART (Bottom Right) -->
+    <div class="pane" id="chart-pane">
       <div class="pane-header">
-        <span id="flow-title">OPTIONS FLOW INTEL</span>
-        <span id="flow-expiry-tag" class="c-cyan" style="font-size: 9px; font-weight: bold;">EXP: --</span>
+        <span id="chart-header-symbol">NVDA // 5M WYCKOFF STRUCTURE</span>
+        <div>
+          <button class="term-btn" onclick="switchInterval('5m')">5M</button>
+          <button class="term-btn" onclick="switchInterval('15m')">15M</button>
+          <button class="term-btn" onclick="switchInterval('1h')">1H</button>
+          <button class="term-btn" onclick="switchInterval('1d')">1D</button>
+          <button class="term-btn" id="btn-max-chart" onclick="toggleMaximizeChart()" style="margin-left: 6px; border-color: var(--wsr-orange); color: var(--wsr-orange);" title="Maximize chart or restore normal grid layout">⛶ FULL</button>
+        </div>
       </div>
-      <div class="pane-content" style="padding: 6px 8px; font-size: 10px; overflow-y: auto;">
-        <!-- Top Metrics Grid -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; margin-bottom: 6px;">
-          <div>P/C RATIO (OI): <b id="flow-pcr" class="c-yellow">--</b></div>
-          <div>SENTIMENT: <b id="flow-sent" class="c-green">--</b></div>
-          <div>VOL P/C RATIO: <b id="flow-vol-pcr" class="c-cyan">--</b></div>
-          <div>ATM IV: <b id="flow-iv" class="c-yellow">--</b></div>
-          <div>GAMMA WALL: <b id="flow-gw" class="c-white">--</b></div>
-          <div>MAX PAIN: <b id="flow-mp" class="c-muted">--</b></div>
-          <div>EXPECTED MOVE: <b id="flow-em" class="c-orange">--</b></div>
-          <div>ORDER BOOK: <b id="flow-book-imbalance" class="c-cyan">--</b></div>
-        </div>
-
-        <!-- Open Interest Bias Bar -->
-        <div style="margin-bottom: 6px; padding: 4px; background: rgba(255,255,255,0.02); border: 1px solid #222; border-radius: 3px;">
-          <div style="display: flex; justify-content: space-between; font-size: 9px; margin-bottom: 2px;">
-            <span>CALL OI: <b id="flow-calls" class="c-green">--</b> (<span id="flow-call-pct">--%</span>)</span>
-            <span>PUT OI: <b id="flow-puts" class="c-red">--</b> (<span id="flow-put-pct">--%</span>)</span>
-          </div>
-          <div style="height: 5px; width: 100%; background: #331111; border-radius: 2px; overflow: hidden; display: flex;">
-            <div id="flow-call-bar" style="width: 50%; background: var(--wsr-green, #00e676); height: 100%;"></div>
-            <div id="flow-put-bar" style="width: 50%; background: var(--wsr-red, #ff5252); height: 100%;"></div>
-          </div>
-        </div>
-
-        <!-- Institutional Strike Concentrations (Top Walls) -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
-          <div style="background: rgba(0, 230, 118, 0.04); border-left: 2px solid #00e676; padding: 3px 5px; border-radius: 2px;">
-            <div style="font-size: 8.5px; font-weight: bold; color: #00e676; margin-bottom: 2px;">CALL CEILINGS (RESISTANCE)</div>
-            <div id="flow-top-calls" style="font-size: 9px; line-height: 1.35; color: #ccc;">--</div>
-          </div>
-          <div style="background: rgba(255, 82, 82, 0.04); border-left: 2px solid #ff5252; padding: 3px 5px; border-radius: 2px;">
-            <div style="font-size: 8.5px; font-weight: bold; color: #ff5252; margin-bottom: 2px;">PUT FLOORS (SUPPORT)</div>
-            <div id="flow-top-puts" style="font-size: 9px; line-height: 1.35; color: #ccc;">--</div>
-          </div>
-        </div>
-
-        <!-- Order Book & Microstructure Strip -->
-        <div style="border-top: 1px solid #222; padding-top: 4px; display: flex; justify-content: space-between; font-size: 8.5px; color: #888; flex-wrap: wrap; gap: 4px;">
-          <div>BID/ASK: <b id="flow-bid-ask" class="c-white">--</b></div>
-          <div>SPREAD: <b id="flow-spread" class="c-yellow">--</b></div>
-          <div>DAY VOL: <b id="flow-equity-vol" class="c-cyan">--</b></div>
-        </div>
+      <div class="pane-content" style="padding: 0; position: relative; height: calc(100% - 28px); overflow: hidden;">
+        <div id="chart-view" style="width: 100%; height: 100%; position: relative; overflow: hidden;"></div>
       </div>
     </div>
+
   </div>
 
   <!-- DEDICATED AI / ML LAB VIEW -->
