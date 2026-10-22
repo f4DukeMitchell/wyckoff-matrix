@@ -181,7 +181,7 @@
       flex: 1;
       display: grid;
       grid-template-columns: 480px 1fr 380px;
-      grid-template-rows: 1fr 180px;
+      grid-template-rows: 1fr 260px;
       gap: 1px;
       background: var(--wsr-border);
       overflow: hidden;
@@ -191,21 +191,21 @@
     #main-grid.drawer-collapsed {
       grid-template-rows: 1fr 0px !important;
     }
-    #main-grid.drawer-collapsed #pane-flow,
-    #main-grid.drawer-collapsed #pane-ml,
-    #main-grid.drawer-collapsed #pane-audit {
+    #main-grid.drawer-collapsed #chart-pane,
+    #main-grid.drawer-collapsed #pane-signal,
+    #main-grid.drawer-collapsed #pane-flow {
       display: none !important;
     }
 
     #main-grid.chart-maximized {
-      grid-template-columns: 0px 1fr 0px !important;
-      grid-template-rows: 1fr 0px !important;
+      grid-template-columns: 1fr 0px 0px !important;
+      grid-template-rows: 0px 1fr !important;
     }
     #main-grid.chart-maximized #pane-watchlist,
+    #main-grid.chart-maximized #pane-center-orderflow,
     #main-grid.chart-maximized #pane-scanner,
-    #main-grid.chart-maximized #pane-flow,
-    #main-grid.chart-maximized #pane-ml,
-    #main-grid.chart-maximized #pane-audit {
+    #main-grid.chart-maximized #pane-signal,
+    #main-grid.chart-maximized #pane-flow {
       display: none !important;
     }
 
@@ -1595,7 +1595,7 @@
   <!-- MAIN TERMINAL GRID -->
   <div id="main-grid">
 
-    <!-- PANE 1: WATCHLIST & ACTIVE POSITIONS (Top Left) -->
+    <!-- PANE 1: ACTIVE POSITIONS & TRADE MANAGER (Top Left) -->
     <div class="pane" id="pane-watchlist">
       <div class="pane-header">
         <span>ACTIVE TRADES <b id="header-algo-pnl" class="c-green" style="font-size: 10px; margin-left: 4px;">+$0.00</b> <span style="font-size: 8px; color: var(--wsr-yellow); margin-left: 2px;">[EOD 3:58 PM]</span></span>
@@ -1607,7 +1607,7 @@
           <button class="term-btn" id="btn-active-refresh" onclick="handleManualRefresh(this)">REFRESH</button>
         </div>
       </div>
-      <div class="pane-content">
+      <div class="pane-content" style="overflow-y: auto;">
         <table id="tbl-positions" style="font-size: 10px; table-layout: auto; width: 100%;">
           <thead>
             <tr>
@@ -1625,23 +1625,27 @@
             <!-- Populated via JS -->
           </tbody>
         </table>
+      </div>
+    </div>
 
-                <!-- TRADINGVIEW STYLE DEPTH OF MARKET (DOM) & BID/ASK LADDER -->
-        <div id="section-dom-ladder" style="margin-top: 10px; border-top: 1px solid #333; display: flex; flex-direction: column; flex: 1; overflow: hidden; background: #07090c;">
-          <!-- DOM Header & Controls -->
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; background: rgba(0, 229, 255, 0.05); border-left: 2px solid var(--wsr-orange); flex-wrap: wrap; gap: 4px;">
-            <div style="display: flex; gap: 6px; align-items: center;">
-              <span style="font-size: 10px; font-weight: bold; color: var(--wsr-orange); letter-spacing: 0.5px;">⚡ DEPTH OF MARKET (DOM)</span>
-              <b id="dom-active-ticker" class="c-cyan" style="font-size: 11px; cursor: pointer;">--</b>
-              <span id="dom-active-price" style="font-size: 10.5px; font-weight: bold; color: #fff;">$--</span>
-            </div>
-            <div style="display: flex; gap: 4px; align-items: center;">
-              <span id="dom-spread-badge" style="font-size: 8.5px; color: #aaa; background: #111; padding: 1px 5px; border: 1px solid #333; border-radius: 2px;">SPREAD: $--</span>
-              <button class="term-btn" onclick="centerDOMLadder()" style="font-size: 8.5px; padding: 1px 5px; border-color: #00e5ff; color: #00e5ff;" title="Re-center ladder on market price">🎯 CENTER</button>
-              <button class="term-btn" onclick="toggleDOMTape()" id="btn-toggle-tape" style="font-size: 8.5px; padding: 1px 5px; color: var(--wsr-yellow);">📜 TAPE: ON</button>
-            </div>
-          </div>
-
+    <!-- PANE 2: ORDER FLOW & DOM COMMAND CENTER (Top Center) -->
+    <div class="pane" id="pane-center-orderflow">
+      <div class="pane-header">
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <span style="font-size: 10px; font-weight: bold; color: var(--wsr-orange); letter-spacing: 0.5px;">⚡ DEPTH OF MARKET (DOM)</span>
+          <b id="dom-active-ticker" class="c-cyan" style="font-size: 11px; cursor: pointer;">--</b>
+          <span id="dom-active-price" style="font-size: 10.5px; font-weight: bold; color: #fff;">$--</span>
+        </div>
+        <div style="display: flex; gap: 4px; align-items: center;">
+          <span id="dom-spread-badge" style="font-size: 8.5px; color: #aaa; background: #111; padding: 1px 5px; border: 1px solid #333; border-radius: 2px;">SPREAD: $--</span>
+          <button class="term-btn" onclick="centerDOMLadder()" style="font-size: 8.5px; padding: 1px 5px; border-color: #00e5ff; color: #00e5ff;" title="Re-center ladder on market price">🎯 CENTER</button>
+          <button class="term-btn" onclick="toggleDOMTape()" id="btn-toggle-tape" style="font-size: 8.5px; padding: 1px 5px; color: var(--wsr-yellow);">📜 TAPE: ON</button>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: row; height: calc(100% - 28px); width: 100%; overflow: hidden;">
+        <!-- Left: DOM Ladder + Time & Sales + Tape Readout -->
+        <div style="flex: 1; display: flex; flex-direction: column; overflow-y: auto; height: 100%; background: #07090c; border-right: 1px solid var(--wsr-border);">
+          
           <!-- Bid / Ask NBBO Banner -->
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 3px 6px; background: #0a0c10; border-bottom: 1px solid #222; font-size: 9.5px;">
             <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0, 210, 106, 0.12); padding: 3px 8px; border: 1px solid rgba(0, 210, 106, 0.4); border-radius: 2px;">
@@ -1657,7 +1661,7 @@
           </div>
 
           <!-- DOM Ladder Table -->
-          <div id="dom-table-scroll" style="flex: 1; overflow-y: auto; max-height: 290px; position: relative; border-bottom: 1px solid #222;">
+          <div id="dom-table-scroll" style="flex: 1; overflow-y: auto; min-height: 180px; max-height: 240px; position: relative; border-bottom: 1px solid #222;">
             <table id="tbl-dom" style="width: 100%; font-size: 9px; border-collapse: collapse; table-layout: fixed; font-family: 'SF Mono', Consolas, monospace;">
               <thead>
                 <tr style="background: #10141a; color: #667; position: sticky; top: 0; z-index: 5; border-bottom: 1px solid #252b36; font-size: 8.5px;">
@@ -1676,7 +1680,7 @@
           </div>
 
           <!-- Real-Time Time & Sales Tape -->
-          <div id="dom-tape-section" style="background: #050608; max-height: 95px; overflow-y: auto; border-top: 1px solid #222;">
+          <div id="dom-tape-section" style="background: #050608; max-height: 85px; min-height: 65px; overflow-y: auto; border-top: 1px solid #222; border-bottom: 1px solid #222;">
             <div style="display: flex; justify-content: space-between; align-items: center; padding: 2px 6px; font-size: 8px; background: #0c0f14; color: #777; border-bottom: 1px solid #1a202c;">
               <span>LIVE TIME & SALES (TAPE)</span>
               <span style="color: #00ff88;">● STREAMING</span>
@@ -1687,30 +1691,55 @@
               </tbody>
             </table>
           </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- PANE 2: CENTRAL CHART (Top Center) -->
-    <div class="pane" id="chart-pane">
-      <div class="pane-header">
-        <span id="chart-header-symbol">NVDA // 5M WYCKOFF STRUCTURE (PUBLIC.COM)</span>
-        <div>
-          <button class="term-btn" onclick="switchInterval('5m')">5M</button>
-          <button class="term-btn" onclick="switchInterval('15m')">15M</button>
-          <button class="term-btn" onclick="switchInterval('1h')">1H</button>
-          <button class="term-btn" onclick="switchInterval('1d')">1D</button>
-          <button class="term-btn" id="btn-max-chart" onclick="toggleMaximizeChart()" style="margin-left: 6px; border-color: var(--wsr-orange); color: var(--wsr-orange);" title="Maximize chart or restore normal grid layout">⛶ FULL</button>
+          <!-- Live Tape Readout HUD -->
+          <div id="dom-tape-readout-hud" style="padding: 4px 6px; background: #080a0e; font-size: 9.5px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+              <div style="display: flex; gap: 4px; align-items: center;">
+                <span style="color: var(--wsr-orange); font-weight: bold; font-size: 9px;">⚡ TAPE READOUT //</span>
+                <b id="tape-active-ticker" class="c-cyan" style="font-size: 10px;">--</b>
+              </div>
+              <span id="tape-regime-badge" style="font-size: 8px; font-weight: bold; padding: 1px 5px; border-radius: 2px; text-transform: uppercase; background: rgba(255,215,0,0.15); color: #ffd700; border: 1px solid #ffd700;">ANALYZING TAPE...</span>
+            </div>
+
+            <!-- Delta Progress Bar -->
+            <div style="margin-bottom: 4px; padding: 3px 5px; background: rgba(255,255,255,0.02); border: 1px solid #222; border-radius: 2px;">
+              <div style="display: flex; justify-content: space-between; font-size: 8.5px; margin-bottom: 2px;">
+                <span>BUY DELTA: <b id="tape-buy-pct" class="c-green">--%</b></span>
+                <span>NET: <b id="tape-net-delta" class="c-white">--</b></span>
+                <span>SELL DELTA: <b id="tape-sell-pct" class="c-red">--%</b></span>
+              </div>
+              <div style="height: 5px; width: 100%; background: #331111; border-radius: 2px; overflow: hidden; display: flex;">
+                <div id="tape-delta-bar-buy" style="width: 50%; background: var(--wsr-green, #00e676); height: 100%; transition: width 0.3s ease;"></div>
+                <div id="tape-delta-bar-sell" style="width: 50%; background: var(--wsr-red, #ff5252); height: 100%; transition: width 0.3s ease;"></div>
+              </div>
+            </div>
+
+            <!-- Stats strip -->
+            <div style="display: flex; justify-content: space-between; font-size: 8.5px; margin-bottom: 3px; color: #888; flex-wrap: wrap; gap: 2px;">
+              <div>BOOK: <b id="tape-book-imbalance" class="c-cyan">--</b></div>
+              <div>WHALE: <b id="tape-whale-alert" class="c-yellow">--</b></div>
+            </div>
+
+            <!-- Interpretation card -->
+            <div id="tape-intel-card" style="background: rgba(0, 229, 255, 0.03); border-left: 2px solid var(--wsr-orange); padding: 3px 6px; border-radius: 2px;">
+              <div id="tape-summary-text" style="font-size: 9px; color: #eee; line-height: 1.3; margin-bottom: 2px;">Waiting for tape prints...</div>
+              <div style="background: rgba(0, 0, 0, 0.4); border: 1px solid #1a2230; padding: 2px 4px; border-radius: 2px;">
+                <span style="color: var(--wsr-yellow); font-weight: bold; font-size: 8px;">WHAT TO EXPECT: </span>
+                <span id="tape-expect-text" style="color: #bbb; font-size: 8.5px; line-height: 1.25;">Observing order flow...</span>
+              </div>
+            </div>
+          </div>
+
         </div>
-      </div>
-      <div id="chart-body">
-        <div id="chart-view"></div>
-        <div id="vp-pane">
-          <div id="vp-header">
+
+        <!-- Right: Liquidity Heatmap (Where it was!) -->
+        <div id="vp-pane" style="width: 155px; min-width: 155px; max-width: 155px; flex: 0 0 155px; height: 100%; background: #080808; border-left: 1px solid var(--wsr-border); display: flex; flex-direction: column; position: relative;">
+          <div id="vp-header" style="height: 24px; padding: 2px 6px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1a1a1a; font-size: 8.5px; color: #888; background: #0d0d0d;">
             <b>VOL @ PRICE</b>
             <span>LIQUIDITY HEATMAP</span>
           </div>
-          <div id="vp-bars-container">
+          <div id="vp-bars-container" style="flex: 1; overflow: hidden; position: relative;">
             <!-- Populated via loadChartData -->
           </div>
         </div>
@@ -1770,52 +1799,20 @@
       </div>
     </div>
 
-    <!-- PANE 4: LIVE TAPE READOUT & ORDER FLOW INTEL (Bottom Left) -->
-    <div class="pane" id="pane-tape-intel">
+    <!-- PANE 4: REDUCED WYCKOFF CANDLESTICK CHART (Bottom Left) -->
+    <div class="pane" id="chart-pane">
       <div class="pane-header">
-        <div style="display: flex; gap: 6px; align-items: center;">
-          <span style="color: var(--wsr-orange); font-weight: bold; letter-spacing: 0.5px;">⚡ TAPE READOUT //</span>
-          <b id="tape-active-ticker" class="c-cyan" style="font-size: 11px;">--</b>
-          <span style="font-size: 8.5px; color: #888;">ORDER FLOW INTEL</span>
+        <span id="chart-header-symbol">NVDA // 5M WYCKOFF STRUCTURE</span>
+        <div>
+          <button class="term-btn" onclick="switchInterval('5m')">5M</button>
+          <button class="term-btn" onclick="switchInterval('15m')">15M</button>
+          <button class="term-btn" onclick="switchInterval('1h')">1H</button>
+          <button class="term-btn" onclick="switchInterval('1d')">1D</button>
+          <button class="term-btn" id="btn-max-chart" onclick="toggleMaximizeChart()" style="margin-left: 6px; border-color: var(--wsr-orange); color: var(--wsr-orange);" title="Maximize chart or restore normal grid layout">⛶ FULL</button>
         </div>
-        <span id="tape-regime-badge" style="font-size: 8.5px; font-weight: bold; padding: 2px 6px; border-radius: 2px; text-transform: uppercase; background: rgba(255,215,0,0.15); color: #ffd700; border: 1px solid #ffd700;">ANALYZING TAPE...</span>
       </div>
-      <div class="pane-content" style="padding: 6px 8px; font-size: 10px; display: flex; flex-direction: column; justify-content: space-between; overflow-y: auto;">
-        
-        <!-- Live Delta Imbalance Gauge -->
-        <div style="margin-bottom: 5px; padding: 4px 6px; background: rgba(255,255,255,0.02); border: 1px solid #222; border-radius: 3px;">
-          <div style="display: flex; justify-content: space-between; font-size: 9px; margin-bottom: 3px;">
-            <span>AGGRESSOR BUY DELTA: <b id="tape-buy-pct" class="c-green">--%</b></span>
-            <span>NET DELTA: <b id="tape-net-delta" class="c-white">--</b></span>
-            <span>SELL DELTA: <b id="tape-sell-pct" class="c-red">--%</b></span>
-          </div>
-          <div style="height: 6px; width: 100%; background: #331111; border-radius: 2px; overflow: hidden; display: flex;">
-            <div id="tape-delta-bar-buy" style="width: 50%; background: var(--wsr-green, #00e676); height: 100%; transition: width 0.3s ease;"></div>
-            <div id="tape-delta-bar-sell" style="width: 50%; background: var(--wsr-red, #ff5252); height: 100%; transition: width 0.3s ease;"></div>
-          </div>
-        </div>
-
-        <!-- Microstructure Flow Stats -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; margin-bottom: 5px; font-size: 9.5px;">
-          <div>BUY VOLUME: <b id="tape-buy-vol" class="c-green">--</b></div>
-          <div>SELL VOLUME: <b id="tape-sell-vol" class="c-red">--</b></div>
-          <div>BOOK DEPTH: <b id="tape-book-imbalance" class="c-cyan">--</b></div>
-          <div>WHALE BLOCK: <b id="tape-whale-alert" class="c-yellow">--</b></div>
-        </div>
-
-        <!-- Dynamic Live Tape Interpretation & What to Expect Card -->
-        <div id="tape-intel-card" style="background: rgba(0, 229, 255, 0.03); border-left: 3px solid var(--wsr-orange); padding: 5px 7px; border-radius: 2px; margin-top: 2px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-            <span style="font-size: 8.5px; color: var(--wsr-orange); font-weight: bold; letter-spacing: 0.5px;">📡 TAPE READING ANALYSIS</span>
-            <span id="tape-intel-ts" style="font-size: 7.5px; color: #666;">REAL-TIME</span>
-          </div>
-          <div id="tape-summary-text" style="font-size: 9.5px; color: #eee; line-height: 1.35; margin-bottom: 4px;">Waiting for tape prints...</div>
-          <div style="background: rgba(0, 0, 0, 0.4); border: 1px solid #1a2230; padding: 4px 6px; border-radius: 2px;">
-            <span style="color: var(--wsr-yellow); font-weight: bold; font-size: 8.5px;">WHAT TO EXPECT: </span>
-            <span id="tape-expect-text" style="color: #bbb; font-size: 9px; line-height: 1.35;">Observing order flow auction dynamics...</span>
-          </div>
-        </div>
-
+      <div class="pane-content" style="padding: 0; position: relative; height: calc(100% - 28px); overflow: hidden;">
+        <div id="chart-view" style="width: 100%; height: 100%; position: relative; overflow: hidden;"></div>
       </div>
     </div>
 
