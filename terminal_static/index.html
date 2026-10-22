@@ -1770,55 +1770,52 @@
       </div>
     </div>
 
-    <!-- PANE 4: OPTIONS FLOW & MICROSTRUCTURE (Bottom Left) -->
-    <div class="pane" id="pane-flow">
+    <!-- PANE 4: LIVE TAPE READOUT & ORDER FLOW INTEL (Bottom Left) -->
+    <div class="pane" id="pane-tape-intel">
       <div class="pane-header">
-        <span id="flow-title">OPTIONS FLOW INTEL</span>
-        <span id="flow-expiry-tag" class="c-cyan" style="font-size: 9px; font-weight: bold;">EXP: --</span>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <span style="color: var(--wsr-orange); font-weight: bold; letter-spacing: 0.5px;">⚡ TAPE READOUT //</span>
+          <b id="tape-active-ticker" class="c-cyan" style="font-size: 11px;">--</b>
+          <span style="font-size: 8.5px; color: #888;">ORDER FLOW INTEL</span>
+        </div>
+        <span id="tape-regime-badge" style="font-size: 8.5px; font-weight: bold; padding: 2px 6px; border-radius: 2px; text-transform: uppercase; background: rgba(255,215,0,0.15); color: #ffd700; border: 1px solid #ffd700;">ANALYZING TAPE...</span>
       </div>
-      <div class="pane-content" style="padding: 6px 8px; font-size: 10px; overflow-y: auto;">
-        <!-- Top Metrics Grid -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; margin-bottom: 6px;">
-          <div>P/C RATIO (OI): <b id="flow-pcr" class="c-yellow">--</b></div>
-          <div>SENTIMENT: <b id="flow-sent" class="c-green">--</b></div>
-          <div>VOL P/C RATIO: <b id="flow-vol-pcr" class="c-cyan">--</b></div>
-          <div>ATM IV: <b id="flow-iv" class="c-yellow">--</b></div>
-          <div>GAMMA WALL: <b id="flow-gw" class="c-white">--</b></div>
-          <div>MAX PAIN: <b id="flow-mp" class="c-muted">--</b></div>
-          <div>EXPECTED MOVE: <b id="flow-em" class="c-orange">--</b></div>
-          <div>ORDER BOOK: <b id="flow-book-imbalance" class="c-cyan">--</b></div>
-        </div>
-
-        <!-- Open Interest Bias Bar -->
-        <div style="margin-bottom: 6px; padding: 4px; background: rgba(255,255,255,0.02); border: 1px solid #222; border-radius: 3px;">
-          <div style="display: flex; justify-content: space-between; font-size: 9px; margin-bottom: 2px;">
-            <span>CALL OI: <b id="flow-calls" class="c-green">--</b> (<span id="flow-call-pct">--%</span>)</span>
-            <span>PUT OI: <b id="flow-puts" class="c-red">--</b> (<span id="flow-put-pct">--%</span>)</span>
+      <div class="pane-content" style="padding: 6px 8px; font-size: 10px; display: flex; flex-direction: column; justify-content: space-between; overflow-y: auto;">
+        
+        <!-- Live Delta Imbalance Gauge -->
+        <div style="margin-bottom: 5px; padding: 4px 6px; background: rgba(255,255,255,0.02); border: 1px solid #222; border-radius: 3px;">
+          <div style="display: flex; justify-content: space-between; font-size: 9px; margin-bottom: 3px;">
+            <span>AGGRESSOR BUY DELTA: <b id="tape-buy-pct" class="c-green">--%</b></span>
+            <span>NET DELTA: <b id="tape-net-delta" class="c-white">--</b></span>
+            <span>SELL DELTA: <b id="tape-sell-pct" class="c-red">--%</b></span>
           </div>
-          <div style="height: 5px; width: 100%; background: #331111; border-radius: 2px; overflow: hidden; display: flex;">
-            <div id="flow-call-bar" style="width: 50%; background: var(--wsr-green, #00e676); height: 100%;"></div>
-            <div id="flow-put-bar" style="width: 50%; background: var(--wsr-red, #ff5252); height: 100%;"></div>
+          <div style="height: 6px; width: 100%; background: #331111; border-radius: 2px; overflow: hidden; display: flex;">
+            <div id="tape-delta-bar-buy" style="width: 50%; background: var(--wsr-green, #00e676); height: 100%; transition: width 0.3s ease;"></div>
+            <div id="tape-delta-bar-sell" style="width: 50%; background: var(--wsr-red, #ff5252); height: 100%; transition: width 0.3s ease;"></div>
           </div>
         </div>
 
-        <!-- Institutional Strike Concentrations (Top Walls) -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
-          <div style="background: rgba(0, 230, 118, 0.04); border-left: 2px solid #00e676; padding: 3px 5px; border-radius: 2px;">
-            <div style="font-size: 8.5px; font-weight: bold; color: #00e676; margin-bottom: 2px;">CALL CEILINGS (RESISTANCE)</div>
-            <div id="flow-top-calls" style="font-size: 9px; line-height: 1.35; color: #ccc;">--</div>
+        <!-- Microstructure Flow Stats -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; margin-bottom: 5px; font-size: 9.5px;">
+          <div>BUY VOLUME: <b id="tape-buy-vol" class="c-green">--</b></div>
+          <div>SELL VOLUME: <b id="tape-sell-vol" class="c-red">--</b></div>
+          <div>BOOK DEPTH: <b id="tape-book-imbalance" class="c-cyan">--</b></div>
+          <div>WHALE BLOCK: <b id="tape-whale-alert" class="c-yellow">--</b></div>
+        </div>
+
+        <!-- Dynamic Live Tape Interpretation & What to Expect Card -->
+        <div id="tape-intel-card" style="background: rgba(0, 229, 255, 0.03); border-left: 3px solid var(--wsr-orange); padding: 5px 7px; border-radius: 2px; margin-top: 2px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+            <span style="font-size: 8.5px; color: var(--wsr-orange); font-weight: bold; letter-spacing: 0.5px;">📡 TAPE READING ANALYSIS</span>
+            <span id="tape-intel-ts" style="font-size: 7.5px; color: #666;">REAL-TIME</span>
           </div>
-          <div style="background: rgba(255, 82, 82, 0.04); border-left: 2px solid #ff5252; padding: 3px 5px; border-radius: 2px;">
-            <div style="font-size: 8.5px; font-weight: bold; color: #ff5252; margin-bottom: 2px;">PUT FLOORS (SUPPORT)</div>
-            <div id="flow-top-puts" style="font-size: 9px; line-height: 1.35; color: #ccc;">--</div>
+          <div id="tape-summary-text" style="font-size: 9.5px; color: #eee; line-height: 1.35; margin-bottom: 4px;">Waiting for tape prints...</div>
+          <div style="background: rgba(0, 0, 0, 0.4); border: 1px solid #1a2230; padding: 4px 6px; border-radius: 2px;">
+            <span style="color: var(--wsr-yellow); font-weight: bold; font-size: 8.5px;">WHAT TO EXPECT: </span>
+            <span id="tape-expect-text" style="color: #bbb; font-size: 9px; line-height: 1.35;">Observing order flow auction dynamics...</span>
           </div>
         </div>
 
-        <!-- Order Book & Microstructure Strip -->
-        <div style="border-top: 1px solid #222; padding-top: 4px; display: flex; justify-content: space-between; font-size: 8.5px; color: #888; flex-wrap: wrap; gap: 4px;">
-          <div>BID/ASK: <b id="flow-bid-ask" class="c-white">--</b></div>
-          <div>SPREAD: <b id="flow-spread" class="c-yellow">--</b></div>
-          <div>DAY VOL: <b id="flow-equity-vol" class="c-cyan">--</b></div>
-        </div>
       </div>
     </div>
 
@@ -1905,30 +1902,57 @@
       </div>
     </div>
 
-    <!-- PANE 6: RECENT AUDIT HISTORY (Bottom Right) -->
-    <div class="pane" id="pane-history">
+    <!-- PANE 6: OPTIONS FLOW & MICROSTRUCTURE (Bottom Right) -->
+    <div class="pane" id="pane-flow">
       <div class="pane-header">
-        <span>TRADE AUDIT LOG</span>
-        <span class="c-muted">OUTCOMES</span>
+        <span id="flow-title">OPTIONS FLOW INTEL</span>
+        <span id="flow-expiry-tag" class="c-cyan" style="font-size: 9px; font-weight: bold;">EXP: --</span>
       </div>
-      <div class="pane-content">
-        <table id="tbl-history">
-          <thead>
-            <tr>
-              <th style="cursor: pointer; user-select: none;" onclick="sortHistory('ticker')">SYM <span id="th-hist-ticker">&#x25B4;&#x25BE;</span></th>
-              <th style="cursor: pointer; user-select: none;" onclick="sortHistory('direction')">DIR <span id="th-hist-dir">&#x25B4;&#x25BE;</span></th>
-              <th style="cursor: pointer; user-select: none;" onclick="sortHistory('timeframe')">TF <span id="th-hist-tf">&#x25B4;&#x25BE;</span></th>
-              <th style="cursor: pointer; user-select: none;" onclick="sortHistory('outcome')">RESULT <span id="th-hist-outcome">&#x25B4;&#x25BE;</span></th>
-              <th style="cursor: pointer; user-select: none;" onclick="sortHistory('pnl_r')">RETURN <span id="th-hist-pnl">&#x25B4;&#x25BE;</span></th>
-            </tr>
-          </thead>
-          <tbody>
-            <!-- Populated via JS -->
-          </tbody>
-        </table>
+      <div class="pane-content" style="padding: 6px 8px; font-size: 10px; overflow-y: auto;">
+        <!-- Top Metrics Grid -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; margin-bottom: 6px;">
+          <div>P/C RATIO (OI): <b id="flow-pcr" class="c-yellow">--</b></div>
+          <div>SENTIMENT: <b id="flow-sent" class="c-green">--</b></div>
+          <div>VOL P/C RATIO: <b id="flow-vol-pcr" class="c-cyan">--</b></div>
+          <div>ATM IV: <b id="flow-iv" class="c-yellow">--</b></div>
+          <div>GAMMA WALL: <b id="flow-gw" class="c-white">--</b></div>
+          <div>MAX PAIN: <b id="flow-mp" class="c-muted">--</b></div>
+          <div>EXPECTED MOVE: <b id="flow-em" class="c-orange">--</b></div>
+          <div>ORDER BOOK: <b id="flow-book-imbalance" class="c-cyan">--</b></div>
+        </div>
+
+        <!-- Open Interest Bias Bar -->
+        <div style="margin-bottom: 6px; padding: 4px; background: rgba(255,255,255,0.02); border: 1px solid #222; border-radius: 3px;">
+          <div style="display: flex; justify-content: space-between; font-size: 9px; margin-bottom: 2px;">
+            <span>CALL OI: <b id="flow-calls" class="c-green">--</b> (<span id="flow-call-pct">--%</span>)</span>
+            <span>PUT OI: <b id="flow-puts" class="c-red">--</b> (<span id="flow-put-pct">--%</span>)</span>
+          </div>
+          <div style="height: 5px; width: 100%; background: #331111; border-radius: 2px; overflow: hidden; display: flex;">
+            <div id="flow-call-bar" style="width: 50%; background: var(--wsr-green, #00e676); height: 100%;"></div>
+            <div id="flow-put-bar" style="width: 50%; background: var(--wsr-red, #ff5252); height: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- Institutional Strike Concentrations (Top Walls) -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
+          <div style="background: rgba(0, 230, 118, 0.04); border-left: 2px solid #00e676; padding: 3px 5px; border-radius: 2px;">
+            <div style="font-size: 8.5px; font-weight: bold; color: #00e676; margin-bottom: 2px;">CALL CEILINGS (RESISTANCE)</div>
+            <div id="flow-top-calls" style="font-size: 9px; line-height: 1.35; color: #ccc;">--</div>
+          </div>
+          <div style="background: rgba(255, 82, 82, 0.04); border-left: 2px solid #ff5252; padding: 3px 5px; border-radius: 2px;">
+            <div style="font-size: 8.5px; font-weight: bold; color: #ff5252; margin-bottom: 2px;">PUT FLOORS (SUPPORT)</div>
+            <div id="flow-top-puts" style="font-size: 9px; line-height: 1.35; color: #ccc;">--</div>
+          </div>
+        </div>
+
+        <!-- Order Book & Microstructure Strip -->
+        <div style="border-top: 1px solid #222; padding-top: 4px; display: flex; justify-content: space-between; font-size: 8.5px; color: #888; flex-wrap: wrap; gap: 4px;">
+          <div>BID/ASK: <b id="flow-bid-ask" class="c-white">--</b></div>
+          <div>SPREAD: <b id="flow-spread" class="c-yellow">--</b></div>
+          <div>DAY VOL: <b id="flow-equity-vol" class="c-cyan">--</b></div>
+        </div>
       </div>
     </div>
-
   </div>
 
   <!-- DEDICATED AI / ML LAB VIEW -->
@@ -7804,6 +7828,7 @@
           currentDOMData = data;
           renderDOMLadder(data);
           renderDOMTape(data.recent_trades);
+          renderDOMTapeReadout(data.tape_intel, data);
         }
       } catch (err) {
         console.warn('DOM fetch notice:', err);
@@ -7927,6 +7952,85 @@
         </tr>`;
       });
       tbody.innerHTML = html;
+    }
+
+    function renderDOMTapeReadout(intel, d) {
+      if (!intel || !d) return;
+      const tickEl = document.getElementById('tape-active-ticker');
+      if (tickEl) tickEl.textContent = d.ticker || currentTicker || '--';
+
+      const badgeEl = document.getElementById('tape-regime-badge');
+      if (badgeEl) {
+        badgeEl.textContent = intel.regime_badge || intel.regime || 'EQUILIBRIUM';
+        if (intel.regime_class === 'buy') {
+          badgeEl.style.background = 'rgba(0, 255, 136, 0.15)';
+          badgeEl.style.color = '#00ff88';
+          badgeEl.style.border = '1px solid #00ff88';
+        } else if (intel.regime_class === 'sell') {
+          badgeEl.style.background = 'rgba(255, 77, 77, 0.15)';
+          badgeEl.style.color = '#ff4d4d';
+          badgeEl.style.border = '1px solid #ff4d4d';
+        } else {
+          badgeEl.style.background = 'rgba(255, 215, 0, 0.15)';
+          badgeEl.style.color = '#ffd700';
+          badgeEl.style.border = '1px solid #ffd700';
+        }
+      }
+
+      const buyPctEl = document.getElementById('tape-buy-pct');
+      const sellPctEl = document.getElementById('tape-sell-pct');
+      const barBuy = document.getElementById('tape-delta-bar-buy');
+      const barSell = document.getElementById('tape-delta-bar-sell');
+      if (buyPctEl) buyPctEl.textContent = `${intel.buy_pct}%`;
+      if (sellPctEl) sellPctEl.textContent = `${intel.sell_pct}%`;
+      if (barBuy) barBuy.style.width = `${intel.buy_pct}%`;
+      if (barSell) barSell.style.width = `${intel.sell_pct}%`;
+
+      const netDeltaEl = document.getElementById('tape-net-delta');
+      if (netDeltaEl) {
+        const sign = intel.net_delta >= 0 ? '+' : '';
+        netDeltaEl.textContent = `${sign}${intel.net_delta.toLocaleString()} sh`;
+        netDeltaEl.style.color = intel.net_delta >= 0 ? '#00ff88' : '#ff4d4d';
+      }
+
+      const buyVolEl = document.getElementById('tape-buy-vol');
+      const sellVolEl = document.getElementById('tape-sell-vol');
+      if (buyVolEl) buyVolEl.textContent = `${intel.buy_vol.toLocaleString()} sh`;
+      if (sellVolEl) sellVolEl.textContent = `${intel.sell_vol.toLocaleString()} sh`;
+
+      const bookImbEl = document.getElementById('tape-book-imbalance');
+      if (bookImbEl) {
+        bookImbEl.textContent = `${intel.bid_depth_pct}% B / ${intel.ask_depth_pct}% A`;
+        bookImbEl.style.color = intel.bid_depth_pct > 55 ? '#00ff88' : (intel.ask_depth_pct > 55 ? '#ff4d4d' : '#00e5ff');
+      }
+
+      const whaleEl = document.getElementById('tape-whale-alert');
+      if (whaleEl) {
+        if (intel.largest_block && intel.largest_block.size >= 1000) {
+          const lb = intel.largest_block;
+          whaleEl.innerHTML = `🐋 ${lb.size.toLocaleString()} sh @ $${lb.price.toFixed(2)} (${lb.side})`;
+          whaleEl.style.color = lb.side === 'BUY' ? '#00ff88' : '#ff4d4d';
+        } else {
+          whaleEl.textContent = 'None > 1,000 sh';
+          whaleEl.style.color = '#777';
+        }
+      }
+
+      const summaryEl = document.getElementById('tape-summary-text');
+      const expectEl = document.getElementById('tape-expect-text');
+      if (summaryEl) summaryEl.textContent = intel.summary || 'Balanced tape flow.';
+      if (expectEl) expectEl.textContent = intel.what_to_expect || 'Consolidation expected.';
+
+      const cardEl = document.getElementById('tape-intel-card');
+      if (cardEl) {
+        if (intel.regime_class === 'buy') {
+          cardEl.style.borderLeftColor = '#00ff88';
+        } else if (intel.regime_class === 'sell') {
+          cardEl.style.borderLeftColor = '#ff4d4d';
+        } else {
+          cardEl.style.borderLeftColor = 'var(--wsr-orange)';
+        }
+      }
     }
 
     function executeBuyOrShortFromDOM(ticker, side, price) {

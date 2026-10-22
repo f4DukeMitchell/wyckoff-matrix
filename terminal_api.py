@@ -550,6 +550,75 @@ def get_dom(ticker: str):
                 "marker": marker
             })
 
+        # Compute Tape Intelligence & Order Flow Readout
+        tape_buy_vol = sum(t['size'] for t in recent_trades if t.get('side') == 'BUY')
+        tape_sell_vol = sum(t['size'] for t in recent_trades if t.get('side') == 'SELL')
+        total_tape_vol = tape_buy_vol + tape_sell_vol
+        buy_pct = round((tape_buy_vol / total_tape_vol * 100.0), 1) if total_tape_vol > 0 else 50.0
+        sell_pct = round(100.0 - buy_pct, 1)
+        net_delta = tape_buy_vol - tape_sell_vol
+
+        # Whale block detection
+        largest_block = max(recent_trades, key=lambda x: x.get('size', 0)) if recent_trades else None
+
+        # Book imbalance across ladder
+        book_bid_sum = sum(int(r['bid_size']) for r in rungs if r.get('is_bid_side') and str(r.get('bid_size', '')).isdigit())
+        book_ask_sum = sum(int(r['ask_size']) for r in rungs if r.get('is_ask_side') and str(r.get('ask_size', '')).isdigit())
+        tot_book = book_bid_sum + book_ask_sum
+        bid_depth_pct = round((book_bid_sum / tot_book * 100.0), 1) if tot_book > 0 else 50.0
+        ask_depth_pct = round(100.0 - bid_depth_pct, 1)
+
+        # Wyckoff Auction State & Expectation
+        if buy_pct >= 70:
+            regime = "AGGRESSIVE BUY ABSORPTION (ACCUMULATION)"
+            regime_class = "buy"
+            badge = "🔥 AGGRESSIVE BUY ABSORPTION"
+            summary = f"Institutional demand dominant: {buy_pct}% aggressor buy volume ({tape_buy_vol:,} sh) lifting the offer."
+            if ask_depth_pct > 60:
+                expect = f"Buyers actively chewing through resting ask liquidity ({ask_depth_pct}% ask overhang). Expect upside breakout expansion above ${ask:.2f} if bids hold ${bid:.2f}."
+            else:
+                expect = f"Thin overhead ask book above ${ask:.2f}. Aggressive market buys likely to trigger rapid upward price expansion."
+        elif sell_pct >= 70:
+            regime = "AGGRESSIVE BID LIQUIDATION (DISTRIBUTION)"
+            regime_class = "sell"
+            badge = "🚨 AGGRESSIVE BID LIQUIDATION"
+            summary = f"Institutional supply dominant: {sell_pct}% aggressor sell volume ({tape_sell_vol:,} sh) slamming into bids."
+            expect = f"Bids being overwhelmed by market sells. Expect downside sweep to test lower liquidity support unless buyers absorb supply."
+        elif buy_pct > 55 and last >= bid:
+            regime = "MODERATE BUY SKEW / BID SUPPORT"
+            regime_class = "buy"
+            badge = "🟢 BUY DELTA SKEW"
+            summary = f"Constructive buyer control ({buy_pct}% buy delta). Steady bid replenishment at ${bid:.2f}."
+            expect = f"Healthy absorption. Expect test of recent highs near ${ask:.2f} if buy pace persists."
+        elif sell_pct > 55:
+            regime = "MODERATE SUPPLY SKEW / OVERHANG"
+            regime_class = "sell"
+            badge = "🔴 SUPPLY OVERHANG"
+            summary = f"Sellers active at the ask ({sell_pct}% sell delta). Overhead resistance capping upside."
+            expect = f"Range contraction or pullback to test bid depth near ${bid:.2f}."
+        else:
+            regime = "TWO-SIDED EQUILIBRIUM / CONSOLIDATION"
+            regime_class = "neutral"
+            badge = "⚖️ TWO-SIDED CONSOLIDATION"
+            summary = f"Balanced two-sided auction ({buy_pct}% Buy / {sell_pct}% Sell). Neither side displaying dominant aggression."
+            expect = f"Chop / bracketed price action between ${bid:.2f} and ${ask:.2f}. Wait for volume breakout confirmation."
+
+        tape_intel = {
+            "buy_pct": buy_pct,
+            "sell_pct": sell_pct,
+            "net_delta": net_delta,
+            "buy_vol": tape_buy_vol,
+            "sell_vol": tape_sell_vol,
+            "largest_block": largest_block,
+            "bid_depth_pct": bid_depth_pct,
+            "ask_depth_pct": ask_depth_pct,
+            "regime": regime,
+            "regime_badge": badge,
+            "regime_class": regime_class,
+            "summary": summary,
+            "what_to_expect": expect
+        }
+
         return {
             "status": "success",
             "ticker": sym,
@@ -564,7 +633,8 @@ def get_dom(ticker: str):
             "tick": tick,
             "active_trade": active_trade,
             "rungs": rungs,
-            "recent_trades": recent_trades[-12:]
+            "recent_trades": recent_trades[-12:],
+            "tape_intel": tape_intel
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
