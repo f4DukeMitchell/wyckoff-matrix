@@ -8,9 +8,9 @@ _config_lock = threading.Lock()
 DEFAULT_CONFIG = {
     "alloc_mode": "PERCENT_BP",       # "PERCENT_BP" (% of BP) or "FIXED_DOLLAR" ($ fixed)
     "alloc_value": 1.0,               # Default 1.0% of Buying Power or $20.00
-    "target_weighted_sizing": True,   # ON by default: scales risk by expected target R
+    "target_weighted_sizing": False,  # Flat sizing by default (pure % of BP or $ amount)
     "min_r_units": 0.65,              # 0.65R minimum target floor to capture tight rotations
-    "max_concurrent": 25,             # Max concurrent 25 active algo positions (25% of portfolio)
+    "max_concurrent": 50,             # Max concurrent active algo positions
     "auto_buy_enabled": True,         # Master engine switch
     "stalker_auto_buy": False         # 1m stalker real-money buys OFF: triggers are paper-logged only until validated
 }
