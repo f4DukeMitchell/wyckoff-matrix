@@ -1336,6 +1336,137 @@ def register_swing_trade(payload: SwingRegisterPayload):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+class ArmGuardianPayload(BaseModel):
+    ticker: str
+    direction: str = "LONG"
+    entry_price: float | None = None
+    stop_loss: float | None = None
+    take_profit: float | None = None
+    timeframe: str = "5m"
+    quantity: float | None = None
+
+@app.post("/api/trade/arm_guardian")
+def arm_guardian_trade(payload: ArmGuardianPayload):
+    """
+    Arms Exit Guardian on a position (e.g. CORE HOLD or newly placed trade).
+    Calculates 1.0 ATR risk and 1.5R target if not provided, and registers the trade as user_active = 1.
+    """
+    try:
+        sym = payload.ticker.upper()
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        
+        # Pull broker position info if entry or quantity is missing
+        entry = payload.entry_price
+        qty = payload.quantity
+        direction = payload.direction.upper()
+        
+        try:
+            broker_holdings = get_broker_portfolio_positions()
+            bh = next((b for b in broker_holdings if b['ticker'] == sym), None)
+            if bh:
+                if not entry or entry <= 0:
+                    entry = float(bh['entry_price'])
+                if not qty or qty <= 0:
+                    qty = float(bh['quantity'])
+                if bh.get('direction'):
+                    direction = bh['direction'].upper()
+        except Exception:
+            pass
+
+        if not entry or entry <= 0:
+            from public_executor import get_live_prices
+            lp = get_live_prices([sym]) or {}
+            entry = float(lp.get(sym) or 10.0)
+
+        # Calculate structural ATR
+        atr = entry * 0.015 # fallback 1.5%
+        try:
+            from data_feed_public import get_public_bars_sync
+            df = get_public_bars_sync(sym, "5m")
+            if df is not None and not df.empty and len(df) >= 14:
+                h = df['High']
+                l = df['Low']
+                c_bars = df['Close']
+                tr = (h - l).combine((h - c_bars.shift(1)).abs(), max).combine((l - c_bars.shift(1)).abs(), max)
+                atr_calc = float(tr.rolling(14).mean().iloc[-1])
+                if atr_calc > 0.001:
+                    atr = atr_calc
+        except Exception:
+            pass
+
+        is_long = direction == "LONG"
+        sl = payload.stop_loss
+        tp = payload.take_profit
+        
+        if not sl or sl <= 0:
+            sl = round(entry - atr, 2) if is_long else round(entry + atr, 2)
+        if not tp or tp <= 0:
+            tp = round(entry + (1.5 * atr), 2) if is_long else round(entry - (1.5 * atr), 2)
+
+        risk = abs(entry - sl) or (entry * 0.015)
+        reward = abs(tp - entry)
+        target_r = round(reward / risk, 2) if risk > 0 else 1.50
+
+        now_iso = datetime.datetime.now().isoformat()
+        
+        # Check if an alert row already exists
+        c.execute("SELECT id FROM alerts WHERE ticker = ? AND outcome = 'OPEN' ORDER BY id DESC LIMIT 1", (sym,))
+        row = c.fetchone()
+        if row:
+            t_id = row[0]
+            c.execute("""
+                UPDATE alerts 
+                SET user_active = 1,
+                    direction = ?,
+                    entry_price = ?,
+                    initial_stop_loss = ?,
+                    stop_loss = ?,
+                    take_profit = ?,
+                    initial_shares = COALESCE(?, initial_shares),
+                    optimal_target_r = ?,
+                    timeframe = ?,
+                    partial_tier_done = 0,
+                    peak_high_r = 0.0
+                WHERE id = ?
+            """, (direction, entry, sl, sl, tp, qty, target_r, payload.timeframe, t_id))
+        else:
+            c.execute("""
+                INSERT INTO alerts (
+                    ticker, direction, entry_price, stop_loss, initial_stop_loss,
+                    take_profit, regime, timestamp, outcome, user_active,
+                    initial_shares, timeframe, ml_confidence, optimal_target_r,
+                    telegram_alerted, model_version, partial_tier_done, peak_high_r
+                ) VALUES (?, ?, ?, ?, ?, ?, 'DOM Core Position', ?, 'OPEN', 1, ?, ?, 70.0, ?, 1, 'v12-guardian-armed', 0, 0.0)
+            """, (sym, direction, entry, sl, sl, tp, now_iso, qty, payload.timeframe, target_r))
+            t_id = c.lastrowid
+
+        conn.commit()
+        conn.close()
+
+        # Send alert
+        try:
+            from telegram_notifier import send_message, is_configured
+            if is_configured():
+                send_message(f"🛡️ [EXIT GUARDIAN ARMED] {sym} ({direction}) | Entry: ${entry:.2f} | Stop Loss: ${sl:.2f} | Target: ${tp:.2f} (+{target_r:.2f}R). 5-Tier Escort Active.", force=True)
+        except Exception:
+            pass
+
+        return {
+            "success": True,
+            "trade_id": t_id,
+            "ticker": sym,
+            "direction": direction,
+            "entry_price": entry,
+            "stop_loss": sl,
+            "take_profit": tp,
+            "target_r": target_r,
+            "shares": qty
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.post("/api/order/exit")
 def place_exit(exit_req: ExitPayload):
     """Executes full position exit on Public.com directly from the terminal (covers shorts or sells longs)."""
