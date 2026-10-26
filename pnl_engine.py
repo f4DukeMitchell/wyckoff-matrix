@@ -181,10 +181,44 @@ def fetch_pnl_station_data() -> Dict[str, Any]:
         acc_id = get_account_id()
         hist = client.get_history(account_id=acc_id)
         raw_txs = [tx for tx in (hist.transactions or []) if str(getattr(tx, 'type', '')).endswith('TRADE')]
+
+        # Synthesize intraday filled orders from search_orders that have not yet cleared into get_history
+        try:
+            orders = client.search_orders(account_id=acc_id)
+            known_tx_timestamps = set(str(tx.timestamp)[:19] for tx in raw_txs)
+            import types
+            for o in reversed(orders or []):
+                status_str = str(getattr(o, 'status', '')).upper()
+                if 'FILLED' not in status_str and getattr(o.status, 'value', '') != 'FILLED':
+                    continue
+                otime = o.filled_at or o.created_at
+                if not otime:
+                    continue
+                otime_str = str(otime)[:19]
+                if otime_str in known_tx_timestamps:
+                    continue
+                qty = float(o.filled_quantity or 0)
+                px = float(o.average_price or 0)
+                side_str = str(getattr(o.side, 'value', o.side)).upper()
+                is_buy = 'BUY' in side_str
+                net = -(qty * px) if is_buy else (qty * px)
+                synthetic_tx = types.SimpleNamespace(
+                    symbol=o.instrument.symbol,
+                    side=side_str,
+                    quantity=Decimal(str(qty)),
+                    net_amount=Decimal(str(round(net, 4))),
+                    timestamp=otime,
+                    description=f"{side_str} {qty} {o.instrument.symbol} @ {px}",
+                    type='TRADE'
+                )
+                raw_txs.append(synthetic_tx)
+        except Exception as o_err:
+            print(f"[PNL Engine] Error merging live orders: {o_err}")
+
         raw_txs.sort(key=lambda x: x.timestamp)
 
         # Legacy long-term core investment symbols to exclude
-        EXCLUDE_SYMBOLS = {'AMC', 'APE', 'NKE', 'WSM', 'CCL'}
+        EXCLUDE_SYMBOLS = {'AMC', 'APE', 'NKE', 'CCL'}
 
         # Filter strictly for real 2026 trading campaigns starting October 7th/8th
         txs = [
@@ -255,7 +289,9 @@ def fetch_pnl_station_data() -> Dict[str, Any]:
                     "partial_tier_done": 5 if is_win else 0,
                     "entry_time": first_t.strftime("%Y-%m-%d %H:%M:%S EST"),
                     "exit_time": last_t.strftime("%Y-%m-%d %H:%M:%S EST"),
-                    "timestamp": first_t.isoformat(),
+                    "timestamp": last_t.isoformat(),
+                    "entry_timestamp": first_t.isoformat(),
+                    "exit_timestamp": last_t.isoformat(),
                     "duration_str": dur_str,
                     "outcome": outcome,
                     "regime": regime,
@@ -361,7 +397,9 @@ def fetch_pnl_station_data() -> Dict[str, Any]:
                         "partial_tier_done": len(sells) if len(sells) <= 5 else 5,
                         "entry_time": first_t.strftime("%Y-%m-%d %H:%M:%S EST"),
                         "exit_time": last_t.strftime("%Y-%m-%d %H:%M:%S EST"),
-                        "timestamp": first_t.isoformat(),
+                        "timestamp": last_t.isoformat(),
+                        "entry_timestamp": first_t.isoformat(),
+                        "exit_timestamp": last_t.isoformat(),
                         "duration_str": dur_str,
                         "outcome": outcome,
                         "regime": regime,
