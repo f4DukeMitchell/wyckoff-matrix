@@ -1,3 +1,4 @@
+from market_calendar import is_market_day
 import os
 import time
 import threading
@@ -112,6 +113,18 @@ def flatten_all_algo_trades(reason="MANUAL_TERMINAL_TRIGGER"):
     2. Directly sweeps the live Public.com broker portfolio and closes any open non-core position (equities & options), strictly protecting AMC, APE, NKE.
     """
     PROTECTED_HOLDS = {'AMC', 'APE', 'NKE', 'ACHR', 'DJT'}
+    try:
+        import zoneinfo
+        now_mkt = datetime.datetime.now(zoneinfo.ZoneInfo("America/New_York"))
+    except Exception:
+        now_mkt = datetime.datetime.now()
+
+    # RTH Guard: Only evaluate scaling & market exits during active regular session (9:30 AM - 4:00 PM) on market days
+    is_mkt_open = is_market_day(now_mkt.date())
+    is_rth = is_mkt_open and ((now_mkt.hour > 9 or (now_mkt.hour == 9 and now_mkt.minute >= 30)) and (now_mkt.hour < 16))
+    if not is_rth:
+        return
+
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
@@ -200,6 +213,18 @@ def run_guardian_cycle():
     - Rule 4: Stop loss protection (-1.00R initial stop).
     """
     if not os.path.exists(DB_PATH):
+        return
+
+    try:
+        import zoneinfo
+        now_mkt = datetime.datetime.now(zoneinfo.ZoneInfo("America/New_York"))
+    except Exception:
+        now_mkt = datetime.datetime.now()
+
+    # RTH Guard: Only evaluate scaling & market exits during active regular session (9:30 AM - 4:00 PM) on market days
+    is_mkt_open = is_market_day(now_mkt.date())
+    is_rth = is_mkt_open and ((now_mkt.hour > 9 or (now_mkt.hour == 9 and now_mkt.minute >= 30)) and (now_mkt.hour < 16))
+    if not is_rth:
         return
 
     conn = sqlite3.connect(DB_PATH)
