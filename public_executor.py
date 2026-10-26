@@ -378,19 +378,31 @@ def execute_exit_position(ticker, quantity=None, direction=None):
     # Inspect portfolio to determine exact broker instrument, symbol, and quantity
     port = client.get_portfolio(acc_id)
     matched_pos = None
+    
+    # Pass 1: Look for exact equity match
     for p in (port.positions or []):
         if not hasattr(p, 'instrument'): continue
         psym = p.instrument.symbol.upper()
         if psym in PROTECTED_HOLDS: continue
-        
-        # Match exact symbol or option derivative of ticker (e.g. NVDA261016C00115000)
-        if psym == sym_upper or psym.startswith(sym_upper):
+        if psym == sym_upper:
             matched_pos = p
             actual_symbol = psym
-            p_type_str = str(getattr(p.instrument, 'type', 'EQUITY'))
-            if 'OPTION' in p_type_str.upper() or len(psym) > 10:
-                inst_type = 'OPTION'
+            inst_type = 'EQUITY'
             break
+            
+    # Pass 2: If no exact equity match, check for derivative option contract (OCC format)
+    if not matched_pos:
+        for p in (port.positions or []):
+            if not hasattr(p, 'instrument'): continue
+            psym = p.instrument.symbol.upper()
+            if any(psym == h or (psym.startswith(h) and len(psym) > len(h) and psym[len(h)].isdigit()) for h in PROTECTED_HOLDS):
+                continue
+            # OCC format: TICKER + 6 digits (YYMMDD) + C/P + 8 digits
+            if psym.startswith(sym_upper) and len(psym) >= len(sym_upper) + 7 and psym[len(sym_upper):len(sym_upper)+6].isdigit():
+                matched_pos = p
+                actual_symbol = psym
+                inst_type = 'OPTION'
+                break
             
     if matched_pos:
         pos_qty = Decimal(str(matched_pos.quantity))
