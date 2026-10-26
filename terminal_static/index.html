@@ -2931,14 +2931,27 @@
           <span class="c-yellow" id="pnl-ledger-count">0 TRADES</span>
         </div>
         <!-- Filter Tabs Strip -->
-        <div class="pnl-filter-bar">
-          <button class="pnl-filter-btn active" onclick="setPNLFilter('OCT8', this)">🚀 10/8+ LIVE ERA</button>
-          <button class="pnl-filter-btn" onclick="setPNLFilter('ALL', this)">ALL REAL TRADES</button>
-          <button class="pnl-filter-btn" onclick="setPNLFilter('AUTO_VM', this)">🤖 AUTO VM</button>
-          <button class="pnl-filter-btn" onclick="setPNLFilter('MANUAL_BROKER', this)">👤 MANUAL</button>
-          <button class="pnl-filter-btn" onclick="setPNLFilter('WIN', this)">🏆 WINS</button>
-          <button class="pnl-filter-btn" onclick="setPNLFilter('LOSS', this)">🛑 LOSSES</button>
-          <button class="pnl-filter-btn" onclick="setPNLFilter('BREAKEVEN', this)">⚖️ BREAKEVEN</button>
+        <div class="pnl-filter-bar" style="display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; background: #0c0f17; border-bottom: 1px solid #1c2433;">
+          <!-- Row 1: Era & Daily Selector -->
+          <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
+            <span style="font-size: 8.5px; font-weight: bold; color: #778; letter-spacing: 0.5px; text-transform: uppercase;">ERA:</span>
+            <button class="pnl-filter-btn pnl-era-btn" id="btn-pnl-today" onclick="setPNLEra('TODAY', this)">📅 TODAY</button>
+            <button class="pnl-filter-btn pnl-era-btn active" id="btn-pnl-v12" onclick="setPNLEra('V12_LIVE', this)">⚡ V12 LIVE (10/8+)</button>
+            <button class="pnl-filter-btn pnl-era-btn" id="btn-pnl-all" onclick="setPNLEra('ALL_TIME', this)">🌐 ALL-TIME</button>
+            <select id="pnl-day-select" class="pnl-filter-btn" style="padding: 2px 6px; cursor: pointer; color: #ffd700; border-color: #3b465c; font-size: 9px; background: #141822;" onchange="onPNLDaySelect(this.value)">
+              <option value="">📆 JUMP TO DAY...</option>
+            </select>
+          </div>
+          <!-- Row 2: Setup Outcome & Type Filters -->
+          <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
+            <span style="font-size: 8.5px; font-weight: bold; color: #778; letter-spacing: 0.5px; text-transform: uppercase;">TYPE:</span>
+            <button class="pnl-filter-btn pnl-type-btn active" onclick="setPNLOutcome('ALL', this)">ALL REAL</button>
+            <button class="pnl-filter-btn pnl-type-btn" onclick="setPNLOutcome('WIN', this)">🎯 WINS</button>
+            <button class="pnl-filter-btn pnl-type-btn" onclick="setPNLOutcome('LOSS', this)">🛑 LOSSES</button>
+            <button class="pnl-filter-btn pnl-type-btn" onclick="setPNLOutcome('BREAKEVEN', this)">⚖️ BREAKEVEN</button>
+            <button class="pnl-filter-btn pnl-type-btn" onclick="setPNLOutcome('AUTO_VM', this)">🤖 AUTO VM</button>
+            <button class="pnl-filter-btn pnl-type-btn" onclick="setPNLOutcome('MANUAL_BROKER', this)">👤 MANUAL</button>
+          </div>
         </div>
         <!-- Scrollable Cards Container -->
         <div class="pnl-trade-list" id="pnl-trade-list-container">
@@ -7493,7 +7506,9 @@ Position upgraded from Core Hold to Algo Active!`);
 
     // --- P&L STATION CONTROLLER ---
     let cachedPNLData = null;
-    let currentPNLFilter = 'OCT8';
+    let currentPNLEra = 'V12_LIVE';
+    let currentPNLOutcome = 'ALL';
+    let selectedPNLDate = '';
     let selectedPNLTradeId = null;
 
     async function fetchPNLStation() {
@@ -7502,21 +7517,57 @@ Position upgraded from Core Hold to Algo Active!`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         cachedPNLData = data;
+        populatePNLDaySelector(data.daily_summary);
         renderPNLStation(data);
       } catch (err) {
         console.error("Error fetching P&L Station data:", err);
       }
     }
 
-    function renderPNLStation(data) {
-      if (!data || !data.kpis) return;
+    function populatePNLDaySelector(dailySummary) {
+      const daySelect = document.getElementById('pnl-day-select');
+      if (!daySelect || !dailySummary) return;
+      const todayStr = '2026-10-26';
+      let html = '<option value="">📆 JUMP TO DAY...</option>';
+      dailySummary.forEach(d => {
+        const sign = d.net_dollar >= 0 ? '+' : '-';
+        const isTodayLabel = d.date === todayStr ? ' ⭐ TODAY' : '';
+        const selectedAttr = (selectedPNLDate === d.date) ? 'selected' : '';
+        html += `<option value="${d.date}" ${selectedAttr}>${d.date}${isTodayLabel}: ${d.trades_count} trds [${d.wins}W-${d.losses}L] (${sign}$${Math.abs(d.net_dollar).toFixed(2)})</option>`;
+      });
+      daySelect.innerHTML = html;
+    }
+
+    function setPNLEra(era, btn) {
+      currentPNLEra = era;
+      selectedPNLDate = '';
+      const daySel = document.getElementById('pnl-day-select');
+      if (daySel) daySel.value = '';
+      document.querySelectorAll('.pnl-era-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
       filterPNLTrades();
     }
 
-    function setPNLFilter(filter, btn) {
-      currentPNLFilter = filter;
-      document.querySelectorAll('.pnl-filter-btn').forEach(b => b.classList.remove('active'));
+    function onPNLDaySelect(val) {
+      if (!val) {
+        setPNLEra('V12_LIVE', document.getElementById('btn-pnl-v12'));
+        return;
+      }
+      currentPNLEra = 'SPECIFIC_DAY';
+      selectedPNLDate = val;
+      document.querySelectorAll('.pnl-era-btn').forEach(b => b.classList.remove('active'));
+      filterPNLTrades();
+    }
+
+    function setPNLOutcome(outcome, btn) {
+      currentPNLOutcome = outcome;
+      document.querySelectorAll('.pnl-type-btn').forEach(b => b.classList.remove('active'));
       if (btn) btn.classList.add('active');
+      filterPNLTrades();
+    }
+
+    function renderPNLStation(data) {
+      if (!data || !data.kpis) return;
       filterPNLTrades();
     }
 
@@ -7525,27 +7576,19 @@ Position upgraded from Core Hold to Algo Active!`);
       const searchVal = (document.getElementById('pnl-search-input')?.value || '').trim().toUpperCase();
       const listContainer = document.getElementById('pnl-trade-list-container');
       const ledgerCountEl = document.getElementById('pnl-ledger-count');
+      const todayStr = '2026-10-26';
 
-      // Filter trades based on active tab and search
-      let filtered = cachedPNLData.trades.filter(t => {
-        if (searchVal && !t.ticker.includes(searchVal)) return false;
-        if (currentPNLFilter === 'OCT8') {
-          const dtStr = t.timestamp || t.entry_time || '';
-          return dtStr >= '2026-10-08';
-        }
-        if (currentPNLFilter === 'AUTO_VM') return t.source === 'AUTO_VM';
-        if (currentPNLFilter === 'MANUAL_BROKER') return t.source === 'MANUAL_BROKER';
-        if (currentPNLFilter === 'WIN') return t.outcome === 'WIN' || (t.outcome === 'CLOSED_MANUAL' && t.net_pnl_dollar >= 0);
-        if (currentPNLFilter === 'LOSS') return t.outcome === 'LOSS' || t.net_pnl_dollar < 0;
-        if (currentPNLFilter === 'BREAKEVEN') return t.outcome === 'BREAKEVEN' || (Math.abs(t.net_pnl_dollar) <= 0.05 && t.outcome !== 'WIN' && t.outcome !== 'LOSS');
-        return true;
-      });
+      // 1. Determine Scope Trades based on ERA or SPECIFIC DAY
+      let scopeTrades = cachedPNLData.trades;
+      if (currentPNLEra === 'TODAY') {
+        scopeTrades = cachedPNLData.trades.filter(t => t.is_today || t.exit_date === todayStr || (t.timestamp && t.timestamp.startsWith(todayStr)));
+      } else if (currentPNLEra === 'V12_LIVE') {
+        scopeTrades = cachedPNLData.trades.filter(t => t.era === 'V12_LIVE' || (t.exit_date && t.exit_date >= '2026-10-08') || (t.timestamp && t.timestamp >= '2026-10-08'));
+      } else if (currentPNLEra === 'SPECIFIC_DAY' && selectedPNLDate) {
+        scopeTrades = cachedPNLData.trades.filter(t => t.exit_date === selectedPNLDate || (t.timestamp && t.timestamp.startsWith(selectedPNLDate)));
+      }
 
-      // Recalculate KPIs based on current scope
-      const scopeTrades = (currentPNLFilter === 'OCT8') 
-        ? cachedPNLData.trades.filter(t => (t.timestamp || t.entry_time || '') >= '2026-10-08')
-        : cachedPNLData.trades;
-
+      // 2. Recalculate KPIs strictly for the currently active Scope
       const scWins = scopeTrades.filter(t => t.outcome === 'WIN' || (t.outcome === 'CLOSED_MANUAL' && t.net_pnl_dollar >= 0));
       const scLosses = scopeTrades.filter(t => t.outcome === 'LOSS' || (t.net_pnl_dollar < -0.05 && t.outcome !== 'BREAKEVEN'));
       const scBE = scopeTrades.filter(t => t.outcome === 'BREAKEVEN' || Math.abs(t.net_pnl_dollar) <= 0.05);
@@ -7599,6 +7642,17 @@ Position upgraded from Core Hold to Algo Active!`);
         lastUpdatedEl.innerText = `UPDATED: ${new Date().toLocaleTimeString()}`;
       }
 
+      // 3. Filter displayed cards by Outcome / Type / Search
+      let filtered = scopeTrades.filter(t => {
+        if (searchVal && !t.ticker.includes(searchVal)) return false;
+        if (currentPNLOutcome === 'AUTO_VM') return t.source === 'AUTO_VM';
+        if (currentPNLOutcome === 'MANUAL_BROKER') return t.source === 'MANUAL_BROKER';
+        if (currentPNLOutcome === 'WIN') return t.outcome === 'WIN' || (t.outcome === 'CLOSED_MANUAL' && t.net_pnl_dollar >= 0);
+        if (currentPNLOutcome === 'LOSS') return t.outcome === 'LOSS' || t.net_pnl_dollar < 0;
+        if (currentPNLOutcome === 'BREAKEVEN') return t.outcome === 'BREAKEVEN' || (Math.abs(t.net_pnl_dollar) <= 0.05 && t.outcome !== 'WIN' && t.outcome !== 'LOSS');
+        return true;
+      });
+
       if (ledgerCountEl) ledgerCountEl.innerText = `${filtered.length} TRADES`;
 
       if (!filtered || filtered.length === 0) {
@@ -7626,31 +7680,35 @@ Position upgraded from Core Hold to Algo Active!`);
         const outcomeBg = isWin ? 'rgba(0,255,136,0.1)' : (isLoss ? 'rgba(255,77,77,0.1)' : 'rgba(255,170,0,0.1)');
 
         const isSelected = selectedPNLTradeId === t.id;
+        const exitDateBadge = t.exit_date ? `<span style="font-size: 8.5px; color: #889; background: #161b26; padding: 1px 4px; border-radius: 2px;">${t.exit_date}</span>` : '';
 
         html += `<div class="pnl-trade-card ${cardClass} ${isSelected ? 'selected' : ''}" onclick="selectPNLTrade('${t.id}')">
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 5px;">
-              <b style="font-size: 13px; color: #fff;">${t.ticker}</b>
-              <span style="font-size: 9.5px; font-weight: bold; color: ${t.direction === 'LONG' ? '#00ff88' : '#ff4d4d'};">[${t.direction} ${t.timeframe}]</span>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span class="ticker">${t.ticker}</span>
+              <span class="badge ${t.direction === 'LONG' ? 'badge-long' : 'badge-short'}">${t.direction} ${t.timeframe || '5m'}</span>
               ${sourceBadge}
+              ${exitDateBadge}
             </div>
-            <span style="font-size: 9px; padding: 1px 5px; border-radius: 2px; font-weight: 700; background: ${outcomeBg}; color: ${outcomeBadgeColor}; border: 1px solid ${outcomeBadgeColor};">
+            <span style="font-size: 9px; font-weight: bold; padding: 1px 5px; border-radius: 2px; color: ${outcomeBadgeColor}; background: ${outcomeBg}; border: 1px solid ${outcomeBadgeColor};">
               ${t.outcome}
             </span>
           </div>
-
-          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: #aaa; margin-top: 2px;">
-            <span>$${Number(t.entry_price).toFixed(2)} &rarr; $${Number(t.exit_price).toFixed(2)} (${t.shares} sh)</span>
-            <span style="font-size: 9px; color: #777;">${t.duration_str}</span>
-          </div>
-
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 3px; border-top: 1px solid #1a2230; padding-top: 3px;">
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <b style="color: ${pnlColor}; font-size: 11px;">${signDollar} (${signPct})</b>
-              <span style="color: #00e5ff; font-weight: bold; font-size: 10px;">${signR}</span>
+          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px;">
+            <div style="font-size: 10px; color: #aaa;">
+              $${Number(t.entry_price || 0).toFixed(2)} → $${Number(t.exit_price || 0).toFixed(2)}
+              <span style="color: #667; font-size: 9px;">(${t.shares || 0} sh)</span>
             </div>
-            <div>
-              ${getMLGradeBadge(t.ml_confidence)}
+            <div style="font-size: 9.5px; color: #888;">
+              ${t.duration_str || '--'}
+            </div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 3px;">
+            <div style="font-size: 11px; font-weight: bold; color: ${pnlColor};">
+              ${signDollar} <span style="font-size: 9.5px; font-weight: normal; color: ${pnlColor};">(${signPct})</span> <span style="color: #00ffff; font-size: 9.5px;">${signR}</span>
+            </div>
+            <div style="font-size: 9px; color: #aaa;">
+              ${t.ml_grade ? `<span class="ml-badge ${t.ml_grade.class}">${t.ml_grade.badge}</span>` : ''}
             </div>
           </div>
         </div>`;
@@ -7658,14 +7716,17 @@ Position upgraded from Core Hold to Algo Active!`);
 
       listContainer.innerHTML = html;
 
+      // Auto-select first trade if none selected
       if (!selectedPNLTradeId && filtered.length > 0) {
         selectPNLTrade(filtered[0].id);
       } else if (selectedPNLTradeId) {
-        const cur = filtered.find(t => t.id === selectedPNLTradeId) || filtered[0];
-        if (cur) renderPNLAutopsy(cur);
+        // If current selection is in filtered list, keep it, else select first
+        const exists = filtered.find(t => t.id === selectedPNLTradeId);
+        if (!exists && filtered.length > 0) {
+          selectPNLTrade(filtered[0].id);
+        }
       }
     }
-
     function selectPNLTrade(tradeId) {
       selectedPNLTradeId = tradeId;
       document.querySelectorAll('.pnl-trade-card').forEach(c => c.classList.remove('selected'));

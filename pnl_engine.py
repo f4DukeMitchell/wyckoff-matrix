@@ -217,16 +217,13 @@ def fetch_pnl_station_data() -> Dict[str, Any]:
 
         raw_txs.sort(key=lambda x: x.timestamp)
 
-        # Legacy long-term core investment symbols to exclude
-        EXCLUDE_SYMBOLS = {'AMC', 'APE', 'NKE', 'CCL'}
+        # Core protected long-term investment symbols to exclude
+        EXCLUDE_SYMBOLS = {'AMC', 'APE', 'NKE'}
 
-        # Filter strictly for real 2026 trading campaigns starting October 7th/8th
+        # Process all real broker campaigns across all time
         txs = [
             tx for tx in raw_txs 
-            if tx.symbol not in EXCLUDE_SYMBOLS 
-            and tx.timestamp.year == 2026
-            and tx.timestamp.month == 10
-            and tx.timestamp.day >= 7
+            if tx.symbol not in EXCLUDE_SYMBOLS
         ]
 
         symbols_order = []
@@ -271,6 +268,19 @@ def fetch_pnl_station_data() -> Dict[str, Any]:
                 mins = (dur_seconds % 3600) // 60
                 dur_str = f"{hrs}h {mins}m" if hrs > 0 else f"{mins}m"
 
+                exit_dt_str = last_t.strftime("%Y-%m-%d")
+                if exit_dt_str >= '2026-10-08':
+                    era = 'V12_LIVE'
+                    era_label = 'V12 Live Algorithmic Era'
+                elif exit_dt_str >= '2026-10-01':
+                    era = 'V12_PILOT'
+                    era_label = 'V12 Pilot & Setup (Oct 1-7)'
+                else:
+                    era = 'HISTORICAL'
+                    era_label = 'Historical Broker Record (Pre-V12)'
+
+                is_today = (exit_dt_str == '2026-10-26')
+
                 trade_obj = {
                     "id": f"broker_opt_{sym}_{int(first_t.timestamp())}",
                     "ticker": sym,
@@ -292,6 +302,10 @@ def fetch_pnl_station_data() -> Dict[str, Any]:
                     "timestamp": last_t.isoformat(),
                     "entry_timestamp": first_t.isoformat(),
                     "exit_timestamp": last_t.isoformat(),
+                    "exit_date": exit_dt_str,
+                    "era": era,
+                    "era_label": era_label,
+                    "is_today": is_today,
                     "duration_str": dur_str,
                     "outcome": outcome,
                     "regime": regime,
@@ -347,6 +361,19 @@ def fetch_pnl_station_data() -> Dict[str, Any]:
                     mins = (dur_seconds % 3600) // 60
                     dur_str = f"{hrs}h {mins}m" if hrs > 0 else f"{mins}m"
 
+                    exit_dt_str = last_t.strftime("%Y-%m-%d")
+                    if exit_dt_str >= '2026-10-08':
+                        era = 'V12_LIVE'
+                        era_label = 'V12 Live Algorithmic Era'
+                    elif exit_dt_str >= '2026-10-01':
+                        era = 'V12_PILOT'
+                        era_label = 'V12 Pilot & Setup (Oct 1-7)'
+                    else:
+                        era = 'HISTORICAL'
+                        era_label = 'Historical Broker Record (Pre-V12)'
+
+                    is_today = (exit_dt_str == '2026-10-26')
+
                     is_manual = sym in ['ACHR', 'DJT']
                     source = "MANUAL_BROKER" if is_manual else "AUTO_VM"
                     timeframe = "1h" if is_manual else "5m"
@@ -400,6 +427,10 @@ def fetch_pnl_station_data() -> Dict[str, Any]:
                         "timestamp": last_t.isoformat(),
                         "entry_timestamp": first_t.isoformat(),
                         "exit_timestamp": last_t.isoformat(),
+                        "exit_date": exit_dt_str,
+                        "era": era,
+                        "era_label": era_label,
+                        "is_today": is_today,
                         "duration_str": dur_str,
                         "outcome": outcome,
                         "regime": regime,
@@ -467,10 +498,40 @@ def fetch_pnl_station_data() -> Dict[str, Any]:
         "manual_net_dollar": round(sum(t['net_pnl_dollar'] for t in manual_trades), 2)
     }
 
+    # -------------------------------------------------------------
+    # DAILY & ERA AGGREGATE BREAKDOWN
+    # -------------------------------------------------------------
+    daily_map = defaultdict(lambda: {"date": "", "trades_count": 0, "wins": 0, "losses": 0, "breakeven": 0, "net_dollar": 0.0, "net_r": 0.0, "tickers": []})
+    for t in trades_list:
+        ed = t.get('exit_date', '')
+        if not ed: continue
+        d = daily_map[ed]
+        d["date"] = ed
+        d["trades_count"] += 1
+        d["net_dollar"] += t.get('net_pnl_dollar', 0.0)
+        d["net_r"] += (t.get('pnl_r') or 0.0)
+        d["tickers"].append(t.get('ticker', ''))
+        if t.get('outcome') in ['WIN', 'CLOSED_MANUAL'] and t.get('net_pnl_dollar', 0) > 0.05:
+            d["wins"] += 1
+        elif t.get('outcome') == 'LOSS' or t.get('net_pnl_dollar', 0) < -0.05:
+            d["losses"] += 1
+        else:
+            d["breakeven"] += 1
+
+    daily_summary = []
+    for ed in sorted(daily_map.keys(), reverse=True):
+        item = daily_map[ed]
+        item["net_dollar"] = round(item["net_dollar"], 2)
+        item["net_r"] = round(item["net_r"], 2)
+        decided = item["wins"] + item["losses"]
+        item["win_rate"] = round(item["wins"] / decided * 100.0, 1) if decided > 0 else 0.0
+        daily_summary.append(item)
+
     return {
         "status": "success",
         "timestamp": datetime.datetime.now().isoformat(),
         "kpis": kpis,
+        "daily_summary": daily_summary,
         "trades": trades_list
     }
 
