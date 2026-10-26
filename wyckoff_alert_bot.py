@@ -1,3 +1,4 @@
+from market_calendar import is_market_day
 import time
 import sys
 if hasattr(sys.stdout, 'reconfigure'):
@@ -1317,8 +1318,8 @@ if __name__ == "__main__":
             while True:
                 try:
                     now = get_market_now()
-                    is_weekday = now.weekday() < 5
-                    is_scanning_hours = is_weekday and (7 <= now.hour < 17)
+                    is_mkt_open = is_market_day(now.date())
+                    is_scanning_hours = is_mkt_open and (7 <= now.hour < 17)
                     if is_scanning_hours:
                         # 1. Wait if Engine 1 is currently executing the Top-60 high-priority 5m scan (~11.5s)
                         while PRIORITY_SCAN_ACTIVE.is_set():
@@ -1391,9 +1392,9 @@ if __name__ == "__main__":
         now = get_market_now()
         # Market Hours & Pre-Market Setup Tracking:
         # Pre-Market 5M Fast Queue setup tracking runs Mon-Fri 7:00 AM - 5:00 PM EST
-        is_weekday = now.weekday() < 5
-        is_scanning_hours = is_weekday and (7 <= now.hour < 17)
-        is_regular_market = is_weekday and ((now.hour > 9 or (now.hour == 9 and now.minute >= 30)) and (now.hour < 16))
+        is_mkt_open = is_market_day(now.date())
+        is_scanning_hours = is_mkt_open and (7 <= now.hour < 17)
+        is_regular_market = is_mkt_open and ((now.hour > 9 or (now.hour == 9 and now.minute >= 30)) and (now.hour < 16))
 
         if is_scanning_hours:
             current_5m_slot = (now.date(), now.hour, (now.minute // 5) * 5)
@@ -1414,7 +1415,7 @@ if __name__ == "__main__":
             except Exception as e:
                 pass
                 
-        if TRACKER_ENABLED:
+        if TRACKER_ENABLED and is_mkt_open:
             try:
                 # Feature 3: Auto-Sync with Public.com live portfolio
                 newly_active = sync_public_positions()
@@ -1466,21 +1467,22 @@ if __name__ == "__main__":
             }
             last_report_date = current_date
             
-        if now.hour == 9 and 15 <= now.minute < 30 and not reports_sent["morning"]:
-            send_market_report("Pre-Market (9:15 AM)")
-            reports_sent["morning"] = True
-        elif now.hour == 12 and 30 <= now.minute < 45 and not reports_sent["lunch"]:
-            send_market_report("Mid-Day (12:30 PM)")
-            reports_sent["lunch"] = True
-        elif now.hour == 14 and 45 <= now.minute < 59 and not reports_sent["power"]:
-            send_market_report("Power Hour (2:45 PM)")
-            reports_sent["power"] = True
-        elif now.hour == 16 and 15 <= now.minute < 30 and not reports_sent.get("ai", False):
-            send_ai_progress_report()
-            reports_sent["ai"] = True
-        elif now.hour == 16 and 30 <= now.minute < 45 and not reports_sent.get("recap", False):
-            send_daily_recap()
-            reports_sent["recap"] = True
+        if is_mkt_open:
+            if now.hour == 9 and 15 <= now.minute < 30 and not reports_sent["morning"]:
+                send_market_report("Pre-Market (9:15 AM)")
+                reports_sent["morning"] = True
+            elif now.hour == 12 and 30 <= now.minute < 45 and not reports_sent["lunch"]:
+                send_market_report("Mid-Day (12:30 PM)")
+                reports_sent["lunch"] = True
+            elif now.hour == 14 and 45 <= now.minute < 59 and not reports_sent["power"]:
+                send_market_report("Power Hour (2:45 PM)")
+                reports_sent["power"] = True
+            elif now.hour == 16 and 15 <= now.minute < 30 and not reports_sent.get("ai", False):
+                send_ai_progress_report()
+                reports_sent["ai"] = True
+            elif now.hour == 16 and 30 <= now.minute < 45 and not reports_sent.get("recap", False):
+                send_daily_recap()
+                reports_sent["recap"] = True
             
         # Rolling safety backup of the live trade DB (consistent online snapshot, rate-limited to ~30 min)
         try:
