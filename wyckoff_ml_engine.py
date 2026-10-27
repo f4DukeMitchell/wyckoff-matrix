@@ -226,11 +226,11 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             else:
                 df[c_name] = df[c_name].fillna(def_val)
 
+        # Frank Wyckoff Prescription 1: Purge dead 95.7% constant dummy features (effort_vs_result & institutional_block_ratio)
         feature_map = {
             'bars_in_regime': 'Trend Exhaustion (Bars)',
             'vwap_distance': 'VWAP Stretch (%)',
             'atr_expansion': 'ATR Expansion (Vol)',
-            'effort_vs_result': 'Effort vs Result (Absorption)',
             'test_vol_ratio': 'Secondary Test Vol Ratio',
             'pcr': 'Put/Call Ratio (Options Skew)',
             'vwap_slope': 'Intraday VWAP Slope (%)',
@@ -254,7 +254,6 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             'dealer_gamma_regime': 'Dealer Gamma Regime (Pin vs Run)',
             'gamma_wall_dist_pct': 'Gamma Wall Distance (%)',
             'moc_surge_score': 'MOC Auction Closing Surge',
-            'institutional_block_ratio': 'Institutional Block vs Retail',
             'dir_num': 'Direction (Long/Short)'
         }
         cols = list(feature_map.keys())
@@ -268,14 +267,28 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
         y = clean_df['target']
         weights = sample_weights.loc[clean_df.index]
         
-        # Train Random Forest Classifier with sample weights
-        rf = RandomForestClassifier(n_estimators=100, max_depth=4, random_state=42)
+        # Frank Wyckoff Prescription 3: Regularized Hyperparameters & Out-of-Bag (OOB) Generalization
+        rf = RandomForestClassifier(
+            n_estimators=150,
+            max_depth=4,
+            min_samples_leaf=4,
+            max_features='sqrt',
+            oob_score=True,
+            random_state=42
+        )
         rf.fit(X, y, sample_weight=weights)
 
-        # Train Dedicated Directional Specialist Models (prevents 21% WR SHORT UTADs from diluting 62% WR LONG Springs)
+        # Frank Wyckoff Prescription 2: Strict Directional Decoupling (Isolates 61.7% WR Longs from 21.0% WR Shorts)
         long_df = clean_df[clean_df['dir_num'] == 1]
         if len(long_df) >= 10:
-            rf_long = RandomForestClassifier(n_estimators=100, max_depth=4, random_state=42)
+            rf_long = RandomForestClassifier(
+                n_estimators=150,
+                max_depth=4,
+                min_samples_leaf=4,
+                max_features='sqrt',
+                oob_score=True,
+                random_state=42
+            )
             rf_long.fit(long_df[cols], long_df['target'], sample_weight=sample_weights.loc[long_df.index])
             rf.model_long = rf_long
         else:
@@ -283,19 +296,25 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
 
         short_df = clean_df[clean_df['dir_num'] == 0]
         if len(short_df) >= 10:
-            rf_short = RandomForestClassifier(n_estimators=100, max_depth=4, random_state=42)
+            rf_short = RandomForestClassifier(
+                n_estimators=150,
+                max_depth=3,
+                min_samples_leaf=4,
+                class_weight='balanced',
+                max_features='sqrt',
+                oob_score=True,
+                random_state=42
+            )
             rf_short.fit(short_df[cols], short_df['target'], sample_weight=sample_weights.loc[short_df.index])
             rf.model_short = rf_short
         else:
             rf.model_short = None
         
-        # Compute combined directional accuracy across specialist models
-        if rf.model_long is not None and rf.model_short is not None:
-            long_correct = (rf.model_long.predict(long_df[cols]) == long_df['target']).sum()
-            short_correct = (rf.model_short.predict(short_df[cols]) == short_df['target']).sum()
-            acc = float((long_correct + short_correct) / len(clean_df) * 100.0)
+        # Compute True Out-of-Bag (OOB) Generalization Accuracy (Eliminates the in-sample overfit illusion)
+        if rf.model_long is not None and getattr(rf.model_long, 'oob_score_', None):
+            acc = float(rf.model_long.oob_score_ * 100.0)
         else:
-            acc = float((rf.predict(X) == y).mean() * 100)
+            acc = float(rf.oob_score_ * 100.0) if getattr(rf, 'oob_score_', None) else float((rf.predict(X) == y).mean() * 100)
         
         wins = int((df['outcome'] == 'WIN').sum())
         losses = int((df['outcome'] == 'LOSS').sum())
