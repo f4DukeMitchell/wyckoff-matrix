@@ -12,7 +12,8 @@ DEFAULT_CONFIG = {
     "min_r_units": 0.65,              # 0.65R minimum target floor to capture tight rotations
     "max_concurrent": 50,             # Max concurrent active algo positions
     "auto_buy_enabled": True,         # Master engine switch
-    "stalker_auto_buy": False         # 1m stalker real-money buys OFF: triggers are paper-logged only until validated
+    "stalker_auto_buy": False,        # 1m stalker real-money buys OFF: triggers are paper-logged only until validated
+    "frank_mode": "SHADOW"            # "SHADOW" (Proving mode: telemetry only, ZERO trade interference) or "ENFORCE"
 }
 
 def load_config() -> dict:

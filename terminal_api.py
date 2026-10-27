@@ -334,6 +334,7 @@ class ConfigUpdateRequest(BaseModel):
     min_r_units: Optional[float] = None
     max_concurrent: Optional[int] = None
     auto_buy_enabled: Optional[bool] = None
+    frank_mode: Optional[str] = None
 
 @app.get("/api/terminal/config")
 def get_terminal_config():
@@ -364,6 +365,8 @@ def update_terminal_config(req: ConfigUpdateRequest):
         updates["max_concurrent"] = int(req.max_concurrent)
     if req.auto_buy_enabled is not None:
         updates["auto_buy_enabled"] = bool(req.auto_buy_enabled)
+    if req.frank_mode is not None:
+        updates["frank_mode"] = str(req.frank_mode).upper()
         
     saved = config_manager.save_config(updates)
     cap = get_account_capital_summary()

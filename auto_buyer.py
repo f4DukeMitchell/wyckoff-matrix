@@ -153,20 +153,60 @@ def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     if losses_today >= 2:
         return False, f"DAILY_LOSS_LIMIT_REACHED ({ticker.upper()} has {losses_today} losses today)"
 
-    # 7. Gemini Cognitive Brain Evaluation (Macro Breadth & Trend Trap Gatekeeper)
+    # 7. Frank Proving Grounds (Default: SHADOW MODE - Zero Interference with Live Trades)
     try:
-        from ai_brain import evaluate_trade_candidate
+        from frank import evaluate_setup
+        from config_manager import load_config
+        cfg = load_config()
+        frank_mode = str(cfg.get("frank_mode", "SHADOW")).upper()
+
         setup_payload = {
             "ticker": ticker.upper(),
             "direction": "LONG",
             "timeframe": timeframe,
             "ml_confidence": ml_conf
         }
-        ai_verdict = evaluate_trade_candidate(setup_payload)
-        if ai_verdict.get("verdict") == "VETO":
-            return False, f"GEMINI_VETO: {ai_verdict.get('rationale')}"
+        ai_verdict = evaluate_setup(setup_payload)
+        verdict = ai_verdict.get("verdict", "PROCEED")
+        conf = ai_verdict.get("ai_confidence", 70)
+        rationale = ai_verdict.get("rationale", "")
+
+        # Record Shadow Telemetry for Frank's Proving Grounds Scorecard
+        try:
+            conn_frank = sqlite3.connect(DB_PATH)
+            c_frank = conn_frank.cursor()
+            c_frank.execute("""
+                CREATE TABLE IF NOT EXISTS frank_shadow_audits (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT,
+                    ticker TEXT,
+                    direction TEXT,
+                    timeframe TEXT,
+                    ml_confidence REAL,
+                    frank_verdict TEXT,
+                    frank_confidence REAL,
+                    frank_rationale TEXT,
+                    trade_blocked INTEGER DEFAULT 0
+                )
+            """)
+            is_blocked = 1 if (frank_mode == "ENFORCE" and verdict == "VETO") else 0
+            c_frank.execute("""
+                INSERT INTO frank_shadow_audits 
+                (timestamp, ticker, direction, timeframe, ml_confidence, frank_verdict, frank_confidence, frank_rationale, trade_blocked)
+                VALUES (datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (ticker.upper(), "LONG", timeframe, ml_conf, verdict, conf, rationale, is_blocked))
+            conn_frank.commit()
+            conn_frank.close()
+        except Exception as audit_db_err:
+            print(f"[Frank Telemetry] DB log notice: {audit_db_err}")
+
+        # Strict Proving Rule: In SHADOW mode, Frank NEVER blocks or interferes with real executions
+        if frank_mode == "ENFORCE" and verdict == "VETO":
+            return False, f"FRANK_VETO: {rationale}"
+        else:
+            print(f"[Frank Shadow Proving Ground] {ticker.upper()} -> Recommendation: {verdict} ({conf}% conf) | {rationale} | Trade NOT blocked (Shadow Mode Active).")
     except Exception as ai_err:
-        print(f"[Auto Buyer] AI Brain check bypassed: {ai_err}")
+        print(f"[Auto Buyer] Frank check bypassed: {ai_err}")
 
     return True, "ELIGIBLE"
 
