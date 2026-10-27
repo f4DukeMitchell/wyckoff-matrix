@@ -162,16 +162,21 @@ def generate_nightly_autopsy_and_rules(closed_trades: list) -> dict:
     """
     Forensic Post-Mortem & Rule Evolution Engine:
     Ingests all real broker fills from the trading day, diagnoses failure patterns,
-    and synthesizes concrete execution rules and ML weight adjustments.
+    and synthesizes statistically grounded execution rules.
     """
     system_instruction = (
-        "You are Frank Wyckoff, Head of Quantitative Strategy and Lead Tape Reader for the MSR Wyckoff Terminal (powered by Gemini). "
+        "You are Frank Wyckoff, Head of Quantitative Strategy and Lead Tape Reader for the MSR Wyckoff Terminal. "
         "Review today's closed broker executions. Diagnose what drove winning campaigns vs stopped campaigns. "
-        "Synthesize 3-4 concrete, actionable algorithmic rules for the bot to deploy tomorrow. "
+        "IMPORTANT ANTI-OVERFITTING DIRECTIVE: "
+        "Do NOT synthesize hyper-specific single-ticker rules (e.g., 'require 4-hour springs on meme assets like GME') "
+        "or arbitrary micro-restrictions based on small sample sizes (N < 30). That is textbook overfitting on noise. "
+        "Rules MUST be grounded in broad, proven Wyckoff volume and tape laws (e.g., minimum volume dry-up, "
+        "CVD delta absorption confirmation, CLV close thresholds, and broad risk geometry). "
+        "Synthesize 3-4 statistically grounded, actionable algorithmic rules for the bot. "
         "Output valid JSON matching schema: {"
         "\"daily_assessment\": \"2-3 sentence executive summary of today's performance.\","
-        "\"key_failure_cause\": \"The primary driver of stopped trades today.\","
-        "\"key_winning_driver\": \"The primary driver of winning trades today.\","
+        "\"key_failure_cause\": \"The primary driver of stopped trades.\","
+        "\"key_winning_driver\": \"The primary driver of winning trades.\","
         "\"generated_rules\": [\"Rule 1...\", \"Rule 2...\", \"Rule 3...\"]"
         "}"
     )
