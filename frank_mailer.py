@@ -41,7 +41,13 @@ def send_frank_email(subject: str, html_body: str, recipient: str = None) -> boo
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [Frank Mailer] Failed to send email to {target}: {e}")
         return False
 
-def format_executive_briefing_html(pnl_summary: dict, autopsy: dict, rules: list, shadow_scorecard: dict = None) -> str:
+def format_executive_briefing_html(pnl_summary: dict, autopsy: dict, rules: list, shadow_scorecard: dict = None, study_log: dict = None) -> str:
+    if study_log is None:
+        try:
+            from frank_study_engine import conduct_daily_study_session
+            study_log = conduct_daily_study_session()
+        except Exception:
+            study_log = {}
     """Formats a sleek, dark-themed institutional briefing email."""
     now_str = datetime.datetime.now().strftime("%B %d, %Y - %I:%M %p EST")
     
@@ -101,6 +107,15 @@ def format_executive_briefing_html(pnl_summary: dict, autopsy: dict, rules: list
           <ul style="margin: 0; padding-left: 20px;">
             {rules_html}
           </ul>
+        </div>
+
+        <div class="section-title">📚 Frank Wyckoff // Daily Research & Homework Log</div>
+        <div class="content-box" style="border-left: 3px solid #ffd700;">
+          <p style="margin-top: 0;"><strong style="color: #ffd700;">Text Studied:</strong> {study_log.get('source', 'Studies in Tape Reading (1910)')}</p>
+          <p><strong style="color: #38bdf8;">Topic:</strong> {study_log.get('topic', 'Classical Tape Reading & Order Absorption')}</p>
+          <p><strong>Core Wyckoff Principle:</strong> {study_log.get('wyckoff_principle', 'N/A')}</p>
+          <p style="color: #f87171;"><strong>Learning from Failure (What Can Go Wrong):</strong> {study_log.get('failure_analysis', 'N/A')}</p>
+          <p style="color: #4ade80;"><strong>Quantitative Application:</strong> {study_log.get('system_application', 'N/A')}</p>
         </div>
 
         <div class="footer">

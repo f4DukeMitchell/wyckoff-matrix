@@ -1868,6 +1868,26 @@ def ai_chat_endpoint(payload: AIChatPayload):
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+@app.get("/api/ai/study")
+def get_frank_daily_study():
+    """Returns Frank Wyckoff's daily research and homework briefing."""
+    try:
+        from frank_study_engine import conduct_daily_study_session
+        study_log = conduct_daily_study_session()
+        return {"success": True, "study_log": study_log}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/ai/study/conduct")
+def force_frank_daily_study():
+    """Advances Frank to the next research module in the Wyckoff syllabus."""
+    try:
+        from frank_study_engine import conduct_daily_study_session
+        study_log = conduct_daily_study_session(force_refresh=True)
+        return {"success": True, "study_log": study_log}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 @app.get("/api/ml/audit")
 def get_model_and_tape_audit():
     """Generates Frank's rigorous statistical model and tape reading audit."""

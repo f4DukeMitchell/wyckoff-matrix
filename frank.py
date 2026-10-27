@@ -48,6 +48,9 @@ if __name__ == "__main__":
 
 from frank_mailer import send_frank_email, format_executive_briefing_html
 from frank_auditor import compute_model_and_tape_telemetry, generate_frank_model_audit_report
+from frank_study_engine import conduct_daily_study_session, get_current_study_module
+
+study_daily = conduct_daily_study_session
 
 email_briefing = send_frank_email
 audit_model = generate_frank_model_audit_report
