@@ -321,12 +321,23 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
         v_num = c.fetchone()[0] + 1
         version_str = f"v1.{v_num}"
         
-        # Generate Algorithmic Adaptation Rules
+        # Generate Algorithmic Adaptation Rules (AI Brain + Quantitative Weights)
         rules = [
             f"Heavily weight {top_feat} ({sorted_imp[0][1]}% influence) on Phase C reversals",
             f"Secondary filter: {sorted_imp[1][0]} ({sorted_imp[1][1]}% influence)",
-            f"Dynamic Sweet-Spot Engine: Targets calibrated to +0.65R - +1.35R (Breakeven dynamically locked at 50% target / Tier 3)"
+            f"Dynamic Sweet-Spot Engine: Targets calibrated to +0.65R -> +1.35R (Breakeven dynamically locked at 50% target / Tier 3)"
         ]
+        try:
+            from ai_brain import generate_nightly_autopsy_and_rules
+            from pnl_engine import fetch_pnl_station_data
+            pnl_data = fetch_pnl_station_data()
+            recent_trades = pnl_data.get('trades', [])[:15]
+            if recent_trades:
+                ai_eval = generate_nightly_autopsy_and_rules(recent_trades)
+                if ai_eval.get('generated_rules') and len(ai_eval['generated_rules']) >= 2:
+                    rules = ai_eval['generated_rules']
+        except Exception as ai_e:
+            print(f"[ML Engine] AI Brain rules fallback: {ai_e}")
         
         notes_str = f"{trigger_reason} | {wins}W - {losses}L - {breakevens}BE (Ex-BE WR: {directional_win_rate:.1f}%, BE Rate: {be_rate:.1f}%)"
 

@@ -1336,6 +1336,9 @@ def register_swing_trade(payload: SwingRegisterPayload):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+class AIChatPayload(BaseModel):
+    message: str
+
 class ArmGuardianPayload(BaseModel):
     ticker: str
     direction: str = "LONG"
@@ -1832,7 +1835,7 @@ def get_ml_version_trades(version: str):
 
 @app.post("/api/ml/evolve")
 def trigger_ml_evolution():
-    """Triggers an on-demand training cycle of the Random Forest model."""
+    """Triggers an on-demand training cycle of the Random Forest model and Gemini AI Brain."""
     try:
         from wyckoff_ml_engine import train_and_upgrade_model
         success, report = train_and_upgrade_model("Terminal User On-Demand Trigger")
@@ -1842,6 +1845,35 @@ def trigger_ml_evolution():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/ai/chat")
+def ai_chat_endpoint(payload: AIChatPayload):
+    """Answers user queries via Gemini AI Brain with live terminal context."""
+    try:
+        from ai_brain import ask_ai_copilot
+        summary = {}
+        try:
+            cap = get_account_capital_summary()
+            summary = {
+                "buying_power": cap.get("buying_power"),
+                "total_equity": cap.get("total_equity")
+            }
+        except Exception:
+            pass
+        reply = ask_ai_copilot(payload.message, system_context=summary)
+        return {"success": True, "reply": reply}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/ai/evaluate")
+def ai_evaluate_endpoint(payload: dict):
+    """Evaluates a candidate setup via Gemini AI Brain."""
+    try:
+        from ai_brain import evaluate_trade_candidate
+        res = evaluate_trade_candidate(payload)
+        return {"success": True, "result": res}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 @app.get("/api/ml/paper_trades")
 def get_ml_paper_trades():
@@ -2070,6 +2102,44 @@ async def sync_ml_model(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class SetSecretPayload(BaseModel):
+    key: str
+    value: str
+
+@app.post("/api/system/set_secret")
+def set_system_secret(payload: SetSecretPayload):
+    """Sets a secret in .env and environment securely."""
+    try:
+        repo_dir = os.path.dirname(os.path.abspath(__file__))
+        env_path = os.path.join(repo_dir, ".env")
+        lines = []
+        if os.path.exists(env_path):
+            with open(env_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        found = False
+        new_lines = []
+        for l in lines:
+            if l.startswith(f"{payload.key}="):
+                new_lines.append(f"{payload.key}={payload.value}\n")
+                found = True
+            else:
+                new_lines.append(l)
+        if not found:
+            new_lines.append(f"{payload.key}={payload.value}\n")
+            
+        with open(env_path, "w", encoding="utf-8") as f:
+            f.writelines(new_lines)
+            
+        os.environ[payload.key] = payload.value
+        try:
+            import ai_brain
+            ai_brain.GEMINI_API_KEY = payload.value
+        except Exception:
+            pass
+        return {"success": True, "message": f"Secret {payload.key} set successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/system/update")
 def trigger_system_update():
@@ -2097,8 +2167,10 @@ def trigger_system_update():
         # Preserve live VM state files (priority_queue.json, terminal_config.json) and recent VM alerts across git reset
         pq_path = os.path.join(repo_dir, "priority_queue.json")
         cfg_path = os.path.join(repo_dir, "terminal_config.json")
+        env_path = os.path.join(repo_dir, ".env")
         pq_backup = open(pq_path, "rb").read() if os.path.exists(pq_path) else None
         cfg_backup = open(cfg_path, "rb").read() if os.path.exists(cfg_path) else None
+        env_backup = open(env_path, "rb").read() if os.path.exists(env_path) else None
 
         subprocess.run([git_bin, "fetch", "origin", "main"], cwd=repo_dir, capture_output=True, text=True, timeout=25, env=env)
         pull_res = subprocess.run([git_bin, "reset", "--hard", "origin/main"], cwd=repo_dir, capture_output=True, text=True, timeout=25, env=env)
@@ -2111,6 +2183,11 @@ def trigger_system_update():
         if cfg_backup:
             try:
                 open(cfg_path, "wb").write(cfg_backup)
+            except Exception:
+                pass
+        if env_backup:
+            try:
+                open(env_path, "wb").write(env_backup)
             except Exception:
                 pass
 

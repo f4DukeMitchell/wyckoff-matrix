@@ -153,6 +153,21 @@ def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     if losses_today >= 2:
         return False, f"DAILY_LOSS_LIMIT_REACHED ({ticker.upper()} has {losses_today} losses today)"
 
+    # 7. Gemini Cognitive Brain Evaluation (Macro Breadth & Trend Trap Gatekeeper)
+    try:
+        from ai_brain import evaluate_trade_candidate
+        setup_payload = {
+            "ticker": ticker.upper(),
+            "direction": "LONG",
+            "timeframe": timeframe,
+            "ml_confidence": ml_conf
+        }
+        ai_verdict = evaluate_trade_candidate(setup_payload)
+        if ai_verdict.get("verdict") == "VETO":
+            return False, f"GEMINI_VETO: {ai_verdict.get('rationale')}"
+    except Exception as ai_err:
+        print(f"[Auto Buyer] AI Brain check bypassed: {ai_err}")
+
     return True, "ELIGIBLE"
 
 def execute_autonomous_second_spring_buy(parent_trade_id, ticker, price, ml_conf, timeframe="5m"):
