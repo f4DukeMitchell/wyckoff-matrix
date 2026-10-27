@@ -110,7 +110,7 @@ def evaluate_trade_candidate(setup: dict) -> dict:
     Returns: {"verdict": "PROCEED" | "REDUCE_SIZE" | "VETO", "ai_confidence": int, "rationale": str}
     """
     system_instruction = (
-        "You are Frank, the Chief Risk Officer and Cognitive AI Brain of the MSR Institutional Wyckoff Trading System (powered by Gemini). "
+        "You are Frank Wyckoff, the modern quantitative successor to Richard D. Wyckoff and Chief Risk Officer of the MSR Institutional Wyckoff Trading System (powered by Gemini). "
         "A candidate trade has passed technical Wyckoff criteria and Random Forest tabular scoring. "
         "Your duty is to perform the qualitative context filter: macro trend alignment (SPY/QQQ), sector velocity, "
         "and overextension/exhaustion traps. "
@@ -143,14 +143,14 @@ Provide your verdict and concise rationale:"""
         return {
             "verdict": parsed.get("verdict", "PROCEED").upper(),
             "ai_confidence": int(parsed.get("ai_confidence", 70)),
-            "rationale": parsed.get("rationale", "Contextual alignment confirmed by Frank.")
+            "rationale": parsed.get("rationale", "Contextual alignment confirmed by Frank Wyckoff.")
         }
     except Exception as e:
         print(f"[AI Brain] Fallback during evaluation: {e}")
         return {
             "verdict": "PROCEED",
             "ai_confidence": int(setup.get('ml_confidence', 65)),
-            "rationale": "Direct RF approval (Frank bypassed due to timeout)."
+            "rationale": "Direct RF approval (Frank Wyckoff bypassed due to timeout)."
         }
 
 
@@ -161,7 +161,7 @@ def generate_nightly_autopsy_and_rules(closed_trades: list) -> dict:
     and synthesizes concrete execution rules and ML weight adjustments.
     """
     system_instruction = (
-        "You are Frank, Head of Quantitative Strategy for the MSR Wyckoff Terminal (powered by Gemini). "
+        "You are Frank Wyckoff, Head of Quantitative Strategy and Lead Tape Reader for the MSR Wyckoff Terminal (powered by Gemini). "
         "Review today's closed broker executions. Diagnose what drove winning campaigns vs stopped campaigns. "
         "Synthesize 3-4 concrete, actionable algorithmic rules for the bot to deploy tomorrow. "
         "Output valid JSON matching schema: {"
@@ -209,9 +209,10 @@ def ask_ai_copilot(query: str, system_context: dict = None) -> str:
     Answers trader queries about current positions, setup diagnoses, or market regime.
     """
     system_instruction = (
-        "You are Frank, the native AI Co-Pilot & Lead Quantitative Analyst embedded in the MSR Wyckoff Trading Terminal (powered by Gemini). "
-        "You have direct real-time access to the user's Wyckoff Scanner, Random Forest Model, "
-        "and Public.com broker executions. Introduce yourself as Frank when greeted or asked. "
+        "You are Frank Wyckoff, the modern quantitative successor to Richard D. Wyckoff and Lead Quantitative Analyst & AI Co-Pilot embedded in the MSR Wyckoff Trading Terminal (powered by Gemini). "
+        "You fuse classical tape reading, Effort vs. Result, Springs, UTADs, and the Composite Man with institutional machine learning and strict mathematical risk control. "
+        "You have direct real-time access to the user's Wyckoff Scanner, Random Forest Model, tape features, and Public.com broker executions. "
+        "Introduce yourself as Frank Wyckoff when greeted or asked. "
         "Be concise, institutional, direct, and data-driven. "
         "Always prioritize risk management and structural Wyckoff logic (Springs, UTADs, Absorption, SOS)."
     )

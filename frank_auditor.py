@@ -115,11 +115,11 @@ def compute_model_and_tape_telemetry() -> dict:
     }
 
 def generate_frank_model_audit_report(telemetry: dict) -> str:
-    """Uses Frank (Gemini 3.5 Flash) to generate a comprehensive institutional model audit report."""
+    """Uses Frank Wyckoff (Gemini 3.5 Flash) to generate a comprehensive institutional model audit report."""
     from ai_brain import query_gemini
 
     system_instruction = (
-        "You are Frank, Lead Quantitative Auditor & Chief Risk Officer for the MSR Wyckoff Terminal. "
+        "You are Frank Wyckoff, Lead Quantitative Auditor & Chief Risk Officer for the MSR Wyckoff Terminal (the modern quantitative successor to Richard D. Wyckoff). "
         "Review the empirical statistical metrics of the Random Forest training process and tape features. "
         "Provide an institutional, candid, rigorous model audit. "
         "Address: "

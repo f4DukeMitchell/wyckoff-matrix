@@ -20,12 +20,12 @@ def send_frank_email(subject: str, html_body: str, recipient: str = None) -> boo
     """
     target = recipient or DEFAULT_RECIPIENT
     msg = MIMEMultipart("alternative")
-    msg["From"] = f"Frank // MSR AI Co-Pilot <{GMAIL_USER}>"
+    msg["From"] = f"Frank Wyckoff // MSR AI Co-Pilot <{GMAIL_USER}>"
     msg["To"] = target
     msg["Subject"] = subject
 
     # Plain text fallback
-    plain_text = f"Frank AI Briefing:\n\nPlease view this email in an HTML-compatible client to render the complete Wyckoff terminal report."
+    plain_text = f"Frank Wyckoff AI Briefing:\n\nPlease view this email in an HTML-compatible client to render the complete Wyckoff terminal report."
     msg.attach(MIMEText(plain_text, "plain", "utf-8"))
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
@@ -70,7 +70,7 @@ def format_executive_briefing_html(pnl_summary: dict, autopsy: dict, rules: list
     <body>
       <div class="container">
         <div class="header">
-          <div class="title">🧠 FRANK // POST-MARKET EXECUTIVE BRIEFING</div>
+          <div class="title">🧠 FRANK WYCKOFF // POST-MARKET EXECUTIVE BRIEFING</div>
           <div class="subtitle">MSR Wyckoff Institutional Trading Terminal &bull; {now_str}</div>
         </div>
 
