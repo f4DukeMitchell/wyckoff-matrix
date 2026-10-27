@@ -1563,6 +1563,7 @@
         <button id="tab-options" class="view-tab" onclick="switchView('options')" style="border-color: #a855f7; color: #c084fc;" title="Dedicated Options Matrix: Real-time 0.65 Delta Weekly Calls & Multi-Tranche Exits">⚡ OPTIONS MATRIX</button>
         <button id="tab-paper" class="view-tab" onclick="switchView('paper')" style="border-color: #00e5ff; color: #00e5ff;" title="AI Learning Model Simulated Paper Trades (Air-gapped from live broker trades)">🤖 ML PAPER LAB</button>
         <button id="tab-telegram" class="view-tab" onclick="switchView('telegram')" style="border-color: #00e5ff; color: #00e5ff;" title="Dedicated Live Telegram Broadcasts: Stream all Day and Swing trade alerts">📢 TELEGRAM</button>
+        <button id="tab-cards" class="view-tab" onclick="switchView('cards')" style="border-color: #f59e0b; color: #fbbf24;" title="PSA Graded Cards & Institutional Alternative Assets Matrix">🎴 PSA CARDS</button>
       </div>
       <div class="top-nav-actions">
         <button id="tab-toggle-drawer" class="view-tab" onclick="toggleBottomDrawer()" style="border-color: #00e5ff; color: #00e5ff;" title="Toggle bottom intel drawer to maximize vertical chart height">🔽 BOTTOM: ON</button>
@@ -2781,6 +2782,181 @@
     </div>
   </div>
 
+  <!-- DEDICATED PSA GRADED CARDS & ALTERNATIVE ASSETS STATION -->
+  <div id="cards-matrix-grid" style="display: none; flex-direction: column; height: calc(100vh - 65px); padding: 8px 10px; box-sizing: border-box; background: var(--wsr-bg); gap: 8px;">
+    
+    <!-- TOP INSTITUTIONAL KPI RIBBON -->
+    <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px;">
+      
+      <div class="options-kpi-card" style="border-left: 3px solid #fbbf24;">
+        <span class="options-kpi-lbl">TOTAL GRADED MARKET CAP</span>
+        <span class="options-kpi-val" id="cards-kpi-mktcap" style="color: #fbbf24;">$28.45B</span>
+        <span class="options-kpi-sub c-green">+3.8% 30D EXPANSION</span>
+      </div>
+
+      <div class="options-kpi-card" style="border-left: 3px solid #38bdf8;">
+        <span class="options-kpi-lbl">CARD LADDER 50 (CL50)</span>
+        <span class="options-kpi-val" id="cards-kpi-cl50" style="color: #38bdf8;">26,482.10</span>
+        <span class="options-kpi-sub c-green">+3.42% 30D (BLUE-CHIP CORE)</span>
+      </div>
+
+      <div class="options-kpi-card" style="border-left: 3px solid #00ff88;">
+        <span class="options-kpi-lbl">PSA 10 GEM MINT INDEX</span>
+        <span class="options-kpi-val" id="cards-kpi-psa10" style="color: #00ff88;">142.85</span>
+        <span class="options-kpi-sub c-green">+5.14% 30D (POP SCARCITY)</span>
+      </div>
+
+      <div class="options-kpi-card" style="border-left: 3px solid #c084fc;">
+        <span class="options-kpi-lbl">PWCC TOP 500 BENCHMARK</span>
+        <span class="options-kpi-val" id="cards-kpi-pwcc" style="color: #c084fc;">845.20</span>
+        <span class="options-kpi-sub c-green">+2.80% VS S&P 500</span>
+      </div>
+
+      <div class="options-kpi-card" style="border-left: 3px solid #f43f5e;">
+        <span class="options-kpi-lbl">30D AUCTION VOLUME</span>
+        <span class="options-kpi-val" id="cards-kpi-volume" style="color: #f43f5e;">$148.6M</span>
+        <span class="options-kpi-sub c-green">+12.4% MoM (HERITAGE/GOLDIN)</span>
+      </div>
+
+      <div class="options-kpi-card" style="border-left: 3px solid #10b981;">
+        <span class="options-kpi-lbl">SPY / PSA 10 CORRELATION</span>
+        <span class="options-kpi-val" id="cards-kpi-corr" style="color: #10b981;">0.18</span>
+        <span class="options-kpi-sub c-green">OPTIMAL ALTERNATIVE HEDGE</span>
+      </div>
+
+    </div>
+
+    <!-- MAIN TWO-COLUMN WORKBENCH -->
+    <div style="flex: 1; display: grid; grid-template-columns: 58% 42%; gap: 8px; min-height: 0;">
+      
+      <!-- LEFT PANE: INSTITUTIONAL PSA BLUE-CHIP WATCHLIST & RADAR -->
+      <div class="pane" style="display: flex; flex-direction: column; overflow: hidden; border: 1px solid #222;">
+        
+        <!-- Header & Category Filter Buttons -->
+        <div class="pane-header" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(245, 158, 11, 0.08); border-bottom: 1px solid #222;">
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <span style="font-weight: bold; color: #fbbf24; font-size: 11px;">🎴 INSTITUTIONAL BLUE-CHIP RADAR</span>
+            <span id="cards-watchlist-count" style="font-size: 9px; color: #94a3b8; background: #1e293b; padding: 1px 5px; border-radius: 3px;">9 ASSETS</span>
+          </div>
+          <div style="display: flex; gap: 4px; align-items: center;">
+            <button class="term-btn active-tf" id="btn-card-cat-all" onclick="filterPSACards('ALL')" style="font-size: 8.5px; padding: 2px 6px;">ALL</button>
+            <button class="term-btn" id="btn-card-cat-vintage" onclick="filterPSACards('VINTAGE_SPORTS')" style="font-size: 8.5px; padding: 2px 6px;">VINTAGE SPORTS</button>
+            <button class="term-btn" id="btn-card-cat-modern" onclick="filterPSACards('MODERN_GOATS')" style="font-size: 8.5px; padding: 2px 6px;">MODERN GOATS</button>
+            <button class="term-btn" id="btn-card-cat-tcg" onclick="filterPSACards('TCG_CULT')" style="font-size: 8.5px; padding: 2px 6px;">TCG / POKEMON</button>
+            <input type="text" id="cards-search-input" placeholder="SEARCH ASSET / SPORT..." oninput="searchPSACards()" style="background: #090b0e; border: 1px solid #333; color: #fff; font-size: 9px; padding: 2px 6px; border-radius: 2px; width: 130px; margin-left: 4px;">
+          </div>
+        </div>
+
+        <!-- Table Container -->
+        <div style="flex: 1; overflow-y: auto; background: #070a12;">
+          <table class="term-table" style="width: 100%; border-collapse: collapse; font-size: 10px;">
+            <thead style="position: sticky; top: 0; background: #0c1017; z-index: 2; border-bottom: 1px solid #1f2937;">
+              <tr style="color: #64748b; font-size: 8.5px; text-transform: uppercase;">
+                <th style="padding: 6px 8px; text-align: left;">Asset / Player</th>
+                <th style="padding: 6px 8px; text-align: center;">Grade</th>
+                <th style="padding: 6px 8px; text-align: right;">Pop 10 / Gem%</th>
+                <th style="padding: 6px 8px; text-align: right;">FMV / Hammer</th>
+                <th style="padding: 6px 8px; text-align: right;">90D Trend</th>
+                <th style="padding: 6px 8px; text-align: center;">Wyckoff Phase</th>
+                <th style="padding: 6px 8px; text-align: center;">Vault Status</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-cards-body">
+              <!-- Dynamically populated rows -->
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+      <!-- RIGHT PANE: CARD DETAIL INSPECTOR & WYCKOFF TAPE ANALYSIS -->
+      <div class="pane" style="display: flex; flex-direction: column; overflow: hidden; border: 1px solid #222;">
+        
+        <div class="pane-header" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(0, 229, 255, 0.05); border-bottom: 1px solid #222;">
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <span style="font-weight: bold; color: #38bdf8; font-size: 11px;">🔍 ASSET DETAIL & WYCKOFF TAPE</span>
+            <span id="detail-card-badge" style="font-size: 9px; font-weight: bold; color: #ffd700; background: rgba(255, 215, 0, 0.1); border: 1px solid #ffd700; padding: 1px 5px; border-radius: 3px;">MJ-86F-10</span>
+          </div>
+          <span id="detail-vault-conc" style="font-size: 9px; color: #4ade80; font-weight: bold;">46.5% IN INSTITUTIONAL VAULTS</span>
+        </div>
+
+        <div style="flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 10px; background: #080c14;">
+          
+          <!-- Card Header Card -->
+          <div style="background: #0f172a; border: 1px solid #1e293b; border-left: 4px solid #fbbf24; border-radius: 4px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div id="detail-card-title" style="font-size: 14px; font-weight: bold; color: #f8fafc;">Michael Jordan 1986 Fleer #57</div>
+              <div id="detail-card-subtitle" style="font-size: 10px; color: #94a3b8; margin-top: 2px;">1986 Fleer Basketball &bull; Card #57 &bull; PSA 10 Gem Mint</div>
+            </div>
+            <div style="text-align: right;">
+              <div id="detail-card-fmv" style="font-size: 17px; font-weight: bold; color: #00ff88;">$240,000</div>
+              <div id="detail-card-trend" style="font-size: 9.5px; color: #4ade80; font-weight: bold;">+7.4% (90D) &bull; +12.8% (1Y)</div>
+            </div>
+          </div>
+
+          <!-- Valuation & Population Distribution Grid -->
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: #0b0f19; border: 1px solid #1e293b; border-radius: 4px; padding: 6px 8px; font-size: 9.5px;">
+            <div>
+              <div style="color: #64748b; font-size: 8px;">PSA 10 POPULATION</div>
+              <div id="detail-pop10" style="color: #38bdf8; font-weight: bold; font-size: 11px;">320 copies</div>
+            </div>
+            <div>
+              <div style="color: #64748b; font-size: 8px;">GEM MINT RATE</div>
+              <div id="detail-gemrate" style="color: #facc15; font-weight: bold; font-size: 11px;">1.26%</div>
+            </div>
+            <div>
+              <div style="color: #64748b; font-size: 8px;">TOTAL SUBMITTED</div>
+              <div id="detail-poptotal" style="color: #cbd5e1; font-weight: bold; font-size: 11px;">25,480</div>
+            </div>
+            <div>
+              <div style="color: #64748b; font-size: 8px;">ALL-TIME HIGH</div>
+              <div id="detail-ath" style="color: #f87171; font-weight: bold; font-size: 11px;">$738,000 (Jan '21)</div>
+            </div>
+          </div>
+
+          <!-- 52-Week Range Bar -->
+          <div style="background: #0b0f19; border: 1px solid #1e293b; border-radius: 4px; padding: 6px 10px;">
+            <div style="display: flex; justify-content: space-between; font-size: 8.5px; color: #64748b; margin-bottom: 3px;">
+              <span>52-WEEK ACCUMULATION CHANNEL</span>
+              <span id="detail-range-bounds">$205K - $255K</span>
+            </div>
+            <div style="height: 6px; background: #1e293b; border-radius: 3px; position: relative; overflow: hidden;">
+              <div id="detail-range-fill" style="position: absolute; left: 0; width: 70%; height: 100%; background: linear-gradient(90deg, #38bdf8, #00ff88); border-radius: 3px;"></div>
+            </div>
+          </div>
+
+          <!-- Frank Wyckoff Analysis Box -->
+          <div style="background: rgba(251, 191, 36, 0.05); border-left: 3px solid #fbbf24; border-radius: 3px; padding: 8px 10px; font-size: 10px; line-height: 1.5; color: #cbd5e1;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <b style="color: #fbbf24; font-size: 10.5px;">🧠 Frank Wyckoff Collectible Market Assessment:</b>
+              <span id="detail-phase-badge" style="background: rgba(0, 255, 136, 0.15); color: #00ff88; font-size: 8.5px; font-weight: bold; padding: 1px 5px; border-radius: 2px;">Phase C: Spring</span>
+            </div>
+            <div id="detail-frank-text">
+              Clean Wyckoff Spring formation. Following the 2021 Buying Climax ($738K) and subsequent two-year markdown, Jordan PSA 10 found major institutional support at $200K-$215K.
+            </div>
+          </div>
+
+          <!-- Recent Verified Auction Sales Tape -->
+          <div>
+            <div style="font-size: 9px; color: #64748b; font-weight: bold; margin-bottom: 4px; display: flex; justify-content: space-between;">
+              <span>RECENT VERIFIED AUCTION SALES TAPE</span>
+              <span style="color: #94a3b8;">GOLDIN &bull; HERITAGE &bull; PWCC &bull; ALT</span>
+            </div>
+            <div id="detail-sales-tape" style="display: flex; flex-direction: column; gap: 4px;">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+
   <!-- DEDICATED MULTI-CHART MATRIX VIEW -->
   <div id="charts-page-grid">
     <!-- Top Multi-Chart Toolbar -->
@@ -3235,6 +3411,7 @@
       <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'paper' ? 'terminal' : 'paper')"><b>F8</b> PAPER LAB</span>
       <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'charts' ? 'terminal' : 'charts')"><b>F9</b> CHARTS</span>
       <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'pulse' ? 'terminal' : 'pulse')"><b>F10</b> PULSE</span>
+      <span class="fn-key" style="cursor:pointer;" onclick="switchView(currentView === 'cards' ? 'terminal' : 'cards')"><b>F11</b> PSA CARDS</span>
       <span class="fn-key" style="cursor:pointer;" onclick="handleEscClear()"><b>ESC</b> CLEAR</span>
     </div>
     <div>
@@ -5200,6 +5377,8 @@ Position upgraded from Core Hold to Algo Active!`);
 
       const tgGrid = document.getElementById('telegram-page-grid');
       const tabTelegram = document.getElementById('tab-telegram');
+      const cardsGrid = document.getElementById('cards-matrix-grid');
+      const tabCards = document.getElementById('tab-cards');
       terminalGrid.style.display = 'none';
       mlGrid.style.display = 'none';
       if (optGrid) optGrid.style.display = 'none';
@@ -5208,6 +5387,7 @@ Position upgraded from Core Hold to Algo Active!`);
       if (pulseGrid) pulseGrid.style.display = 'none';
       if (pnlGrid) pnlGrid.style.display = 'none';
       if (tgGrid) tgGrid.style.display = 'none';
+      if (cardsGrid) cardsGrid.style.display = 'none';
       tabTerm.classList.remove('active');
       if (tabCharts) tabCharts.classList.remove('active');
       if (tabPulse) tabPulse.classList.remove('active');
@@ -5216,6 +5396,7 @@ Position upgraded from Core Hold to Algo Active!`);
       if (tabOpt) tabOpt.classList.remove('active');
       if (tabPaper) tabPaper.classList.remove('active');
       if (tabTelegram) tabTelegram.classList.remove('active');
+      if (tabCards) tabCards.classList.remove('active');
 
       if (view === 'charts') {
         if (chartsGrid) chartsGrid.style.display = 'flex';
@@ -5245,6 +5426,10 @@ Position upgraded from Core Hold to Algo Active!`);
         if (tgGrid) tgGrid.style.display = 'flex';
         if (tabTelegram) tabTelegram.classList.add('active');
         renderTelegramAlertsTable();
+      } else if (view === 'cards') {
+        if (cardsGrid) cardsGrid.style.display = 'flex';
+        if (tabCards) tabCards.classList.add('active');
+        fetchPSACardsStation();
       } else {
         terminalGrid.style.display = 'grid';
         tabTerm.classList.add('active');
@@ -8521,6 +8706,271 @@ Position upgraded from Core Hold to Algo Active!`);
           btn.disabled = false;
         }
       }
+    }
+
+
+    // --- PSA GRADED CARDS & ALTERNATIVE ASSETS MATRIX JAVASCRIPT ---
+    let currentCardsList = [];
+    let activeCardCategory = 'ALL';
+    let selectedPSACardId = 'MJ-86F-10';
+
+    async function fetchPSACardsStation() {
+      await loadPSAMarketOverview();
+      await loadPSAWatchlist(activeCardCategory);
+    }
+
+    async function loadPSAMarketOverview() {
+      try {
+        const res = await fetch('/api/cards/psa_market');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.success || !data.market) return;
+        const m = data.market.macro_metrics;
+
+        const mktcapEl = document.getElementById('cards-kpi-mktcap');
+        if (mktcapEl) mktcapEl.innerText = m.total_graded_mktcap;
+
+        const cl50El = document.getElementById('cards-kpi-cl50');
+        if (cl50El) cl50El.innerText = m.cl50_index.value.toLocaleString(undefined, {minimumFractionDigits: 2});
+
+        const psa10El = document.getElementById('cards-kpi-psa10');
+        if (psa10El) psa10El.innerText = m.psa10_bluechip_index.value.toFixed(2);
+
+        const pwccEl = document.getElementById('cards-kpi-pwcc');
+        if (pwccEl) pwccEl.innerText = m.pwcc_500_index.value.toFixed(2);
+
+        const volEl = document.getElementById('cards-kpi-volume');
+        if (volEl) volEl.innerText = m.monthly_auction_volume;
+
+        const corrEl = document.getElementById('cards-kpi-corr');
+        if (corrEl) corrEl.innerText = m.spy_correlation_coefficient.toFixed(2);
+
+      } catch (err) {
+        console.warn('Error loading PSA market overview:', err);
+      }
+    }
+
+    async function loadPSAWatchlist(category) {
+      activeCardCategory = category || 'ALL';
+      try {
+        const res = await fetch(`/api/cards/watchlist?category=${activeCardCategory}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.success || !data.cards) return;
+        currentCardsList = data.cards;
+
+        const countEl = document.getElementById('cards-watchlist-count');
+        if (countEl) countEl.innerText = `${currentCardsList.length} ASSETS`;
+
+        renderPSACardsTable(currentCardsList);
+
+        // Auto-select first card if current selection not found
+        if (currentCardsList.length > 0) {
+          const match = currentCardsList.find(c => c.id === selectedPSACardId);
+          if (!match) {
+            selectPSACard(currentCardsList[0].id);
+          } else {
+            selectPSACard(match.id);
+          }
+        }
+      } catch (err) {
+        console.warn('Error loading PSA watchlist:', err);
+      }
+    }
+
+    function renderPSACardsTable(cards) {
+      const tbody = document.getElementById('tbl-cards-body');
+      if (!tbody) return;
+
+      if (!cards || cards.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#64748b;">No cards matching current filter.</td></tr>';
+        return;
+      }
+
+      let html = '';
+      cards.forEach(c => {
+        const isSelected = c.id === selectedPSACardId;
+        const trendColor = c.change_90d_pct >= 0 ? '#4ade80' : '#f87171';
+        const trendSign = c.change_90d_pct >= 0 ? '+' : '';
+        const phaseColor = c.wyckoff_bias.includes('BULLISH') || c.wyckoff_bias.includes('ACCUMULATION') ? '#00ff88' : '#facc15';
+        
+        let vaultBadge = '<span style="color:#64748b; font-size:8.5px;">STANDARD</span>';
+        if (c.vault_concentration_pct >= 50) {
+          vaultBadge = '<span style="background:rgba(0,255,136,0.12); color:#00ff88; border:1px solid #00ff88; font-size:8px; font-weight:bold; padding:1px 4px; border-radius:2px;">VAULT LOCKUP</span>';
+        } else if (c.vault_concentration_pct >= 35) {
+          vaultBadge = '<span style="background:rgba(56,189,248,0.12); color:#38bdf8; border:1px solid #38bdf8; font-size:8px; font-weight:bold; padding:1px 4px; border-radius:2px;">ACCUMULATED</span>';
+        }
+
+        html += `
+          <tr class="pos-row ${isSelected ? 'pos-row-active' : ''}" style="cursor:pointer; border-bottom:1px solid #141b29;" onclick="selectPSACard('${c.id}')">
+            <td style="padding:6px 8px;">
+              <div style="font-weight:bold; color:#f8fafc;">${c.short_name}</div>
+              <div style="font-size:8px; color:#64748b;">${c.year} &bull; ${c.set_name}</div>
+            </td>
+            <td style="padding:6px 8px; text-align:center;">
+              <span style="background:rgba(251,191,36,0.15); color:#fbbf24; border:1px solid #fbbf24; font-size:8.5px; font-weight:bold; padding:1px 5px; border-radius:2px;">${c.grade}</span>
+            </td>
+            <td style="padding:6px 8px; text-align:right;">
+              <div style="font-weight:bold; color:#38bdf8;">${c.psa_pop_10}</div>
+              <div style="font-size:8px; color:#94a3b8;">${c.gem_rate_pct.toFixed(1)}% Gem</div>
+            </td>
+            <td style="padding:6px 8px; text-align:right;">
+              <div style="font-weight:bold; color:#00ff88;">$${c.current_fmv.toLocaleString()}</div>
+              <div style="font-size:8px; color:#64748b;">${c.recent_sales && c.recent_sales[0] ? c.recent_sales[0].house : ''}</div>
+            </td>
+            <td style="padding:6px 8px; text-align:right; font-weight:bold; color:${trendColor};">
+              ${trendSign}${c.change_90d_pct.toFixed(1)}%
+            </td>
+            <td style="padding:6px 8px; text-align:center;">
+              <span style="color:${phaseColor}; font-size:8.5px; font-weight:bold;">${c.wyckoff_phase.split('(')[0].trim()}</span>
+            </td>
+            <td style="padding:6px 8px; text-align:center;">
+              ${vaultBadge}
+            </td>
+          </tr>
+        `;
+      });
+
+      tbody.innerHTML = html;
+    }
+
+    async function selectPSACard(cardId) {
+      if (!cardId) return;
+      selectedPSACardId = cardId;
+      
+      // Update table row active highlight
+      document.querySelectorAll('#tbl-cards-body tr').forEach(tr => {
+        tr.classList.remove('pos-row-active');
+      });
+
+      try {
+        const res = await fetch(`/api/cards/item/${cardId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.success || !data.card) return;
+        const c = data.card;
+
+        const badgeEl = document.getElementById('detail-card-badge');
+        if (badgeEl) badgeEl.innerText = c.id;
+
+        const vaultEl = document.getElementById('detail-vault-conc');
+        if (vaultEl) vaultEl.innerText = `${c.vault_concentration_pct}% IN INSTITUTIONAL VAULTS`;
+
+        const titleEl = document.getElementById('detail-card-title');
+        if (titleEl) titleEl.innerText = c.asset_name;
+
+        const subEl = document.getElementById('detail-card-subtitle');
+        if (subEl) subEl.innerHTML = `${c.year} ${c.set_name} &bull; ${c.card_number} &bull; <b style="color:#ffd700;">${c.grade} ${c.grade_desc}</b>`;
+
+        const fmvEl = document.getElementById('detail-card-fmv');
+        if (fmvEl) fmvEl.innerText = `$${c.current_fmv.toLocaleString()}`;
+
+        const trendEl = document.getElementById('detail-card-trend');
+        if (trendEl) {
+          const s90 = c.change_90d_pct >= 0 ? `+${c.change_90d_pct.toFixed(1)}%` : `${c.change_90d_pct.toFixed(1)}%`;
+          const s1y = c.change_1y_pct >= 0 ? `+${c.change_1y_pct.toFixed(1)}%` : `${c.change_1y_pct.toFixed(1)}%`;
+          trendEl.innerText = `${s90} (90D) • ${s1y} (1Y)`;
+          trendEl.style.color = c.change_90d_pct >= 0 ? '#4ade80' : '#f87171';
+        }
+
+        const pop10El = document.getElementById('detail-pop10');
+        if (pop10El) pop10El.innerText = `${c.psa_pop_10} copies`;
+
+        const gemRateEl = document.getElementById('detail-gemrate');
+        if (gemRateEl) gemRateEl.innerText = `${c.gem_rate_pct.toFixed(2)}%`;
+
+        const popTotEl = document.getElementById('detail-poptotal');
+        if (popTotEl) popTotEl.innerText = c.psa_pop_total.toLocaleString();
+
+        const athEl = document.getElementById('detail-ath');
+        if (athEl) athEl.innerText = `$${c.all_time_high.toLocaleString()} (${c.all_time_high_date})`;
+
+        const boundsEl = document.getElementById('detail-range-bounds');
+        if (boundsEl) boundsEl.innerText = `$${(c.low_52w/1000).toFixed(0)}K - $${(c.high_52w/1000).toFixed(0)}K`;
+
+        const rangeFill = document.getElementById('detail-range-fill');
+        if (rangeFill && c.high_52w > c.low_52w) {
+          const pct = Math.max(5, Math.min(95, ((c.current_fmv - c.low_52w) / (c.high_52w - c.low_52w)) * 100));
+          rangeFill.style.width = `${pct}%`;
+        }
+
+        const phaseBadge = document.getElementById('detail-phase-badge');
+        if (phaseBadge) phaseBadge.innerText = c.wyckoff_phase;
+
+        const frankEl = document.getElementById('detail-frank-text');
+        if (frankEl) frankEl.innerText = c.frank_analysis;
+
+        // Populate recent sales tape
+        const tapeContainer = document.getElementById('detail-sales-tape');
+        if (tapeContainer) {
+          if (!c.recent_sales || c.recent_sales.length === 0) {
+            tapeContainer.innerHTML = '<div style="color:#64748b; font-size:10px;">No recent auction records found.</div>';
+          } else {
+            let salesHtml = '';
+            c.recent_sales.forEach(s => {
+              salesHtml += `
+                <div style="background:#0b0f19; border:1px solid #1e293b; border-radius:3px; padding:5px 8px; display:flex; justify-content:space-between; align-items:center; font-size:10px;">
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    <span style="color:#38bdf8; font-weight:bold;">${s.house}</span>
+                    <span style="color:#64748b; font-size:8.5px;">${s.type}</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="color:#94a3b8; font-size:9px;">${s.date}</span>
+                    <b style="color:#00ff88; font-size:11px;">$${s.price.toLocaleString()}</b>
+                  </div>
+                </div>
+              `;
+            });
+            tapeContainer.innerHTML = salesHtml;
+          }
+        }
+
+      } catch (err) {
+        console.warn('Error fetching card detail:', err);
+      }
+    }
+
+    function filterPSACards(category) {
+      activeCardCategory = category;
+      ['all', 'vintage', 'modern', 'tcg'].forEach(c => {
+        const b = document.getElementById(`btn-card-cat-${c}`);
+        if (b) {
+          b.classList.remove('active-tf');
+          b.style.borderColor = '';
+          b.style.color = '';
+        }
+      });
+
+      const catMap = {
+        'ALL': 'all',
+        'VINTAGE_SPORTS': 'vintage',
+        'MODERN_GOATS': 'modern',
+        'TCG_CULT': 'tcg'
+      };
+      const activeBtn = document.getElementById(`btn-card-cat-${catMap[category] || 'all'}`);
+      if (activeBtn) {
+        activeBtn.classList.add('active-tf');
+        activeBtn.style.borderColor = '#fbbf24';
+        activeBtn.style.color = '#fbbf24';
+      }
+
+      loadPSAWatchlist(category);
+    }
+
+    function searchPSACards() {
+      const q = (document.getElementById('cards-search-input')?.value || '').toLowerCase().trim();
+      if (!q) {
+        renderPSACardsTable(currentCardsList);
+        return;
+      }
+      const filtered = currentCardsList.filter(c => 
+        c.asset_name.toLowerCase().includes(q) ||
+        c.short_name.toLowerCase().includes(q) ||
+        c.sport.toLowerCase().includes(q) ||
+        c.set_name.toLowerCase().includes(q) ||
+        c.id.toLowerCase().includes(q)
+      );
+      renderPSACardsTable(filtered);
     }
 
 </script>

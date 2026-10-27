@@ -2034,6 +2034,40 @@ def ai_evaluate_endpoint(payload: dict):
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+# --- PSA GRADED CARDS & ALTERNATIVE ASSETS STATION ENDPOINTS ---
+@app.get("/api/cards/psa_market")
+def get_psa_market_endpoint():
+    """Returns macro indices, total market cap, and institutional vault inflows for PSA graded cards."""
+    try:
+        from psa_cards_engine import get_psa_market_overview
+        data = get_psa_market_overview()
+        return {"success": True, "market": data}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/cards/watchlist")
+def get_psa_watchlist_endpoint(category: str = "ALL"):
+    """Returns the institutional blue-chip watchlist of PSA graded cards with Pop Reports and Wyckoff phases."""
+    try:
+        from psa_cards_engine import get_psa_watchlist
+        cards = get_psa_watchlist(filter_category=category)
+        return {"success": True, "count": len(cards), "cards": cards}
+    except Exception as e:
+        return {"success": False, "error": str(e), "cards": []}
+
+@app.get("/api/cards/item/{card_id}")
+def get_psa_card_detail_endpoint(card_id: str):
+    """Returns detailed telemetry, Pop Report distribution, auction sales history, and Frank Wyckoff analysis."""
+    try:
+        from psa_cards_engine import get_psa_card_detail
+        card = get_psa_card_detail(card_id)
+        if card:
+            return {"success": True, "card": card}
+        return {"success": False, "error": f"Card {card_id} not found."}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 @app.get("/api/ml/paper_trades")
 def get_ml_paper_trades():
     """
