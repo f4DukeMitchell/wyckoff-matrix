@@ -2165,14 +2165,14 @@
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <div style="display: flex; align-items: center; gap: 6px;">
                 <span style="font-size: 13px;">🧠</span>
-                <b class="c-yellow" style="font-size: 11px; letter-spacing: 0.5px;">GEMINI AI CO-PILOT // QUANTITATIVE ANALYST</b>
+                <b class="c-yellow" style="font-size: 11px; letter-spacing: 0.5px;">FRANK // QUANTITATIVE AI CO-PILOT</b>
               </div>
-              <span class="badge" style="background: rgba(0,229,255,0.1); color: #00e5ff; border: 1px solid #00e5ff; font-size: 9px;">GEMINI 3.5 FLASH ONLINE</span>
+              <span class="badge" style="background: rgba(0,229,255,0.1); color: #00e5ff; border: 1px solid #00e5ff; font-size: 9px;">FRANK (GEMINI 3.5 FLASH) ONLINE</span>
             </div>
-            <div id="ai-chat-output" style="background: #080a10; border: 1px solid #1a2233; border-radius: 4px; padding: 10px; min-height: 80px; max-height: 160px; overflow-y: auto; font-size: 10px; line-height: 1.45; color: #ddd; white-space: pre-wrap;">Welcome! I am Gemini, your native institutional trading co-pilot. Ask me anything about live setups, today's trades, or current risk parameters.</div>
+            <div id="ai-chat-output" style="background: #080a10; border: 1px solid #1a2233; border-radius: 4px; padding: 10px; min-height: 80px; max-height: 160px; overflow-y: auto; font-size: 10px; line-height: 1.45; color: #ddd; white-space: pre-wrap;">Welcome! I am Frank, your institutional trading co-pilot. Ask me anything about live setups, today's trades, or current risk parameters.</div>
             <div style="display: flex; gap: 6px;">
-              <input type="text" id="ai-chat-input" placeholder="Ask Gemini (e.g., 'Evaluate Agilent A', 'Why did NVR stop out?')" style="flex: 1; background: #141822; border: 1px solid #2a3449; color: #fff; font-family: inherit; font-size: 10px; padding: 6px 10px; border-radius: 3px;" onkeydown="if(event.key==='Enter') sendAIChatMessage()" />
-              <button onclick="sendAIChatMessage()" style="background: #ffd700; color: #000; font-weight: bold; font-family: inherit; font-size: 9.5px; border: none; padding: 6px 14px; border-radius: 3px; cursor: pointer;">ASK AI</button>
+              <input type="text" id="ai-chat-input" placeholder="Ask Frank (e.g., 'Frank, evaluate Agilent A', 'Frank, why did NVR stop out?')" style="flex: 1; background: #141822; border: 1px solid #2a3449; color: #fff; font-family: inherit; font-size: 10px; padding: 6px 10px; border-radius: 3px;" onkeydown="if(event.key==='Enter') sendAIChatMessage()" />
+              <button onclick="sendAIChatMessage()" style="background: #ffd700; color: #000; font-weight: bold; font-family: inherit; font-size: 9.5px; border: none; padding: 6px 14px; border-radius: 3px; cursor: pointer;">ASK FRANK</button>
             </div>
           </div>
         </div>
@@ -5660,7 +5660,7 @@ Position upgraded from Core Hold to Algo Active!`);
       const msg = input.value.trim();
       if (!msg) return;
 
-      output.innerHTML += `\n\n<b style="color: #00e5ff;">YOU &gt;</b> ${msg}\n<b style="color: #ffd700;">GEMINI &gt;</b> Thinking...`;
+      output.innerHTML += `\n\n<b style="color: #00e5ff;">YOU &gt;</b> ${msg}\n<b style="color: #ffd700;">FRANK &gt;</b> Thinking...`;
       output.scrollTop = output.scrollHeight;
       input.value = '';
 
@@ -5672,7 +5672,7 @@ Position upgraded from Core Hold to Algo Active!`);
         });
         const data = await res.json();
         if (data.success && data.reply) {
-          output.innerHTML = output.innerHTML.replace('<b style="color: #ffd700;">GEMINI &gt;</b> Thinking...', `<b style="color: #ffd700;">GEMINI &gt;</b> ${data.reply}`);
+          output.innerHTML = output.innerHTML.replace('<b style="color: #ffd700;">FRANK &gt;</b> Thinking...', `<b style="color: #ffd700;">FRANK &gt;</b> ${data.reply}`);
         } else {
           output.innerHTML = output.innerHTML.replace('Thinking...', `<span style="color: #ff4d4d;">Error: ${data.error || 'Failed to get response.'}</span>`);
         }
