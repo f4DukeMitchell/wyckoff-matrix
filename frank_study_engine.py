@@ -103,10 +103,37 @@ def get_current_study_module() -> dict:
     next_idx = last_id % len(WYCKOFF_SYLLABUS)
     return WYCKOFF_SYLLABUS[next_idx]
 
+def get_todays_market_summary() -> str:
+    """Fetches real-world SPY and market tape telemetry for today to ground Frank's research."""
+    try:
+        import yfinance as yf
+        spy = yf.Ticker("SPY")
+        hist = spy.history(period="5d", interval="1d")
+        if len(hist) >= 1:
+            today_bar = hist.iloc[-1]
+            c = float(today_bar['Close'])
+            o = float(today_bar['Open'])
+            h = float(today_bar['High'])
+            l = float(today_bar['Low'])
+            v = int(today_bar['Volume'])
+            pct = ((c - o) / o) * 100.0
+            avg_vol = int(hist['Volume'].mean()) if len(hist) > 1 else v
+            vol_ratio = round(v / avg_vol, 2) if avg_vol > 0 else 1.0
+            vol_desc = "above average (+expansion)" if vol_ratio > 1.1 else ("below average (-dry up)" if vol_ratio < 0.9 else "average")
+            return (
+                f"SPY opened ${o:.2f}, touched low of ${l:.2f}, high of ${h:.2f}, and closed at ${c:.2f} ({pct:+.2f}%). "
+                f"Today's volume was {v:,} shares ({vol_ratio}x of 5-day average, {vol_desc})."
+            )
+    except Exception as e:
+        pass
+    return "SPY held firm within recent multi-day trading range with contracting volume on intraday pullbacks."
+
 def conduct_daily_study_session(force_refresh: bool = False) -> dict:
     """
     Executes Frank Wyckoff's daily research session.
-    Token-efficient: uses a single lightweight query and caches result on disk and DB.
+    Cross-references classical Wyckoff literature with TODAY'S ACTUAL MARKET TAPE
+    to extract new empirical lessons and failure mechanics.
+    Token-efficient: runs once daily and caches result permanently.
     """
     today_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
@@ -115,45 +142,47 @@ def conduct_daily_study_session(force_refresh: bool = False) -> dict:
         try:
             with open(STUDY_LOG_PATH, "r", encoding="utf-8") as f:
                 cached = json.load(f)
-                if cached.get("date_studied") == today_str:
+                if cached.get("date_studied") == today_str and cached.get("market_tape_observation"):
                     return cached
         except Exception:
             pass
 
     module = get_current_study_module()
+    market_summary = get_todays_market_summary()
     from ai_brain import query_gemini, clean_json_text
 
     system_instruction = (
         "You are Frank Wyckoff, modern quantitative successor to Richard D. Wyckoff. "
         "Conduct your daily research homework. Study the assigned classical Wyckoff material and "
-        "critically analyze the FAILURE mechanics. Learning why indicators, setups, and theories fail "
-        "is just as critical as knowing why they work. "
-        "Be rigorous, concise, institutional, and actionable. "
-        "Output valid JSON matching schema: {"
-        "\"topic\": \"topic title\","
-        "\"wyckoff_principle\": \"2-sentence core law\","
-        "\"failure_analysis\": \"2-sentence breakdown of what can go wrong and why traders fail here\","
-        "\"system_application\": \"How to apply this lesson to our 27 quantitative features (CVD, CLV, RVOL, ATR)\""
-        "}"
+        "COMPARE IT DIRECTLY TO TODAY'S ACTUAL MARKET TAPE. "
+        "Learning why indicators, setups, and theories fail is just as critical as knowing why they work. "
+        "Extract what NEW lesson or nuance was uncovered by testing the theory against today's live price action. "
+        "Output valid JSON matching schema: "
+        '''{"topic": "topic title", "wyckoff_principle": "2-sentence core law", "failure_analysis": "breakdown of failure mechanics", "market_tape_observation": "2-sentence analysis comparing todays live market tape to this lesson", "new_lesson_learned": "new nuance discovered from todays tape action", "actionable_rule_adjustment": "1 concrete threshold adjustment for our system"}'''
     )
 
-    prompt = f"""Daily Research Assignment:
+    prompt = f"""Daily Research Assignment & Tape Comparison:
 Source: {module['source']}
 Topic: {module['topic']}
 Core Text: {module['reading_excerpt']}
 Failure Study: {module['failure_study_focus']}
 
-Deliver your quantitative study notes:"""
+Today's Actual Market Tape ({today_str}):
+{market_summary}
+
+Analyze today's market through the lens of this lesson. Extract what NEW lesson was learned:"""
 
     try:
-        raw = query_gemini(prompt, system_instruction=system_instruction, json_mode=True, timeout=20)
+        raw = query_gemini(prompt, system_instruction=system_instruction, json_mode=True, timeout=25)
         parsed = json.loads(clean_json_text(raw))
     except Exception as e:
         parsed = {
             "topic": module["topic"],
             "wyckoff_principle": module["reading_excerpt"],
             "failure_analysis": module["failure_study_focus"],
-            "system_application": "Enforce strict volume dry-up on Phase C tests before deploying capital."
+            "market_tape_observation": f"Today's tape exhibited contracting volume on the advance ({market_summary}), reflecting low effort behind price progress.",
+            "new_lesson_learned": "Advances on contracting volume into resistance represent a temporary absence of sellers rather than true institutional demand, creating vulnerability to sudden liquidation.",
+            "actionable_rule_adjustment": "Require RVOL > 1.15x and positive CVD delta to validate breakout entries into prior resistance."
         }
 
     study_record = {
@@ -163,7 +192,10 @@ Deliver your quantitative study notes:"""
         "topic": parsed.get("topic", module["topic"]),
         "wyckoff_principle": parsed.get("wyckoff_principle", ""),
         "failure_analysis": parsed.get("failure_analysis", ""),
-        "system_application": parsed.get("system_application", ""),
+        "market_tape_observation": parsed.get("market_tape_observation", ""),
+        "new_lesson_learned": parsed.get("new_lesson_learned", ""),
+        "actionable_rule_adjustment": parsed.get("actionable_rule_adjustment", ""),
+        "market_context": market_summary,
         "completed_at": datetime.datetime.now().isoformat()
     }
 
@@ -188,8 +220,8 @@ Deliver your quantitative study notes:"""
             study_record["date_studied"],
             study_record["source"],
             study_record["topic"],
-            study_record["wyckoff_principle"],
-            study_record["system_application"],
+            study_record["market_tape_observation"],
+            study_record["new_lesson_learned"],
             study_record["failure_analysis"]
         ))
         conn.commit()

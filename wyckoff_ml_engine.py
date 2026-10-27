@@ -408,10 +408,23 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
         # Dispatch Frank Executive Email Briefing to Fund Manager
         try:
             from frank_mailer import send_frank_email, format_executive_briefing_html
+            today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+            today_trades_df = clean_df[clean_df['timestamp'].str.contains(today_str, na=False)] if 'timestamp' in clean_df.columns else pd.DataFrame()
+            today_trades_count = len(today_trades_df)
+            today_pnl_dollar = round(float(today_trades_df.get('pnl_r', pd.Series([0])).sum() * 50.0), 2)
+            today_win_rate = round(float((today_trades_df['outcome'] == 'WIN').mean() * 100.0), 1) if today_trades_count > 0 else 0.0
+
             pnl_summary = {
-                "total_trades": len(clean_df),
-                "net_pnl_dollar": round(float(clean_df.get('pnl_r', pd.Series([0])).sum() * 50.0), 2),
-                "win_rate": round(directional_win_rate, 1)
+                "today_trades": today_trades_count,
+                "today_pnl_dollar": today_pnl_dollar,
+                "today_win_rate": today_win_rate,
+                "total_trades": today_trades_count,
+                "net_pnl_dollar": today_pnl_dollar,
+                "cumulative_model_dollar": round(float(clean_df.get('pnl_r', pd.Series([0])).sum() * 50.0), 2),
+                "cumulative_model_r": round(float(clean_df.get('pnl_r', pd.Series([0])).sum()), 2),
+                "total_model_samples": len(clean_df),
+                "win_rate": round(directional_win_rate, 1),
+                "trading_mode": "SHADOW MODE (0% Live Capital Risk)"
             }
             autopsy_summary = {
                 "daily_assessment": f"Model evolved to {version_str} with {wins}W - {losses}L - {breakevens}BE across {len(clean_df)} training samples.",

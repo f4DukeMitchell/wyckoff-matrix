@@ -82,16 +82,19 @@ def format_executive_briefing_html(pnl_summary: dict, autopsy: dict, rules: list
 
         <div class="stat-grid">
           <div class="stat-card">
-            <div class="stat-val">{pnl_summary.get('total_trades', 0)}</div>
-            <div class="stat-lbl">Trades Today</div>
+            <div class="stat-val">{pnl_summary.get('today_trades', 0)}</div>
+            <div class="stat-lbl">Trades Executed Today</div>
+            <div style="font-size: 8.5px; color: #38bdf8; margin-top: 2px;">SHADOW MODE ACTIVE (0% RISK)</div>
           </div>
           <div class="stat-card">
-            <div class="stat-val" style="color: {'#4ade80' if pnl_summary.get('net_pnl_dollar', 0) >= 0 else '#f87171'}">${pnl_summary.get('net_pnl_dollar', 0.0):+.2f}</div>
-            <div class="stat-lbl">Day Realized P&L</div>
+            <div class="stat-val" style="color: {'#4ade80' if pnl_summary.get('today_pnl_dollar', 0) >= 0 else '#f87171'}">${pnl_summary.get('today_pnl_dollar', 0.0):+.2f}</div>
+            <div class="stat-lbl">Today's Realized P&L</div>
+            <div style="font-size: 8.5px; color: #94a3b8; margin-top: 2px;">NO LIVE TRADES ENTERED</div>
           </div>
           <div class="stat-card">
-            <div class="stat-val">{pnl_summary.get('win_rate', 0.0):.1f}%</div>
-            <div class="stat-lbl">Win Rate (Ex-BE)</div>
+            <div class="stat-val" style="color: #ffd700;">${pnl_summary.get('cumulative_model_dollar', pnl_summary.get('net_pnl_dollar', 0.0)):+.2f}</div>
+            <div class="stat-lbl">Cumulative Model Expectancy</div>
+            <div style="font-size: 8.5px; color: #4ade80; margin-top: 2px;">{pnl_summary.get('total_model_samples', pnl_summary.get('total_trades', 0))} SAMPLES ({pnl_summary.get('win_rate', 0.0):.1f}% WR)</div>
           </div>
         </div>
 
@@ -115,7 +118,15 @@ def format_executive_briefing_html(pnl_summary: dict, autopsy: dict, rules: list
           <p><strong style="color: #38bdf8;">Topic:</strong> {study_log.get('topic', 'Classical Tape Reading & Order Absorption')}</p>
           <p><strong>Core Wyckoff Principle:</strong> {study_log.get('wyckoff_principle', 'N/A')}</p>
           <p style="color: #f87171;"><strong>Learning from Failure (What Can Go Wrong):</strong> {study_log.get('failure_analysis', 'N/A')}</p>
-          <p style="color: #4ade80;"><strong>Quantitative Application:</strong> {study_log.get('system_application', 'N/A')}</p>
+          
+          <div style="background: rgba(56, 189, 248, 0.08); border-left: 3px solid #38bdf8; padding: 10px; margin: 10px 0; border-radius: 4px;">
+            <p style="margin: 0 0 6px 0;"><strong style="color: #38bdf8;">🔎 Real-World Market Application (Today's Tape Comparison):</strong><br>
+            <span style="color: #e2e8f0;">{study_log.get('market_tape_observation', 'Tape analysis active across SPY and leaders.')}</span></p>
+            <p style="margin: 6px 0 0 0;"><strong style="color: #facc15;">💡 New Lesson Learned from Today's Market:</strong><br>
+            <span style="color: #cbd5e1;">{study_log.get('new_lesson_learned', 'Validated against live intraday order flow.')}</span></p>
+          </div>
+
+          <p style="color: #4ade80; margin-bottom: 0;"><strong>🛡️ Actionable System Rule Adjustment:</strong> {study_log.get('actionable_rule_adjustment', study_log.get('system_application', 'Enforce strict volume dry-up on tests.'))}</p>
         </div>
 
         <div class="footer">

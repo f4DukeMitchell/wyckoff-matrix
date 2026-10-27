@@ -6,7 +6,10 @@ from dotenv import load_dotenv
 
 # Load credentials
 ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+ENV_LOCAL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env.local")
 load_dotenv(ENV_PATH)
+if os.path.exists(ENV_LOCAL_PATH):
+    load_dotenv(ENV_LOCAL_PATH)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
@@ -17,18 +20,19 @@ def get_gemini_api_key():
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if GEMINI_API_KEY:
         return GEMINI_API_KEY
-    if os.path.exists(ENV_PATH):
-        try:
-            with open(ENV_PATH, "r", encoding="utf-8") as f:
-                for line in f:
-                    if line.startswith("GEMINI_API_KEY="):
-                        GEMINI_API_KEY = line.strip().split("=", 1)[1]
-                        return GEMINI_API_KEY
-                    if line.startswith("GOOGLE_API_KEY="):
-                        GEMINI_API_KEY = line.strip().split("=", 1)[1]
-                        return GEMINI_API_KEY
-        except Exception:
-            pass
+    for p in (ENV_LOCAL_PATH, ENV_PATH):
+        if os.path.exists(p):
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if line.startswith("GEMINI_API_KEY="):
+                            GEMINI_API_KEY = line.strip().split("=", 1)[1]
+                            return GEMINI_API_KEY
+                        if line.startswith("GOOGLE_API_KEY="):
+                            GEMINI_API_KEY = line.strip().split("=", 1)[1]
+                            return GEMINI_API_KEY
+            except Exception:
+                pass
     return None
 
 MODELS_CHAIN = ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash"]
