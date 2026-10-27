@@ -1767,6 +1767,7 @@
           <button class="term-btn" onclick="setScannerPaneWidth('480px')" style="padding: 1px 4px; font-size: 9px;">480</button>
         </div>
         <div style="display: flex; gap: 4px;">
+          <button class="term-btn" onclick="openFrankRadarBriefingModal()" style="border-color: #ffd700; color: #ffd700; font-size: 8.5px; font-weight: bold; margin-right: 4px;" title="Open Frank Wyckoff's Upcoming Trades Radar Briefing">🧠 FRANK'S RADAR</button>
           <button id="btn-tf-queue" class="term-btn tf-filter-btn" data-tf="QUEUE" onclick="filterByTF('QUEUE')" style="background: var(--wsr-orange); color: var(--wsr-black); font-weight: bold; border: 1px solid var(--wsr-orange);">⚡ 5M QUEUE</button>
           <button id="btn-tf-all" class="term-btn tf-filter-btn" data-tf="ALL" onclick="filterByTF('ALL')">ALL</button>
           <button id="btn-tf-5m" class="term-btn tf-filter-btn" data-tf="5m" onclick="filterByTF('5m')">5M</button>
@@ -1861,19 +1862,104 @@
       </div>
     </div>
 
-    <!-- PANE 5: COMPANY RESEARCH & INTEL (Bottom Center) -->
+    <!-- PANE 5: UPCOMING TRADE INTEL & COMPANY RESEARCH (Bottom Center) -->
     <div class="pane" id="pane-signal">
-      <div class="pane-header">
-        <div>
-          <span id="research-pane-title">RESEARCH & COMPANY DATA</span>
-          <span id="research-ticker-badge" class="c-cyan" style="font-weight: bold; margin-left: 4px;">--</span>
+      <div class="pane-header" style="display: flex; justify-content: space-between; align-items: center; padding: 3px 6px;">
+        <div style="display: flex; gap: 4px; align-items: center;">
+          <button id="btn-pane5-intel" class="term-btn active-tf" onclick="switchPane5Tab('intel')" style="font-size: 8.5px; font-weight: bold; border-color: #ffd700; color: #ffd700; padding: 2px 6px;">🧠 FRANK'S TRADE INTEL</button>
+          <button id="btn-pane5-company" class="term-btn" onclick="switchPane5Tab('company')" style="font-size: 8.5px; padding: 2px 6px;">🏢 COMPANY</button>
+          <span id="research-ticker-badge" class="c-cyan" style="font-weight: bold; font-size: 11px; margin-left: 4px;">--</span>
         </div>
-        <div style="display: flex; gap: 6px; align-items: center;">
-          <span id="company-sector-badge" class="c-yellow" style="font-size: 9px; font-weight: bold;">--</span>
-          <span id="ev-pattern-match" class="c-green" style="font-size: 9px; font-weight: bold;">--</span>
+        <div style="display: flex; gap: 5px; align-items: center;">
+          <span id="frank-intel-win-badge" style="font-size: 8.5px; font-weight: bold; background: rgba(0, 255, 136, 0.12); color: #00ff88; border: 1px solid #00ff88; padding: 1px 5px; border-radius: 3px;">68.2% OOB</span>
+          <span id="frank-intel-verdict-badge" style="font-size: 8.5px; font-weight: bold; background: rgba(255, 215, 0, 0.15); color: #ffd700; border: 1px solid #ffd700; padding: 1px 5px; border-radius: 3px;">VERDICT: PROCEED</span>
         </div>
       </div>
-      <div class="pane-content" style="padding: 6px 8px; display: flex; flex-direction: column; justify-content: space-between; height: 100%; box-sizing: border-box; overflow-y: auto;">
+      <div class="pane-content" style="padding: 6px 8px; height: calc(100% - 28px); box-sizing: border-box; overflow-y: auto;">
+        
+        <!-- SUB-TAB 1: FRANK'S UPCOMING TRADE INTEL -->
+        <div id="pane5-intel-view" style="display: flex; flex-direction: column; justify-content: space-between; height: 100%; gap: 6px;">
+          
+          <!-- Phase & Structural Direction Header -->
+          <div style="display: flex; justify-content: space-between; align-items: center; background: #070a12; border: 1px solid #1a2234; border-radius: 4px; padding: 4px 8px; font-size: 10px;">
+            <div>
+              <span id="frank-intel-dir" style="color: #00ff88; font-weight: bold; margin-right: 6px;">LONG</span>
+              <span id="frank-intel-phase" style="color: #ffd700; font-weight: bold;">Phase C: Spring (Secondary Test)</span>
+              <span id="frank-intel-tf" style="color: #64748b; font-size: 9px; margin-left: 6px;">5M</span>
+            </div>
+            <div style="font-size: 9.5px; color: #94a3b8;">
+              PRICE: <b id="frank-intel-price" style="color: #fff;">$0.00</b>
+            </div>
+          </div>
+
+          <!-- Execution Geometry Grid -->
+          <div>
+            <div style="display: flex; justify-content: space-between; font-size: 8.5px; color: #64748b; margin-bottom: 2px;">
+              <span>PLANNED EXECUTION GEOMETRY</span>
+              <span id="frank-intel-rr" style="color: #ffd700; font-weight: bold;">R/R: 1:2.5 R</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: rgba(255,255,255,0.02); border: 1px solid #222; border-radius: 4px; padding: 5px 6px; font-size: 9.5px;">
+              <div>
+                <div style="color: #64748b; font-size: 8px;">ENTRY</div>
+                <div id="frank-intel-entry" style="color: #38bdf8; font-weight: bold;">--</div>
+              </div>
+              <div>
+                <div style="color: #64748b; font-size: 8px;">STOP LOSS</div>
+                <div id="frank-intel-sl" style="color: #f87171; font-weight: bold;">--</div>
+              </div>
+              <div>
+                <div style="color: #64748b; font-size: 8px;">TARGET 1 (R1)</div>
+                <div id="frank-intel-tp1" style="color: #4ade80; font-weight: bold;">--</div>
+              </div>
+              <div>
+                <div style="color: #64748b; font-size: 8px;">TARGET 2 (RUNNER)</div>
+                <div id="frank-intel-tp2" style="color: #facc15; font-weight: bold;">--</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Tape Telemetry Grid -->
+          <div>
+            <div style="font-size: 8.5px; color: #64748b; margin-bottom: 2px;">LIVE TAPE READING & ABSORPTION TELEMETRY</div>
+            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; background: #070a12; border: 1px solid #1a2234; border-radius: 4px; padding: 4px 6px; font-size: 9px; text-align: center;">
+              <div>
+                <div style="color: #64748b; font-size: 7.5px;">CVD DELTA</div>
+                <div id="frank-tape-cvd" style="color: #00ff88; font-weight: bold;">+0.42</div>
+              </div>
+              <div>
+                <div style="color: #64748b; font-size: 7.5px;">CANDLE CLV</div>
+                <div id="frank-tape-clv" style="color: #38bdf8; font-weight: bold;">0.76</div>
+              </div>
+              <div>
+                <div style="color: #64748b; font-size: 7.5px;">RVOL (TOD)</div>
+                <div id="frank-tape-rvol" style="color: #facc15; font-weight: bold;">1.82x</div>
+              </div>
+              <div>
+                <div style="color: #64748b; font-size: 7.5px;">VPOC DIST</div>
+                <div id="frank-tape-vpoc" style="color: #c084fc; font-weight: bold;">0.15%</div>
+              </div>
+              <div>
+                <div style="color: #64748b; font-size: 7.5px;">ST DRY-UP</div>
+                <div id="frank-tape-st" style="color: #4ade80; font-weight: bold;">0.62x</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Frank's Qualitative Rationale Callout -->
+          <div style="background: rgba(255, 215, 0, 0.05); border-left: 3px solid #ffd700; border-radius: 3px; padding: 5px 8px; font-size: 9px; line-height: 1.4; color: #cbd5e1;">
+            <b style="color: #ffd700;">Frank's Tape Reading:</b> <span id="frank-intel-rationale">Cumulative Volume Delta confirms aggressive buying absorption into the lows. Secondary test volume contracted, confirming supply exhaustion.</span>
+          </div>
+
+          <!-- Shadow Mode Footer Notice -->
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 8px; color: #475569; padding-top: 2px; border-top: 1px dashed #1a2234;">
+            <span>SHADOW EXECUTION &bull; MODEL v1.34 DECOUPLED &bull; 0% LIVE RISK</span>
+            <button class="term-btn" onclick="openFrankRadarBriefingModal()" style="border-color: #ffd700; color: #ffd700; font-size: 8px; padding: 1px 5px;">FULL RADAR BRIEFING ↗</button>
+          </div>
+
+        </div>
+
+        <!-- SUB-TAB 2: ORIGINAL COMPANY RESEARCH & 1-CLICK DEEP LINKS -->
+        <div id="pane5-company-view" style="display: none; flex-direction: column; justify-content: space-between; height: 100%;">
         
         <!-- Company Metadata Stats Grid -->
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: rgba(255,255,255,0.02); border: 1px solid #222; border-radius: 4px; padding: 5px 8px; font-size: 10px;">
@@ -1940,6 +2026,7 @@
           </div>
         </div>
 
+        </div> <!-- /#pane5-company-view -->
       </div>
     </div>
 
@@ -3884,6 +3971,7 @@
         }
       });
       loadChartData(sym, interval || currentInterval);
+      loadFrankSetupIntel(sym);
     }
 
     // --- LOAD BARS & INDICATORS ---
@@ -8233,7 +8321,209 @@ Position upgraded from Core Hold to Algo Active!`);
       }
     }
 
-  </script>
+  
+    // --- FRANK WYCKOFF TRADE INTEL & RADAR LOGIC ---
+    function switchPane5Tab(tab) {
+      const intelView = document.getElementById('pane5-intel-view');
+      const compView = document.getElementById('pane5-company-view');
+      const btnIntel = document.getElementById('btn-pane5-intel');
+      const btnComp = document.getElementById('btn-pane5-company');
+      if (!intelView || !compView) return;
+
+      if (tab === 'intel') {
+        intelView.style.display = 'flex';
+        compView.style.display = 'none';
+        if (btnIntel) { btnIntel.classList.add('active-tf'); btnIntel.style.borderColor = '#ffd700'; btnIntel.style.color = '#ffd700'; }
+        if (btnComp) { btnComp.classList.remove('active-tf'); btnComp.style.borderColor = ''; btnComp.style.color = ''; }
+      } else {
+        intelView.style.display = 'none';
+        compView.style.display = 'flex';
+        if (btnComp) { btnComp.classList.add('active-tf'); btnComp.style.borderColor = 'var(--wsr-orange)'; btnComp.style.color = 'var(--wsr-orange)'; }
+        if (btnIntel) { btnIntel.classList.remove('active-tf'); btnIntel.style.borderColor = ''; btnIntel.style.color = ''; }
+      }
+    }
+
+    async function loadFrankSetupIntel(ticker) {
+      if (!ticker) return;
+      const sym = ticker.toUpperCase();
+      try {
+        const res = await fetch(`/api/ai/setup_intel/${sym}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.success || !data.intel) return;
+        const intel = data.intel;
+
+        // Header badges
+        const winBadge = document.getElementById('frank-intel-win-badge');
+        if (winBadge) winBadge.innerText = `${intel.model_intel.win_expectancy_pct}% OOB (${intel.model_intel.confidence_grade})`;
+        
+        const verdBadge = document.getElementById('frank-intel-verdict-badge');
+        if (verdBadge) {
+          verdBadge.innerText = `VERDICT: ${intel.frank_verdict.action}`;
+          verdBadge.style.color = intel.frank_verdict.badge_color;
+          verdBadge.style.borderColor = intel.frank_verdict.badge_color;
+        }
+
+        // Phase & Direction
+        const dirEl = document.getElementById('frank-intel-dir');
+        if (dirEl) {
+          dirEl.innerText = intel.direction;
+          dirEl.style.color = intel.direction === 'LONG' ? '#00ff88' : '#f87171';
+        }
+        const phaseEl = document.getElementById('frank-intel-phase');
+        if (phaseEl) phaseEl.innerText = intel.phase;
+        
+        const tfEl = document.getElementById('frank-intel-tf');
+        if (tfEl) tfEl.innerText = (intel.timeframe || '5M').toUpperCase();
+
+        const priceEl = document.getElementById('frank-intel-price');
+        if (priceEl) priceEl.innerText = `$${intel.current_price.toFixed(2)}`;
+
+        // Geometry
+        const g = intel.geometry;
+        const entryEl = document.getElementById('frank-intel-entry');
+        if (entryEl) entryEl.innerText = `$${g.entry.toFixed(2)}`;
+        const slEl = document.getElementById('frank-intel-sl');
+        if (slEl) slEl.innerText = `$${g.stop_loss.toFixed(2)}`;
+        const tp1El = document.getElementById('frank-intel-tp1');
+        if (tp1El) tp1El.innerText = `$${g.target_1.toFixed(2)}`;
+        const tp2El = document.getElementById('frank-intel-tp2');
+        if (tp2El) tp2El.innerText = `$${g.target_2.toFixed(2)}`;
+        const rrEl = document.getElementById('frank-intel-rr');
+        if (rrEl) rrEl.innerText = `R/R: ${g.risk_reward_ratio}`;
+
+        // Tape Telemetry
+        const t = intel.tape_metrics;
+        const cvdEl = document.getElementById('frank-tape-cvd');
+        if (cvdEl) {
+          cvdEl.innerText = (t.cvd_delta > 0 ? '+' : '') + t.cvd_delta.toFixed(2);
+          cvdEl.style.color = t.cvd_delta >= 0 ? '#00ff88' : '#f87171';
+        }
+        const clvEl = document.getElementById('frank-tape-clv');
+        if (clvEl) clvEl.innerText = t.candle_clv.toFixed(2);
+        const rvolEl = document.getElementById('frank-tape-rvol');
+        if (rvolEl) rvolEl.innerText = `${t.rvol_tod.toFixed(2)}x`;
+        const vpocEl = document.getElementById('frank-tape-vpoc');
+        if (vpocEl) vpocEl.innerText = `${t.vpoc_distance_pct.toFixed(2)}%`;
+        const stEl = document.getElementById('frank-tape-st');
+        if (stEl) stEl.innerText = `${t.st_volume_ratio.toFixed(2)}x`;
+
+        // Qualitative Rationale
+        const ratEl = document.getElementById('frank-intel-rationale');
+        if (ratEl) ratEl.innerText = intel.frank_verdict.rationale;
+
+      } catch (err) {
+        console.warn('Failed to load Frank setup intel:', err);
+      }
+    }
+
+    async function openFrankRadarBriefingModal() {
+      const modal = document.getElementById('modal-frank-radar');
+      if (modal) {
+        modal.style.display = 'flex';
+      }
+      const container = document.getElementById('frank-radar-cards-container');
+      if (container) {
+        container.innerHTML = '<div style="text-align:center; padding:40px; color:#ffd700; font-size:12px;">🧠 Frank Wyckoff is reading the order flow tape & cross-validating upcoming setups...</div>';
+      }
+
+      try {
+        const res = await fetch('/api/ai/radar_briefing');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data.success || !data.briefing) throw new Error('Invalid briefing response');
+        
+        const b = data.briefing;
+        const sub = document.getElementById('frank-radar-modal-subtitle');
+        if (sub) sub.innerText = b.executive_summary;
+
+        if (!b.top_setups || b.top_setups.length === 0) {
+          container.innerHTML = '<div style="text-align:center; padding:40px; color:#94a3b8;">No upcoming candidates currently meeting Wyckoff tape criteria.</div>';
+          return;
+        }
+
+        let html = '';
+        b.top_setups.forEach(item => {
+          const g = item.geometry;
+          const t = item.tape_metrics;
+          const v = item.frank_verdict;
+          const m = item.model_intel;
+          
+          html += `
+            <div style="background:#111827; border-left:4px solid ${v.badge_color}; border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:8px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:16px; font-weight:bold; color:#f8fafc; cursor:pointer;" onclick="selectTicker('${item.ticker}'); closeFrankRadarBriefingModal();">${item.ticker}</span>
+                  <span style="background:#1e293b; color:#94a3b8; font-size:10px; padding:2px 6px; border-radius:3px;">${item.timeframe.toUpperCase()}</span>
+                  <span style="color:#ffd700; font-size:11px; font-weight:bold;">${item.phase}</span>
+                </div>
+                <div style="display:flex; gap:6px; align-items:center;">
+                  <span style="background:rgba(255,215,0,0.1); color:#ffd700; border:1px solid #ffd700; font-size:10.5px; font-weight:bold; padding:2px 7px; border-radius:3px;">${m.win_expectancy_pct}% OOB (${m.confidence_grade})</span>
+                  <span style="background:${v.badge_color}; color:#000; font-size:10.5px; font-weight:bold; padding:2px 7px; border-radius:3px;">${v.action}</span>
+                  <button class="term-btn" onclick="selectTicker('${item.ticker}'); closeFrankRadarBriefingModal();" style="font-size:9.5px; padding:2px 8px; border-color:#38bdf8; color:#38bdf8;">INSPECT ON CHART ↗</button>
+                </div>
+              </div>
+
+              <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; background:#070a12; padding:6px 10px; border-radius:4px; font-size:10.5px;">
+                <div><span style="color:#64748b;">ENTRY:</span> <b style="color:#38bdf8;">$${g.entry.toFixed(2)}</b></div>
+                <div><span style="color:#64748b;">STOP LOSS:</span> <b style="color:#f87171;">$${g.stop_loss.toFixed(2)}</b></div>
+                <div><span style="color:#64748b;">TARGET 1:</span> <b style="color:#4ade80;">$${g.target_1.toFixed(2)}</b></div>
+                <div><span style="color:#64748b;">TARGET 2:</span> <b style="color:#facc15;">$${g.target_2.toFixed(2)}</b></div>
+                <div><span style="color:#64748b;">R/R:</span> <b style="color:#f8fafc;">${g.risk_reward_ratio}</b></div>
+              </div>
+
+              <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; font-size:10px; color:#cbd5e1;">
+                <div>CVD Delta: <b style="color:${t.cvd_delta>=0?'#00ff88':'#f87171'}">${t.cvd_delta>=0?'+':''}${t.cvd_delta.toFixed(2)}</b></div>
+                <div>Candle CLV: <b>${t.candle_clv.toFixed(2)}</b></div>
+                <div>RVOL (TOD): <b>${t.rvol_tod.toFixed(2)}x</b></div>
+                <div>VPOC Dist: <b>${t.vpoc_distance_pct.toFixed(2)}%</b></div>
+                <div>ST Volume: <b>${t.st_volume_ratio.toFixed(2)}x</b></div>
+              </div>
+
+              <div style="font-size:11px; color:#94a3b8; font-style:italic; background:rgba(255,255,255,0.02); padding:5px 8px; border-radius:3px;">
+                <b style="color:#ffd700;">Frank's Assessment:</b> ${v.rationale}
+              </div>
+            </div>
+          `;
+        });
+
+        container.innerHTML = html;
+
+      } catch (err) {
+        container.innerHTML = `<div style="text-align:center; padding:30px; color:#f87171;">Failed to load radar briefing: ${err.message}</div>`;
+      }
+    }
+
+    function closeFrankRadarBriefingModal() {
+      const modal = document.getElementById('modal-frank-radar');
+      if (modal) modal.style.display = 'none';
+    }
+
+    async function emailFrankRadarBriefing() {
+      const btn = document.getElementById('btn-email-radar');
+      if (btn) {
+        btn.innerText = 'DISPATCHING EMAIL...';
+        btn.disabled = true;
+      }
+      try {
+        const res = await fetch('/api/ai/radar_briefing/email', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          alert('Frank Wyckoff Radar Briefing successfully dispatched to matt.smith@pga.com!');
+        } else {
+          alert(`Failed to send email: ${data.error || 'Unknown error'}`);
+        }
+      } catch (e) {
+        alert(`Error dispatching email: ${e.message}`);
+      } finally {
+        if (btn) {
+          btn.innerText = '✉ EMAIL RADAR BRIEFING TO MATT';
+          btn.disabled = false;
+        }
+      }
+    }
+
+</script>
 
   <!-- POSITION EXIT / GUARDIAN HANDOFF MODAL -->
   <div id="exit-decision-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 999999; backdrop-filter: blur(5px); justify-content: center; align-items: center;">
@@ -8275,6 +8565,43 @@ Position upgraded from Core Hold to Algo Active!`);
 
       <div style="text-align: right; border-top: 1px solid #21262d; padding-top: 10px;">
         <button onclick="closeExitModal()" style="background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 3px; font-size: 10.5px; padding: 4px 12px; cursor: pointer;">Cancel</button>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- FRANK WYCKOFF UPCOMING TRADE RADAR BRIEFING MODAL -->
+  <div id="modal-frank-radar" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); z-index:99999; backdrop-filter:blur(4px); align-items:center; justify-content:center;">
+    <div style="background:#0b0f19; border:1px solid #1f2937; border-top:3px solid #ffd700; border-radius:8px; width:920px; max-width:95vw; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 10px 40px rgba(0,0,0,0.8);">
+      
+      <!-- Modal Header -->
+      <div style="padding:14px 18px; border-bottom:1px solid #1f2937; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <h3 style="margin:0; font-size:16px; color:#ffd700; letter-spacing:0.5px;">🧠 FRANK WYCKOFF // UPCOMING TRADES RADAR ANALYSIS</h3>
+            <span style="background:rgba(0,255,136,0.12); color:#00ff88; border:1px solid #00ff88; font-size:9.5px; font-weight:bold; padding:2px 6px; border-radius:3px;">SHADOW MODE ACTIVE</span>
+          </div>
+          <div id="frank-radar-modal-subtitle" style="font-size:11px; color:#94a3b8; margin-top:4px;">Ranked upcoming Wyckoff spring tests, UTADs, and tape absorption setups across the priority queue.</div>
+        </div>
+        <button class="term-btn" onclick="closeFrankRadarBriefingModal()" style="font-size:14px; padding:4px 8px; border-color:#475569; color:#94a3b8;">✕</button>
+      </div>
+
+      <!-- Modal Body -->
+      <div id="frank-radar-cards-container" style="padding:16px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:12px;">
+        <div style="text-align:center; padding:40px; color:#94a3b8; font-size:12px;">Scanning priority queue and order flow tape...</div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div style="padding:12px 18px; border-top:1px solid #1f2937; display:flex; justify-content:space-between; align-items:center; background:#070a12;">
+        <div style="font-size:10.5px; color:#64748b;">
+          Automated Recipient: <b style="color:#cbd5e1;">matt.smith@pga.com</b>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button id="btn-email-radar" class="term-btn" onclick="emailFrankRadarBriefing()" style="border-color:#38bdf8; color:#38bdf8; font-size:11px; padding:5px 12px; font-weight:bold;">✉ EMAIL RADAR BRIEFING TO MATT</button>
+          <button class="term-btn" onclick="openFrankRadarBriefingModal()" style="border-color:#ffd700; color:#ffd700; font-size:11px; padding:5px 12px;">🔄 REFRESH</button>
+          <button class="term-btn" onclick="closeFrankRadarBriefingModal()" style="font-size:11px; padding:5px 12px;">CLOSE</button>
+        </div>
       </div>
 
     </div>

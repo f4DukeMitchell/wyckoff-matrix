@@ -1933,6 +1933,97 @@ def email_model_audit():
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+@app.get("/api/ai/setup_intel/{ticker}")
+def get_setup_intel_endpoint(ticker: str):
+    """Returns Frank Wyckoff's pre-trade breakdown, geometry, tape telemetry, and qualitative verdict."""
+    try:
+        from frank_trade_intel import get_ticker_tape_and_geometry
+        intel = get_ticker_tape_and_geometry(ticker)
+        return {"success": True, "intel": intel}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/ai/radar_briefing")
+def get_radar_briefing_endpoint():
+    """Returns Frank Wyckoff's comprehensive radar analysis for all upcoming priority candidates."""
+    try:
+        from frank_trade_intel import generate_upcoming_radar_briefing
+        briefing = generate_upcoming_radar_briefing()
+        return {"success": True, "briefing": briefing}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/ai/radar_briefing/email")
+def email_radar_briefing_endpoint():
+    """Dispatches Frank Wyckoff's upcoming trades radar briefing directly to matt.smith@pga.com."""
+    try:
+        from frank_trade_intel import generate_upcoming_radar_briefing, format_radar_briefing_html
+        from frank_mailer import send_frank_email
+        briefing = generate_upcoming_radar_briefing()
+        html = format_radar_briefing_html(briefing)
+        ok = send_frank_email(f"Frank // Upcoming Trade Radar Briefing ({briefing.get('total_monitored')} Setups)", html)
+        return {"success": ok, "recipients": ["matt.smith@pga.com"]}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/ai/daily_station_audit")
+def get_daily_station_audit_endpoint():
+    """Audits all 8 stations in the MSR Terminal to ensure data integrity and up-to-date trading info."""
+    try:
+        from frank_trade_intel import audit_all_eight_stations
+        audit = audit_all_eight_stations()
+        return {"success": True, "audit": audit}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/ai/daily_station_audit/email")
+def email_daily_station_audit_endpoint():
+    """Dispatches Frank Wyckoff's 8-Station Daily Deep-Dive Audit to matt.smith@pga.com."""
+    try:
+        from frank_trade_intel import audit_all_eight_stations
+        from frank_mailer import send_frank_email
+        audit = audit_all_eight_stations()
+        
+        stations_rows = ""
+        for name, st in audit.get("stations", {}).items():
+            stations_rows += f"""
+            <tr style="border-bottom: 1px solid #1e293b;">
+              <td style="padding: 10px; font-weight: bold; color: #38bdf8;">{name}</td>
+              <td style="padding: 10px; color: #4ade80; font-weight: bold;">{st.get('status')}</td>
+              <td style="padding: 10px; color: #cbd5e1; font-size: 12px;">{st.get('summary')}</td>
+            </tr>
+            """
+        
+        html = f"""
+        <html>
+        <body style="background: #030712; color: #f8fafc; font-family: sans-serif; padding: 20px;">
+          <div style="max-width: 720px; margin: 0 auto; background: #0b0f19; border: 1px solid #1f2937; border-radius: 8px; padding: 20px;">
+            <div style="border-bottom: 1px solid #1f2937; padding-bottom: 12px; margin-bottom: 16px;">
+              <h2 style="color: #ffd700; margin: 0;">🧠 FRANK WYCKOFF // 8-STATION TERMINAL DEEP DIVE</h2>
+              <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Recipient: matt.smith@pga.com &bull; Timestamp: {audit.get('audit_timestamp')}</div>
+            </div>
+            <p style="font-size: 13px; color: #cbd5e1;">All 8 MSR Terminal stations were audited by Frank Wyckoff for data freshness, live quote synchrony, and tape feature hygiene:</p>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+              <thead>
+                <tr style="background: #111827; text-align: left; font-size: 11px; color: #94a3b8; text-transform: uppercase;">
+                  <th style="padding: 8px 10px;">Station</th>
+                  <th style="padding: 8px 10px;">Status</th>
+                  <th style="padding: 8px 10px;">Audit Summary</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stations_rows}
+              </tbody>
+            </table>
+          </div>
+        </body>
+        </html>
+        """
+        ok = send_frank_email("Frank // 8-Station Daily Terminal Deep Dive Audit", html)
+        return {"success": ok}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 @app.post("/api/ai/evaluate")
 def ai_evaluate_endpoint(payload: dict):
     """Evaluates a candidate setup via Gemini AI Brain."""
