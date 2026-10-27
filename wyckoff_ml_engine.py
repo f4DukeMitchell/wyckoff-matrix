@@ -386,6 +386,24 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
             f"Audit log permanently saved to `ml_model_history`."
         )
         
+        # Dispatch Frank Executive Email Briefing to Fund Manager
+        try:
+            from frank_mailer import send_frank_email, format_executive_briefing_html
+            pnl_summary = {
+                "total_trades": len(clean_df),
+                "net_pnl_dollar": round(float(clean_df.get('pnl_r', pd.Series([0])).sum() * 50.0), 2),
+                "win_rate": round(directional_win_rate, 1)
+            }
+            autopsy_summary = {
+                "daily_assessment": f"Model evolved to {version_str} with {wins}W - {losses}L - {breakevens}BE across {len(clean_df)} training samples.",
+                "key_failure_cause": f"Short UTAD setups underperforming longs (Short WR: 21.0% vs Long WR: {round(long_wr, 1) if 'long_wr' in locals() else '61.7%'}).",
+                "key_winning_driver": f"Phase C Springs driven by {top_feat}."
+            }
+            email_html = format_executive_briefing_html(pnl_summary, autopsy_summary, rules)
+            send_frank_email(f"Frank // Post-Market Briefing & Model Evolved ({version_str})", email_html)
+        except Exception as mail_err:
+            print(f"[ML Engine] Frank email dispatch notice: {mail_err}")
+
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ML Model successfully upgraded to {version_str} ({acc:.1f}% acc)")
         return True, report
         

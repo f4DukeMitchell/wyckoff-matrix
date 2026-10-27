@@ -45,3 +45,9 @@ if __name__ == "__main__":
     print("[Frank] Frank is online. Running diagnostic ping...")
     reply = ask_frank("Hey Frank, state your name and confirmation of readiness.")
     print(f"\nFrank's Response:\n{reply}\n")
+
+from frank_mailer import send_frank_email, format_executive_briefing_html
+from frank_auditor import compute_model_and_tape_telemetry, generate_frank_model_audit_report
+
+email_briefing = send_frank_email
+audit_model = generate_frank_model_audit_report

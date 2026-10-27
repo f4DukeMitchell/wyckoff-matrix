@@ -64,7 +64,7 @@ def query_gemini(prompt: str, system_instruction: str = None, json_mode: bool = 
             ],
             "generationConfig": {
                 "temperature": 0.2,
-                "maxOutputTokens": 2048
+                "maxOutputTokens": 4096
             }
         }
         

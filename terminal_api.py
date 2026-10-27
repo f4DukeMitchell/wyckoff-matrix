@@ -1868,6 +1868,51 @@ def ai_chat_endpoint(payload: AIChatPayload):
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+@app.get("/api/ml/audit")
+def get_model_and_tape_audit():
+    """Generates Frank's rigorous statistical model and tape reading audit."""
+    try:
+        from frank_auditor import compute_model_and_tape_telemetry, generate_frank_model_audit_report
+        telemetry = compute_model_and_tape_telemetry()
+        report = generate_frank_model_audit_report(telemetry)
+        return {
+            "success": True,
+            "telemetry": telemetry,
+            "report": report
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/ai/email_audit")
+def email_model_audit():
+    """Emails Frank's model and tape audit directly to the fund manager."""
+    try:
+        from frank_auditor import compute_model_and_tape_telemetry, generate_frank_model_audit_report
+        from frank_mailer import send_frank_email
+        telemetry = compute_model_and_tape_telemetry()
+        report = generate_frank_model_audit_report(telemetry)
+        
+        html_body = f"""
+        <html>
+        <body style="background: #0b0f19; color: #f8fafc; font-family: sans-serif; padding: 20px;">
+          <div style="max-width: 700px; margin: 0 auto; background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 20px;">
+            <h2 style="color: #ffd700; margin-top: 0;">🧠 FRANK // QUANTITATIVE RISK & MODEL AUDIT</h2>
+            <div style="background: #1e293b; padding: 12px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; line-height: 1.6;">
+              <b>In-Sample Training Accuracy:</b> {telemetry.get('in_sample_accuracy')}%<br>
+              <b>5-Fold Out-of-Fold CV Accuracy:</b> {telemetry.get('out_of_fold_cv_accuracy')}% (&plusmn;{telemetry.get('cv_std')}%)<br>
+              <b>Overfit Generalization Gap:</b> {telemetry.get('overfit_gap_pct')}%<br>
+              <b>Long Win Rate:</b> {telemetry.get('long_win_rate')}% | <b>Short Win Rate:</b> {telemetry.get('short_win_rate')}%
+            </div>
+            <pre style="white-space: pre-wrap; font-size: 12px; line-height: 1.5; color: #cbd5e1; font-family: monospace;">{report}</pre>
+          </div>
+        </body>
+        </html>
+        """
+        ok = send_frank_email("Frank // Random Forest Model & Tape Reading Audit", html_body)
+        return {"success": ok}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 @app.post("/api/ai/evaluate")
 def ai_evaluate_endpoint(payload: dict):
     """Evaluates a candidate setup via Gemini AI Brain."""
