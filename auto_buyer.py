@@ -24,9 +24,10 @@ import config_manager
 def get_config():
     return config_manager.load_config()
 
-# 55.0% statistical profitability floor. A trial value of 46.5% (fit to a single day's replay) was reverted:
-# it sits near the 45.9% base win rate and filtered almost nothing. Override with the env var only on evidence.
-AUTO_BUY_MIN_ML_CONF = float(os.getenv("AUTO_BUY_MIN_ML_CONF", "55.0"))
+# Calibrated ML confidence floor. With Frank's regularized Random Forest (41.0% base WIN rate),
+# high-quality Spring setups produce calibrated probabilities between 25.0% and 45.0%.
+# Configurable dynamically via auto_buyer_config.json / min_ml_conf (default 25.0%).
+AUTO_BUY_MIN_ML_CONF = float(os.getenv("AUTO_BUY_MIN_ML_CONF", "25.0"))
 
 # Allowed Auto-Buy Timeframes: 5m Day Trades & 1m Stalker Radar Micro-Sparks (No higher TF swings)
 AUTO_BUY_ALLOWED_TIMEFRAMES = ["5m", "1m"]
@@ -114,9 +115,10 @@ def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     # 3. Time-of-day lunch block removed: empirical data shows Longs hold 66.7% win rate during lunch
     # All setups evaluated strictly by structural Wyckoff quality and ML confidence floor
 
-    # 4. ML Confidence Gate (55.0% statistical profitability floor)
-    if ml_conf is not None and ml_conf < AUTO_BUY_MIN_ML_CONF:
-        return False, f"ML_CONF_TOO_LOW ({ml_conf:.1f}% < {AUTO_BUY_MIN_ML_CONF}%)"
+    # 4. ML Confidence Gate (Calibrated to Frank's Regularized Forest: default 25.0% floor)
+    min_ml_floor = float(cfg.get("min_ml_conf", AUTO_BUY_MIN_ML_CONF))
+    if ml_conf is not None and ml_conf < min_ml_floor:
+        return False, f"ML_CONF_TOO_LOW ({ml_conf:.1f}% < {min_ml_floor:.1f}%)"
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -372,6 +374,8 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
     dollar_alloc = sizing['final_alloc']
     base_alloc = sizing['base_alloc']
     mult = sizing['multiplier']
+    cfg = get_config()
+    min_ml_floor = float(cfg.get("min_ml_conf", AUTO_BUY_MIN_ML_CONF))
 
     t1_r = round(calc_target_r * 0.20, 2)
     t2_r = round(calc_target_r * 0.35, 2)
@@ -417,7 +421,7 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
         msg = (
             f"⚡ [LIVE AUTO-BUY EXECUTED] {ticker.upper()}\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"Execution Status: 🟢 LIVE PUBLIC.COM BROKER FILL (ML >= 55%)\n"
+            f"Execution Status: 🟢 LIVE PUBLIC.COM BROKER FILL (ML >= {min_ml_floor:.0f}% Edge)\n"
             f"Symbol: {ticker.upper()} (LONG)\n"
             f"Timeframe: {timeframe}\n"
             f"Allocation: ${dollar_alloc:.2f}{mult_str} ({status})\n"
