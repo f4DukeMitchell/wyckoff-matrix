@@ -10,5 +10,7 @@
   "allowed_timeframes": [
     "5m",
     "15m"
-  ]
+  ],
+  "alpha_rotation_enabled": true,
+  "min_rotation_gap": 8.0
 }

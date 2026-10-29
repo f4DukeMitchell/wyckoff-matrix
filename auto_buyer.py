@@ -88,6 +88,154 @@ def get_open_trade_for_second_spring(ticker, current_price):
         print(f"Error checking second spring candidate: {e}")
         return None
 
+
+def check_alpha_rotation_candidate(incoming_ticker: str, incoming_ml_conf: float, incoming_timeframe: str, min_edge_gap: float = 8.0):
+    """
+    Evaluates whether an incoming alert has enough alpha to justify rotating out of a stagnant open position.
+    
+    Timeframe-Aware Runway Rules:
+    - 5m: 5 bars = 25 minutes
+    - 15m: 5 bars = 75 minutes
+    - Guarded positions (Breakeven set, Tier >= 2, or trailing stop >= entry) are PERMANENTLY IMMUNE.
+    - Core protected holds (AMC, APE, NKE) are PERMANENTLY IMMUNE.
+    - Edge Advantage: incoming_ml_conf - candidate_ml_conf >= min_edge_gap (default 8.0%).
+    """
+    if incoming_ml_conf is None or incoming_ml_conf < 38.0:
+        return False, f"INCOMING_ML_EDGE_TOO_LOW ({incoming_ml_conf} < 38%)", None
+
+    PROTECTED = {'AMC', 'APE', 'NKE', incoming_ticker.upper()}
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("""
+        SELECT id, ticker, timeframe, timestamp, entry_price, initial_shares, breakeven_set, partial_tier_done, trailing_stop_price, ml_confidence 
+        FROM alerts 
+        WHERE outcome = 'OPEN' AND user_active = 1
+    """)
+    rows = [dict(r) for r in c.fetchall()]
+    conn.close()
+
+    now_utc = datetime.now(timezone.utc)
+    candidates = []
+
+    for r in rows:
+        sym = r['ticker'].upper()
+        if sym in PROTECTED:
+            continue
+
+        # Rule 1: Never touch a guarded runner
+        is_guarded = (
+            (r['breakeven_set'] == 1) or 
+            ((r['partial_tier_done'] or 0) >= 2) or 
+            ((r['trailing_stop_price'] or 0.0) >= (r['entry_price'] or 0.0) and (r['trailing_stop_price'] or 0.0) > 0)
+        )
+        if is_guarded:
+            continue
+
+        # Rule 2: Timeframe-aware runway check (5 bars minimum)
+        try:
+            t_entry = pd.to_datetime(r['timestamp'], format='mixed', utc=True)
+            elapsed_min = (now_utc - t_entry).total_seconds() / 60.0
+        except Exception:
+            elapsed_min = 0.0
+
+        tf_min = 15 if r['timeframe'] == '15m' else 5
+        min_runway = 5 * tf_min  # 25 min for 5m, 75 min for 15m
+
+        if elapsed_min < min_runway:
+            # Still developing in healthy runway
+            continue
+
+        # Rule 3: Significant Edge Advantage
+        cand_ml = float(r['ml_confidence'] or 30.0)
+        edge_gap = incoming_ml_conf - cand_ml
+
+        if edge_gap >= min_edge_gap:
+            candidates.append({
+                'id': r['id'],
+                'ticker': sym,
+                'timeframe': r['timeframe'],
+                'elapsed_min': elapsed_min,
+                'min_runway': min_runway,
+                'ml_confidence': cand_ml,
+                'edge_gap': edge_gap,
+                'initial_shares': float(r['initial_shares'] or 0.0),
+                'entry_price': float(r['entry_price'] or 0.0)
+            })
+
+    if not candidates:
+        return False, "NO_VALID_STAGNANT_CANDIDATE (Active positions are either guarded or still within runway)", None
+
+    # Select candidate with the largest alpha delta
+    candidates.sort(key=lambda x: x['edge_gap'], reverse=True)
+    best_candidate = candidates[0]
+    return True, f"STAGNANT_CANDIDATE_FOUND ({best_candidate['ticker']})", best_candidate
+
+
+def execute_alpha_rotation(candidate: dict, incoming_ticker: str, incoming_ml_conf: float, incoming_timeframe: str):
+    """
+    Exits a stagnant underperforming position on Public.com, marks it CLOSED_ROTATED in DB,
+    and sends instant Telegram telemetry.
+    """
+    from public_executor import execute_exit_position, get_single_quote
+    from telegram_notifier import send_message
+    
+    cand_ticker = candidate['ticker']
+    cand_id = candidate['id']
+    cand_shares = candidate['initial_shares']
+    cand_tf = candidate['timeframe']
+    cand_ml = candidate['ml_confidence']
+    elapsed_min = int(candidate['elapsed_min'])
+    edge_gap = candidate['edge_gap']
+    
+    print(f"[AlphaRotation] Rotating out of stagnant {cand_ticker} ({elapsed_min}m runway, ML {cand_ml:.1f}%) to enter {incoming_ticker} (ML {incoming_ml_conf:.1f}%)...")
+    
+    # 1. Exit position on broker
+    try:
+        execute_exit_position(cand_ticker, quantity=cand_shares, direction='LONG')
+    except Exception as ex:
+        print(f"[AlphaRotation] Warning during broker exit of {cand_ticker}: {ex}")
+    
+    # 2. Get live exit price
+    q = get_single_quote(cand_ticker)
+    exit_price = q.get('last') or candidate['entry_price']
+    entry_p = candidate['entry_price']
+    pnl_pct = ((exit_price - entry_p) / entry_p * 100.0) if entry_p > 0 else 0.0
+    
+    # 3. Update DB
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""
+        UPDATE alerts SET 
+            outcome = 'CLOSED_ROTATED',
+            user_active = 0,
+            exit_price = ?,
+            ghost_resolved_at = ?
+        WHERE id = ?
+    """, (round(exit_price, 4), get_market_time().isoformat(), cand_id))
+    conn.commit()
+    conn.close()
+    
+    # 4. Telegram alert
+    msg = (
+        f"🔄 [ALPHA ROTATION EXECUTED]\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"Exited Stagnant Position: {cand_ticker} ({cand_tf})\n"
+        f"• Duration in Trade: {elapsed_min} min (Runway expired)\n"
+        f"• Edge Score: {cand_ml:.1f}% ML\n"
+        f"• Scratch Exit: ${exit_price:.2f} ({pnl_pct:+.2f}%)\n\n"
+        f"Entering High-Alpha Setup: {incoming_ticker.upper()} ({incoming_timeframe})\n"
+        f"• Superior Edge: {incoming_ml_conf:.1f}% ML (+{edge_gap:.1f}% Alpha Advantage)\n"
+        f"• Reallocated Slot: Capital freed and deployed immediately."
+    )
+    send_message(msg, force=True)
+    try:
+        from telegram_notifier import TELEGRAM_CHAT_ID_DAY
+        if TELEGRAM_CHAT_ID_DAY:
+            send_message(msg, chat_id=TELEGRAM_CHAT_ID_DAY, force=True)
+    except Exception:
+        pass
+
 def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     """
     Evaluates whether an incoming Wyckoff Spring signal satisfies all institutional guardrails.
@@ -129,8 +277,16 @@ def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     c.execute("SELECT COUNT(id) FROM alerts WHERE outcome = 'OPEN' AND user_active = 1")
     active_count = (c.fetchone() or (0,))[0]
     if active_count >= max_concurrent:
-        conn.close()
-        return False, f"MAX_POSITIONS_REACHED ({active_count}/{max_concurrent})"
+        alpha_rotation_enabled = bool(cfg.get("alpha_rotation_enabled", True))
+        min_gap = float(cfg.get("min_rotation_gap", 8.0))
+        if alpha_rotation_enabled:
+            can_rotate, rotate_reason, candidate = check_alpha_rotation_candidate(ticker, ml_conf, timeframe, min_edge_gap=min_gap)
+            if not can_rotate:
+                conn.close()
+                return False, f"MAX_POSITIONS_REACHED ({active_count}/{max_concurrent}) - {rotate_reason}"
+        else:
+            conn.close()
+            return False, f"MAX_POSITIONS_REACHED ({active_count}/{max_concurrent})"
 
     # 6. Check for active open trade vs clean re-entry
     c.execute("""
@@ -478,6 +634,24 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
     if not eligible:
         print(f"[{get_market_time().strftime('%H:%M:%S')}] Auto-Buy Bypassed for {ticker} ({timeframe}): {reason}")
         return False, reason
+
+    cfg = get_config()
+    max_concurrent = int(cfg.get("max_concurrent", 3))
+    alpha_rotation_enabled = bool(cfg.get("alpha_rotation_enabled", True))
+    min_gap = float(cfg.get("min_rotation_gap", 8.0))
+
+    # Pre-buy check: if at capacity, execute alpha rotation on stagnant candidate
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT COUNT(id) FROM alerts WHERE outcome = 'OPEN' AND user_active = 1")
+    curr_active = (c.fetchone() or (0,))[0]
+    conn.close()
+
+    if curr_active >= max_concurrent and alpha_rotation_enabled:
+        can_rotate, rotate_reason, candidate = check_alpha_rotation_candidate(ticker, ml_conf, timeframe, min_edge_gap=min_gap)
+        if can_rotate and candidate:
+            execute_alpha_rotation(candidate, ticker, ml_conf, timeframe)
+            time.sleep(1.5)
 
     # Determine allocation based on user configuration and target R
     from public_executor import get_account_capital_summary
