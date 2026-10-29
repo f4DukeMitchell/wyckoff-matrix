@@ -29,8 +29,8 @@ def get_config():
 # Configurable dynamically via auto_buyer_config.json / min_ml_conf (default 25.0%).
 AUTO_BUY_MIN_ML_CONF = float(os.getenv("AUTO_BUY_MIN_ML_CONF", "25.0"))
 
-# Allowed Auto-Buy Timeframes: 5m Day Trades & 1m Stalker Radar Micro-Sparks (No higher TF swings)
-AUTO_BUY_ALLOWED_TIMEFRAMES = ["5m", "1m"]
+# Allowed Auto-Buy Timeframes: 5m Day Trades, 15m Momentum Springs & 1m Stalker Radar Micro-Sparks
+AUTO_BUY_ALLOWED_TIMEFRAMES = ["5m", "15m", "1m"]
 
 # Window: 9:40 AM to 3:58 PM EST (Skip 9:30-9:40 AM open order imbalance; capture expansion through afternoon closing cross)
 AUTO_BUY_START_TIME = datetime.time(9, 40)
@@ -97,9 +97,10 @@ def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     if not cfg.get("auto_buy_enabled", True):
         return False, "AUTO_BUY_DISABLED"
 
-    # 0. Timeframe Guardrail (Strictly 5m and 1m day trades only; exclude 15m, 1h, 1d swings)
-    if (timeframe or "").lower() not in AUTO_BUY_ALLOWED_TIMEFRAMES:
-        return False, f"TIMEFRAME_RESTRICTED ({timeframe} not in 5m/1m day trade)"
+    # 0. Timeframe Guardrail (5m, 15m, and 1m day trades allowed)
+    allowed_tf = cfg.get("allowed_timeframes", AUTO_BUY_ALLOWED_TIMEFRAMES)
+    if (timeframe or "").lower() not in [t.lower() for t in allowed_tf]:
+        return False, f"TIMEFRAME_RESTRICTED ({timeframe} not in {allowed_tf})"
 
     now = get_market_time()
     current_t = now.time()
@@ -225,8 +226,9 @@ def execute_autonomous_second_spring_buy(parent_trade_id, ticker, price, ml_conf
     if not cfg.get("auto_buy_enabled", True):
         return False, "AUTO_BUY_DISABLED"
 
-    if (timeframe or "").lower() not in AUTO_BUY_ALLOWED_TIMEFRAMES:
-        return False, f"TIMEFRAME_RESTRICTED ({timeframe})"
+    allowed_tf = cfg.get("allowed_timeframes", AUTO_BUY_ALLOWED_TIMEFRAMES)
+    if (timeframe or "").lower() not in [t.lower() for t in allowed_tf]:
+        return False, f"TIMEFRAME_RESTRICTED ({timeframe} not in {allowed_tf})"
 
     now = get_market_time()
     current_t = now.time()
