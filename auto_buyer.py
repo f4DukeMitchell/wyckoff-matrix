@@ -29,8 +29,8 @@ def get_config():
 # Configurable dynamically via auto_buyer_config.json / min_ml_conf (default 25.0%).
 AUTO_BUY_MIN_ML_CONF = float(os.getenv("AUTO_BUY_MIN_ML_CONF", "25.0"))
 
-# Allowed Auto-Buy Timeframes: 5m Day Trades, 15m Momentum Springs & 1m Stalker Radar Micro-Sparks
-AUTO_BUY_ALLOWED_TIMEFRAMES = ["5m", "15m", "1m"]
+# Allowed Auto-Buy Timeframes: 5m Day Trades & 15m Momentum Springs
+AUTO_BUY_ALLOWED_TIMEFRAMES = ["5m", "15m"]
 
 # Window: 9:40 AM to 3:58 PM EST (Skip 9:30-9:40 AM open order imbalance; capture expansion through afternoon closing cross)
 AUTO_BUY_START_TIME = datetime.time(9, 40)

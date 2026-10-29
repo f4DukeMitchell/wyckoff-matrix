@@ -15,7 +15,7 @@ DEFAULT_CONFIG = {
     "stalker_auto_buy": False,        # 1m stalker real-money buys OFF: triggers are paper-logged only until validated
     "frank_mode": "SHADOW",           # "SHADOW" (Proving mode: telemetry only, ZERO trade interference) or "ENFORCE"
     "min_ml_conf": 25.0,              # Calibrated ML confidence floor for regularized Random Forest (default 25.0%)
-    "allowed_timeframes": ["5m", "15m", "1m"] # Allowed automated day-trade timeframes
+    "allowed_timeframes": ["5m", "15m"] # Active automated day-trade timeframes
 }
 
 def load_config() -> dict:
