@@ -6,11 +6,12 @@ from data_paths import CONFIG_PATH  # runtime config lives outside the git tree
 _config_lock = threading.Lock()
 
 DEFAULT_CONFIG = {
-    "alloc_mode": "PERCENT_BP",       # "PERCENT_BP" (% of BP) or "FIXED_DOLLAR" ($ fixed)
-    "alloc_value": 1.0,               # Default 1.0% of Buying Power or $20.00
+    "alloc_mode": "DYNAMIC_TRIM",     # "DYNAMIC_TRIM" (100% -> 50% -> 33%), "PERCENT_BP", or "FIXED_DOLLAR"
+    "alloc_value": 33.3,              # Sizing baseline / slot percentage
+    "max_concurrent": 3,              # Max concurrent active algo positions (3 slots optimal)
+    "breakeven_guarded": True,        # Guard active runners: only trim when profit/breakeven locked
     "target_weighted_sizing": False,  # Flat sizing by default (pure % of BP or $ amount)
     "min_r_units": 0.65,              # 0.65R minimum target floor to capture tight rotations
-    "max_concurrent": 50,             # Max concurrent active algo positions
     "auto_buy_enabled": True,         # Master engine switch
     "stalker_auto_buy": False,        # 1m stalker real-money buys OFF: triggers are paper-logged only until validated
     "frank_mode": "SHADOW",           # "SHADOW" (Proving mode: telemetry only, ZERO trade interference) or "ENFORCE"
@@ -60,22 +61,20 @@ def calculate_sizing_allocation(buying_power: float, target_r: float = 1.0) -> d
     """
     Computes exact dollar allocation and risk weighting based on current user configuration.
     
-    Target-Weighted Sizing Multipliers (When Enabled):
-    - target_r >= 1.20: 1.25x (Max Expansion upside)
-    - 0.80 <= target_r < 1.20: 1.00x (Standard Wyckoff Swing)
-    - 0.65 <= target_r < 0.80: 0.60x (Defensive sizing for tight range scalps)
-    - target_r < 0.65: 0.60x (Floor defense)
-    
-    When Target-Weighted Sizing is Disabled:
-    - 1.00x flat sizing across all trades.
+    Modes:
+    - DYNAMIC_TRIM: Dynamic 3-slot architecture (100% -> 50% -> 33%) with Breakeven Guarding.
+    - PERCENT_BP: Fixed percentage of available buying power.
+    - FIXED_DOLLAR: Fixed dollar amount per trade.
     """
     cfg = load_config()
-    alloc_mode = cfg.get("alloc_mode", "PERCENT_BP")
-    alloc_val = float(cfg.get("alloc_value", 1.0))
-    target_weighted = bool(cfg.get("target_weighted_sizing", True))
+    alloc_mode = cfg.get("alloc_mode", "DYNAMIC_TRIM")
+    alloc_val = float(cfg.get("alloc_value", 33.3))
+    target_weighted = bool(cfg.get("target_weighted_sizing", False))
     
     # Base dollar allocation from user command
-    if alloc_mode == "PERCENT_BP":
+    if alloc_mode == "DYNAMIC_TRIM":
+        base_alloc = round(buying_power / 3.0, 2)
+    elif alloc_mode == "PERCENT_BP":
         base_alloc = round(buying_power * (alloc_val / 100.0), 2)
     else:
         base_alloc = round(alloc_val, 2)
@@ -83,12 +82,12 @@ def calculate_sizing_allocation(buying_power: float, target_r: float = 1.0) -> d
     # Enforce basic sanity bounds ($5 min)
     base_alloc = max(5.0, base_alloc)
     
-    # Compute dynamic multiplier
+    # Compute dynamic multiplier (if target weighting enabled)
     if target_weighted:
         if target_r >= 1.20:
             multiplier = 1.25
         elif target_r >= 0.55:
-            multiplier = 1.00  # Full 1.00x allocation across all valid setups >= 0.55R
+            multiplier = 1.00
         else:
             multiplier = 0.60
     else:
@@ -108,5 +107,7 @@ def calculate_sizing_allocation(buying_power: float, target_r: float = 1.0) -> d
         "alloc_mode": alloc_mode,
         "alloc_value": alloc_val,
         "target_weighted": target_weighted,
-        "target_r": target_r
+        "target_r": target_r,
+        "max_concurrent": int(cfg.get("max_concurrent", 3)),
+        "breakeven_guarded": bool(cfg.get("breakeven_guarded", True))
     }

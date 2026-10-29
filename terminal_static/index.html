@@ -1585,11 +1585,12 @@
         <span class="risk-sizing-wrap">
           <span style="color: var(--wsr-muted);">RISK SIZING:</span>
           <select id="size-mode" onchange="onSizeModeChange()" style="background: #141414; color: var(--wsr-white); border: 1px solid var(--wsr-border); font-family: inherit; font-size: 10px; padding: 1px 3px; border-radius: 2px;">
-            <option value="pct" selected>% OF BP</option>
+            <option value="dynamic" selected>DYNAMIC 3-SLOT</option>
+            <option value="pct">% OF BP</option>
             <option value="fixed">$ FIXED</option>
           </select>
-          <input type="number" id="custom-size-val" value="1.0" min="0.1" max="100" step="0.5" oninput="updateCalculatedSlot()" onchange="saveSizingToServer()" style="width: 48px; background: #000; color: var(--wsr-yellow); border: 1px solid var(--wsr-yellow); font-family: inherit; font-size: 11px; text-align: center; font-weight: bold; padding: 1px 2px; border-radius: 2px;" />
-          <b class="meta-val c-yellow" id="slot-val">($--)</b>
+          <input type="text" id="custom-size-val" value="100% ➔ 33%" disabled oninput="updateCalculatedSlot()" onchange="saveSizingToServer()" style="width: 72px; background: #000; color: var(--wsr-yellow); border: 1px solid var(--wsr-yellow); font-family: inherit; font-size: 10px; text-align: center; font-weight: bold; padding: 1px 2px; border-radius: 2px;" />
+          <b class="meta-val c-yellow" id="slot-val">($-- ➔ $--)</b>
           <button id="btn-save-sizing" onclick="saveSizingToServer(true)" style="background: rgba(0, 230, 118, 0.12); color: #00e676; border: 1px solid #00e676; font-family: inherit; font-size: 9.5px; font-weight: bold; padding: 1px 6px; border-radius: 2px; cursor: pointer; margin-left: 4px; transition: all 0.15s ease;" title="Save risk sizing to server">💾 SAVE</button>
         </span>
         <span class="meta-divider">|</span>
@@ -3569,12 +3570,17 @@
 
     // --- RISK SIZING CONTROLLER ---
     function getSelectedRiskSizing() {
-      const mode = document.getElementById('size-mode')?.value || 'pct';
-      const inputVal = parseFloat(document.getElementById('custom-size-val')?.value) || 1.0;
-      let dollarAmount = 20.0;
-      let label = '1% BUY';
+      const mode = document.getElementById('size-mode')?.value || 'dynamic';
+      const inputVal = parseFloat(document.getElementById('custom-size-val')?.value) || 33.3;
+      let dollarAmount = 960.0;
+      let label = 'DYNAMIC 3-SLOT';
 
-      if (mode === 'pct') {
+      if (mode === 'dynamic') {
+        const fullBp = Math.max(0.0, cachedBuyingPower);
+        const slotBp = Math.max(5.0, cachedBuyingPower / 3.0);
+        dollarAmount = slotBp;
+        label = `DYNAMIC ($${fullBp.toFixed(0)} ➔ $${slotBp.toFixed(0)})`;
+      } else if (mode === 'pct') {
         dollarAmount = Math.max(5.0, (cachedBuyingPower * (inputVal / 100.0)));
         label = `${inputVal}%`;
       } else {
@@ -3585,17 +3591,29 @@
     }
 
     function updateCalculatedSlot() {
-      const sizing = getSelectedRiskSizing();
+      const mode = document.getElementById('size-mode')?.value || 'dynamic';
       const slotEl = document.getElementById('slot-val');
       if (slotEl) {
-        slotEl.innerText = `($${sizing.dollarAmount.toFixed(2)})`;
+        if (mode === 'dynamic') {
+          const fullBp = Math.max(0.0, cachedBuyingPower);
+          const slotBp = Math.max(5.0, cachedBuyingPower / 3.0);
+          slotEl.innerText = `($${fullBp.toFixed(0)} ➔ $${slotBp.toFixed(0)})`;
+        } else {
+          const sizing = getSelectedRiskSizing();
+          slotEl.innerText = `($${sizing.dollarAmount.toFixed(2)})`;
+        }
       }
       renderScannerTable();
     }
 
     async function saveSizingToServer(isManualClick = false) {
-      const mode = document.getElementById('size-mode')?.value === 'fixed' ? 'FIXED_DOLLAR' : 'PERCENT_BP';
-      const inputVal = parseFloat(document.getElementById('custom-size-val')?.value) || 1.0;
+      const rawMode = document.getElementById('size-mode')?.value;
+      let mode = 'DYNAMIC_TRIM';
+      if (rawMode === 'fixed') mode = 'FIXED_DOLLAR';
+      else if (rawMode === 'pct') mode = 'PERCENT_BP';
+      else mode = 'DYNAMIC_TRIM';
+
+      const inputVal = parseFloat(document.getElementById('custom-size-val')?.value) || 33.3;
       const targetWeighted = document.getElementById('toggle-weighted-sizing')?.checked ?? false;
       const btn = document.getElementById('btn-save-sizing');
 
@@ -3611,7 +3629,9 @@
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
             alloc_mode: mode,
-            alloc_value: inputVal,
+            alloc_value: mode === 'DYNAMIC_TRIM' ? 33.3 : inputVal,
+            max_concurrent: 3,
+            breakeven_guarded: true,
             target_weighted_sizing: targetWeighted
           })
         });
@@ -3639,16 +3659,24 @@
     function onSizeModeChange() {
       const mode = document.getElementById('size-mode').value;
       const inputEl = document.getElementById('custom-size-val');
-      if (mode === 'pct') {
-        inputEl.value = "1.0";
+      if (mode === 'dynamic') {
+        inputEl.disabled = true;
+        inputEl.value = "100% ➔ 33%";
+        inputEl.style.width = "72px";
+      } else if (mode === 'pct') {
+        inputEl.disabled = false;
+        inputEl.value = "33.3";
         inputEl.step = "0.5";
         inputEl.min = "0.1";
         inputEl.max = "100";
+        inputEl.style.width = "48px";
       } else {
-        inputEl.value = "50";
+        inputEl.disabled = false;
+        inputEl.value = "960";
         inputEl.step = "10";
         inputEl.min = "5";
         inputEl.max = "10000";
+        inputEl.style.width = "48px";
       }
       updateCalculatedSlot();
       saveSizingToServer();
@@ -4883,10 +4911,23 @@
           const toggleEl = document.getElementById('toggle-weighted-sizing');
           
           if (modeEl && data.config.alloc_mode) {
-            modeEl.value = data.config.alloc_mode === 'FIXED_DOLLAR' ? 'fixed' : 'pct';
+            if (data.config.alloc_mode === 'DYNAMIC_TRIM') {
+              modeEl.value = 'dynamic';
+            } else if (data.config.alloc_mode === 'FIXED_DOLLAR') {
+              modeEl.value = 'fixed';
+            } else {
+              modeEl.value = 'pct';
+            }
           }
-          if (inputEl && data.config.alloc_value !== undefined) {
-            inputEl.value = data.config.alloc_value;
+          if (inputEl) {
+            if (modeEl && modeEl.value === 'dynamic') {
+              inputEl.disabled = true;
+              inputEl.value = "100% ➔ 33%";
+              inputEl.style.width = "72px";
+            } else if (data.config.alloc_value !== undefined) {
+              inputEl.disabled = false;
+              inputEl.value = data.config.alloc_value;
+            }
           }
           if (toggleEl && data.config.target_weighted_sizing !== undefined) {
             toggleEl.checked = data.config.target_weighted_sizing;

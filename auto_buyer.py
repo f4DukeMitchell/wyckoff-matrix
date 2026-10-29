@@ -125,7 +125,7 @@ def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     c = conn.cursor()
 
     # 5. Max Concurrent Active Positions (Up to 25 positions / 25% of portfolio)
-    max_concurrent = int(cfg.get("max_concurrent", 25))
+    max_concurrent = int(cfg.get("max_concurrent", 3))
     c.execute("SELECT COUNT(id) FROM alerts WHERE outcome = 'OPEN' AND user_active = 1")
     active_count = (c.fetchone() or (0,))[0]
     if active_count >= max_concurrent:
@@ -353,6 +353,122 @@ def execute_autonomous_second_spring_buy(parent_trade_id, ticker, price, ml_conf
             conn.close()
         return False, str(e)
 
+
+def rebalance_and_calculate_dynamic_trim(ticker: str, price: float, bp: float, cfg: dict):
+    """
+    Dynamic 3-Slot Architecture (100% -> 50% -> 33%) with Breakeven Guarding:
+    - 0 Open Trades: Deploy 95% of available BP (~100% allocation, reserving 5% buffer).
+    - 1 Open Trade: Target 50% allocation each.
+      * If Trade 1 is Breakeven Guarded (Tier 2+ or BE set): Trim 50% of Trade 1, fund Trade 2.
+      * If Trade 1 is NOT guarded: Protect Trade 1! Do not chop into a pullback.
+        Fund Trade 2 with remaining cash (if >= $50), else wait for Trade 1 safety.
+    - 2 Open Trades: Target 33.3% allocation each.
+      * Trim guarded trades to 33.3%, fund Trade 3.
+    - >= 3 Open Trades: Hard rejection (MAX_POSITIONS_REACHED 3/3).
+    """
+    from public_executor import get_account_capital_summary, execute_exit_position
+    import time
+    
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""
+        SELECT id, ticker, entry_price, initial_shares, breakeven_set, partial_tier_done, trailing_stop_price 
+        FROM alerts 
+        WHERE outcome = 'OPEN' AND user_active = 1
+    """)
+    open_trades = c.fetchall()
+    conn.close()
+    
+    active_count = len(open_trades)
+    max_concurrent = int(cfg.get("max_concurrent", 3))
+    
+    if active_count >= max_concurrent:
+        return False, f"MAX_POSITIONS_REACHED ({active_count}/{max_concurrent})", 0.0, None
+        
+    cap_summary = get_account_capital_summary()
+    live_bp = float(cap_summary.get('buying_power', bp))
+    
+    # CASE 1: 0 Open Trades (Slot 1 receives 100% buying power)
+    if active_count == 0:
+        dollar_alloc = max(10.0, round(live_bp * 0.95, 2))
+        return True, "SLOT_1_FULL_CAPITAL", dollar_alloc, "100% Capital Deployment"
+        
+    # CASE 2: 1 Open Trade (Target 50% allocation each)
+    elif active_count == 1:
+        t1_id, t1_ticker, t1_entry, t1_shares, t1_be, t1_tier, t1_trail = open_trades[0]
+        t1_entry = float(t1_entry or 0.0)
+        t1_shares = float(t1_shares or 0.0)
+        t1_be = int(t1_be or 0)
+        t1_tier = int(t1_tier or 0)
+        t1_trail = float(t1_trail or 0.0)
+        
+        # Check Breakeven Guarding: has Trade 1 eliminated downside risk?
+        is_guarded = (t1_be == 1) or (t1_tier >= 2) or (t1_trail >= t1_entry and t1_trail > 0)
+        
+        if is_guarded and t1_shares > 0:
+            sell_qty = round(t1_shares * 0.50, 4)
+            print(f"[DynamicTrim] Trimming 50% of guarded {t1_ticker} ({sell_qty} shs) to fund Trade 2 ({ticker})...")
+            try:
+                execute_exit_position(t1_ticker, quantity=sell_qty, direction='LONG')
+                conn = sqlite3.connect(DB_PATH)
+                c = conn.cursor()
+                c.execute("UPDATE alerts SET initial_shares = ? WHERE id = ?", (round(t1_shares - sell_qty, 4), t1_id))
+                conn.commit()
+                conn.close()
+            except Exception as ex:
+                print(f"[DynamicTrim] Warning trimming {t1_ticker}: {ex}")
+                
+            time.sleep(1.5)
+            cap_summary = get_account_capital_summary()
+            live_bp = float(cap_summary.get('buying_power', live_bp))
+            dollar_alloc = max(10.0, round(live_bp * 0.95, 2))
+            note = f"Trimmed 50% of guarded runner {t1_ticker} ({sell_qty} shs) to rebalance 50/50"
+            return True, "SLOT_2_REBALANCED_50", dollar_alloc, note
+        else:
+            # Protect Trade 1 from being chopped in a pullback
+            if live_bp >= 50.0:
+                dollar_alloc = round(live_bp * 0.95, 2)
+                return True, "SLOT_2_REMAINING_CASH", dollar_alloc, f"Protected {t1_ticker} from pullback trim (used liquid cash)"
+            else:
+                return False, f"TRADE_1_UNGUARDED_PROTECTED ({t1_ticker} still in initial test)", 0.0, None
+                
+    # CASE 3: 2 Open Trades (Target 33.3% allocation each)
+    elif active_count == 2:
+        if live_bp >= 300.0:
+            dollar_alloc = min(round(live_bp * 0.95, 2), 960.0)
+            return True, "SLOT_3_ALLOCATION", dollar_alloc, "Funded Slot 3 from liquid cash"
+        else:
+            trimmed = False
+            for tid, tticker, tentry, tshares, tbe, ttier, ttrail in open_trades:
+                tentry = float(tentry or 0.0)
+                tshares = float(tshares or 0.0)
+                tbe = int(tbe or 0)
+                ttier = int(ttier or 0)
+                ttrail = float(ttrail or 0.0)
+                if ((tbe == 1) or (ttier >= 2) or (ttrail >= tentry and ttrail > 0)) and tshares > 0:
+                    sell_qty = round(tshares * 0.33, 4)
+                    if sell_qty > 0:
+                        try:
+                            execute_exit_position(tticker, quantity=sell_qty, direction='LONG')
+                            conn = sqlite3.connect(DB_PATH)
+                            c = conn.cursor()
+                            c.execute("UPDATE alerts SET initial_shares = ? WHERE id = ?", (round(tshares - sell_qty, 4), tid))
+                            conn.commit()
+                            conn.close()
+                            trimmed = True
+                        except Exception as ex:
+                            print(f"[DynamicTrim] Warning trimming {tticker}: {ex}")
+            if trimmed:
+                time.sleep(1.5)
+                cap_summary = get_account_capital_summary()
+                live_bp = float(cap_summary.get('buying_power', live_bp))
+                dollar_alloc = max(10.0, round(live_bp * 0.95, 2))
+                return True, "SLOT_3_REBALANCED_33", dollar_alloc, "Trimmed guarded runners to equalize 3 slots"
+            else:
+                return False, "TRADES_UNGUARDED_PROTECTED (Existing positions not yet at Breakeven)", 0.0, None
+
+    return False, "DYNAMIC_TRIM_UNKNOWN", 0.0, None
+
 def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, timeframe="5m", target_r=None):
     """
     Submits a market fractional BUY to Public.com, marks the trade active in DB,
@@ -372,12 +488,24 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
     calc_target_r = target_r if target_r is not None else (abs(tp - price) / init_risk if (init_risk > 0.001 and tp > 0) else 1.15)
     calc_target_r = max(0.65, calc_target_r)
 
-    sizing = config_manager.calculate_sizing_allocation(bp, target_r=calc_target_r)
-    dollar_alloc = sizing['final_alloc']
-    base_alloc = sizing['base_alloc']
-    mult = sizing['multiplier']
     cfg = get_config()
+    alloc_mode = cfg.get("alloc_mode", "DYNAMIC_TRIM")
     min_ml_floor = float(cfg.get("min_ml_conf", AUTO_BUY_MIN_ML_CONF))
+    
+    rebalance_note = None
+    if alloc_mode == "DYNAMIC_TRIM":
+        ok, reason, dollar_alloc, rebalance_note = rebalance_and_calculate_dynamic_trim(ticker, price, bp, cfg)
+        if not ok:
+            print(f"[{get_market_time().strftime('%H:%M:%S')}] Dynamic Trim Bypassed for {ticker}: {reason}")
+            return False, reason
+        base_alloc = dollar_alloc
+        mult = 1.00
+        sizing = {"target_weighted": False, "alloc_mode": "DYNAMIC_TRIM"}
+    else:
+        sizing = config_manager.calculate_sizing_allocation(bp, target_r=calc_target_r)
+        dollar_alloc = sizing['final_alloc']
+        base_alloc = sizing['base_alloc']
+        mult = sizing['multiplier']
 
     t1_r = round(calc_target_r * 0.20, 2)
     t2_r = round(calc_target_r * 0.35, 2)
@@ -420,13 +548,14 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
         # Telegram Alert
         conf_str = f" | ML Edge: {ml_conf:.1f}%" if ml_conf is not None else ""
         mult_str = f" (Base: ${base_alloc:.2f} × {mult:.2f}x)" if sizing.get('target_weighted') else ""
+        rebalance_str = f"Dynamic Rebalance: {rebalance_note}\n" if rebalance_note else ""
         msg = (
             f"⚡ [LIVE AUTO-BUY EXECUTED] {ticker.upper()}\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"Execution Status: 🟢 LIVE PUBLIC.COM BROKER FILL (ML >= {min_ml_floor:.0f}% Edge)\n"
             f"Symbol: {ticker.upper()} (LONG)\n"
             f"Timeframe: {timeframe}\n"
-            f"Allocation: ${dollar_alloc:.2f}{mult_str} ({status})\n"
+            f"Allocation: ${dollar_alloc:.2f}{mult_str} ({status})\n" f"{rebalance_str}"
             f"Entry: ${price:.2f}\n"
             f"Initial Stop: ${sl:.2f}\n"
             f"Wyckoff Target: ${tp:.2f} (+{calc_target_r:.2f}R)\n"
