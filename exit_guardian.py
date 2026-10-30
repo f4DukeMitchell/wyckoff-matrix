@@ -574,6 +574,11 @@ def run_guardian_cycle():
                     outcome = 'BREAKEVEN'
                 else:
                     outcome = 'LOSS'
+                    try:
+                        from frank_sector_guard import record_stop_event
+                        record_stop_event(sym, price, final_r, tier)
+                    except Exception as e_sec:
+                        print(f"[{get_est_now_str()}] [Guardian] Sector Guard record stop error: {e_sec}")
 
                 c.execute("""
                     UPDATE alerts 
@@ -612,6 +617,12 @@ def guardian_loop():
             auto_buyer.process_standby_queue()
         except Exception as e:
             print(f"[{get_est_now_str()}] [Guardian] Error in standby queue cycle: {e}")
+
+        try:
+            from frank_sector_guard import run_sector_radar_cycle
+            run_sector_radar_cycle()
+        except Exception as e:
+            print(f"[{get_est_now_str()}] [Guardian] Error in Sector Radar cycle: {e}")
 
         time.sleep(10)
 

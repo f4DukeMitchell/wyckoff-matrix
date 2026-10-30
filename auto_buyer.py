@@ -406,6 +406,15 @@ def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     if ml_conf is not None and ml_conf < min_ml_floor:
         return False, f"ML_CONF_TOO_LOW ({ml_conf:.1f}% < {min_ml_floor:.1f}%)"
 
+    # 4b. Frank Wyckoff Dynamic Sector Guard & Circuit Breaker Gate
+    try:
+        from frank_sector_guard import check_sector_eligibility
+        sec_ok, sec_reason = check_sector_eligibility(ticker)
+        if not sec_ok:
+            return False, sec_reason
+    except Exception as e_sec:
+        print(f"[AutoBuyer] Sector eligibility check error: {e_sec}")
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 

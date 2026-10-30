@@ -300,6 +300,12 @@ def get_terminal_state():
     except Exception:
         standby_list = []
 
+    try:
+        from frank_sector_guard import get_sector_guard_summary
+        sec_guard_info = get_sector_guard_summary()
+    except Exception:
+        sec_guard_info = {"quarantined_count": 0, "quarantined_sectors": [], "sectors": []}
+
     import config_manager
     cfg = config_manager.load_config()
     bp_val = float(cap.get('buying_power') or 0.0)
@@ -319,6 +325,7 @@ def get_terminal_state():
         "priority_queue": p_queue,
         "priority_stats": p_stats,
         "standby_queue": standby_list,
+        "sector_guard": sec_guard_info,
         "history": history,
         "telegram_alerts": telegram_alerts
     }
@@ -330,6 +337,14 @@ def get_standby_queue_endpoint():
         return {"standby_queue": get_standby_queue()}
     except Exception as e:
         return {"standby_queue": [], "error": str(e)}
+
+@app.get("/api/terminal/sector-guard")
+def get_sector_guard_endpoint():
+    try:
+        from frank_sector_guard import get_sector_guard_summary
+        return {"status": "SUCCESS", "sector_guard": get_sector_guard_summary()}
+    except Exception as e:
+        return {"status": "ERROR", "sector_guard": {}, "error": str(e)}
 
 @app.get("/api/terminal/priority-queue")
 def get_priority_queue_endpoint():

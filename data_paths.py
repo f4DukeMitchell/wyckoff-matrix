@@ -34,10 +34,12 @@ DB_PATH = os.path.join(DATA_DIR, "wyckoff_trades.db")
 CONFIG_PATH = os.path.join(DATA_DIR, "auto_buyer_config.json")
 MODEL_PATH = os.path.join(DATA_DIR, "wyckoff_model.pkl")
 STANDBY_PATH = os.path.join(DATA_DIR, "standby_queue.json")
+SECTOR_GUARD_PATH = os.path.join(DATA_DIR, "sector_guard_state.json")
 
 SEED_DB = os.path.join(REPO_DIR, "wyckoff_trades.db")
 SEED_CONFIG = os.path.join(REPO_DIR, "auto_buyer_config.json")
 SEED_MODEL = os.path.join(REPO_DIR, "wyckoff_model.pkl")
+SEED_SECTOR_GUARD = os.path.join(REPO_DIR, "sector_guard_state.json")
 
 BACKUP_KEEP = 60
 _last_backup_ts = 0.0
