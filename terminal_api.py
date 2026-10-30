@@ -294,6 +294,12 @@ def get_terminal_state():
         p_queue = []
         p_stats = {"total": 0, "hot": 0, "anchors": 0, "monitoring": 0, "chopping_block": 0}
 
+    try:
+        from auto_buyer import get_standby_queue
+        standby_list = get_standby_queue()
+    except Exception:
+        standby_list = []
+
     import config_manager
     cfg = config_manager.load_config()
     bp_val = float(cap.get('buying_power') or 0.0)
@@ -312,9 +318,18 @@ def get_terminal_state():
         "stalker_radar": stalker_list,
         "priority_queue": p_queue,
         "priority_stats": p_stats,
+        "standby_queue": standby_list,
         "history": history,
         "telegram_alerts": telegram_alerts
     }
+
+@app.get("/api/terminal/standby-queue")
+def get_standby_queue_endpoint():
+    try:
+        from auto_buyer import get_standby_queue
+        return {"standby_queue": get_standby_queue()}
+    except Exception as e:
+        return {"standby_queue": [], "error": str(e)}
 
 @app.get("/api/terminal/priority-queue")
 def get_priority_queue_endpoint():

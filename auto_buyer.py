@@ -236,6 +236,143 @@ def execute_alpha_rotation(candidate: dict, incoming_ticker: str, incoming_ml_co
     except Exception:
         pass
 
+
+# ==========================================
+# ACTIVE STANDBY QUEUE ENGINE
+# ==========================================
+from data_paths import STANDBY_PATH
+
+def get_standby_queue() -> list:
+    if not os.path.exists(STANDBY_PATH):
+        return []
+    try:
+        with open(STANDBY_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def save_standby_queue(q: list):
+    try:
+        with open(STANDBY_PATH, "w", encoding="utf-8") as f:
+            json.dump(q, f, indent=2)
+    except Exception as ex:
+        print(f"[StandbyQueue] Save error: {ex}")
+
+def add_to_standby_queue(trade_id: int, ticker: str, price: float, sl: float, tp: float, ml_conf: float, timeframe: str = "5m", target_r: float = None):
+    q = get_standby_queue()
+    sym = ticker.upper()
+    for item in q:
+        if item.get("ticker") == sym:
+            return False, "ALREADY_ON_STANDBY"
+            
+    item = {
+        "trade_id": trade_id,
+        "ticker": sym,
+        "alert_price": round(price, 4),
+        "sl": round(sl, 4),
+        "tp": round(tp, 4),
+        "ml_conf": round(ml_conf, 1) if ml_conf is not None else None,
+        "timeframe": timeframe,
+        "target_r": round(target_r, 2) if target_r is not None else None,
+        "queued_at": datetime.now(timezone.utc).isoformat(),
+        "max_wait_minutes": 15
+    }
+    q.append(item)
+    save_standby_queue(q)
+    print(f"[{get_market_time().strftime('%H:%M:%S')}] ⏳ {sym} placed on Active Standby Radar (15m window). Waiting for runner Breakeven.")
+    
+    # Telegram alert
+    try:
+        conf_str = f" | ML Edge: {ml_conf:.1f}%" if ml_conf is not None else ""
+        msg = (
+            f"⏳ [ACTIVE STANDBY RADAR] {sym} QUEUED\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"Status: Waiting for active runner Breakeven lock\n"
+            f"Symbol: {sym} ({timeframe}){conf_str}\n"
+            f"Alert Price: ${price:.2f} | Target: ${tp:.2f}\n"
+            f"Window: 15-Minute Standby\n"
+            f"Rule: Will auto-buy immediately upon Breakeven lock if price remains in buy zone (≤ +0.60%)."
+        )
+        send_message(msg, force=True)
+    except Exception as ex:
+        print(f"[StandbyQueue] TG alert error: {ex}")
+    return True, "ADDED_TO_STANDBY"
+
+def process_standby_queue():
+    """
+    Checks queued standby trades and executes if:
+    1. Capital has unlocked (Active runner has locked Breakeven or closed).
+    2. Standby trade is still within valid Wyckoff springboard zone (not ran away > 0.60% and stop not broken).
+    """
+    q = get_standby_queue()
+    if not q:
+        return
+
+    from public_executor import get_single_quote, get_account_capital_summary
+    now_utc = datetime.now(timezone.utc)
+    remaining_q = []
+
+    for item in q:
+        sym = item['ticker']
+        try:
+            queued_ts = pd.to_datetime(item['queued_at'], format='mixed', utc=True)
+            elapsed_m = (now_utc - queued_ts).total_seconds() / 60.0
+        except Exception:
+            elapsed_m = 0.0
+
+        # 1. Timeout expiration (15 minutes)
+        if elapsed_m > item.get('max_wait_minutes', 15):
+            print(f"[{get_market_time().strftime('%H:%M:%S')}] [StandbyQueue] {sym} expired after {elapsed_m:.1f}m standby.")
+            continue
+
+        # 2. Query live quote
+        quote = get_single_quote(sym)
+        curr_price = float(quote.get('last') or 0.0)
+        if curr_price <= 0:
+            remaining_q.append(item)
+            continue
+
+        alert_p = item['alert_price']
+        sl = item['sl']
+
+        # 3. Check invalidation
+        if curr_price <= sl:
+            print(f"[{get_market_time().strftime('%H:%M:%S')}] [StandbyQueue] {sym} invalidated (broke stop ${curr_price:.2f} <= ${sl:.2f}). Removed.")
+            continue
+
+        # 4. Check runaway (> +0.60% above alert)
+        if curr_price > (alert_p * 1.006):
+            print(f"[{get_market_time().strftime('%H:%M:%S')}] [StandbyQueue] {sym} ran away (+{((curr_price-alert_p)/alert_p)*100:.2f}%). Will not chase.")
+            continue
+
+        # 5. Check if capital has unlocked
+        cfg = get_config()
+        cap_summary = get_account_capital_summary()
+        live_bp = float(cap_summary.get('buying_power', 0.0))
+
+        ok, reason, dollar_alloc, rebalance_note = rebalance_and_calculate_dynamic_trim(sym, curr_price, live_bp, cfg)
+        if ok and dollar_alloc >= 50.0:
+            print(f"[{get_market_time().strftime('%H:%M:%S')}] ⚡ [StandbyQueue] UNLOCKED! Executing Standby Buy for {sym} (${dollar_alloc:.2f}). Reason: {reason}")
+            success, exec_res = execute_autonomous_spring_buy(
+                trade_id=item['trade_id'],
+                ticker=sym,
+                price=curr_price,
+                sl=item['sl'],
+                tp=item['tp'],
+                ml_conf=item['ml_conf'],
+                timeframe=item['timeframe'],
+                target_r=item['target_r'],
+                is_standby_fill=True
+            )
+            if success:
+                # Successfully bought!
+                continue
+
+        # Still waiting
+        remaining_q.append(item)
+
+    save_standby_queue(remaining_q)
+
 def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     """
     Evaluates whether an incoming Wyckoff Spring signal satisfies all institutional guardrails.
@@ -625,7 +762,7 @@ def rebalance_and_calculate_dynamic_trim(ticker: str, price: float, bp: float, c
 
     return False, "DYNAMIC_TRIM_UNKNOWN", 0.0, None
 
-def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, timeframe="5m", target_r=None):
+def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, timeframe="5m", target_r=None, is_standby_fill=False):
     """
     Submits a market fractional BUY to Public.com, marks the trade active in DB,
     and dispatches instant notifications with dynamic Target-Relative Ladder.
@@ -671,6 +808,8 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
         ok, reason, dollar_alloc, rebalance_note = rebalance_and_calculate_dynamic_trim(ticker, price, bp, cfg)
         if not ok:
             print(f"[{get_market_time().strftime('%H:%M:%S')}] Dynamic Trim Bypassed for {ticker}: {reason}")
+            if "UNGUARDED_PROTECTED" in reason and not is_standby_fill:
+                add_to_standby_queue(trade_id, ticker, price, sl, tp, ml_conf, timeframe=timeframe, target_r=calc_target_r)
             return False, reason
         base_alloc = dollar_alloc
         mult = 1.00
@@ -724,7 +863,7 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
         mult_str = f" (Base: ${base_alloc:.2f} × {mult:.2f}x)" if sizing.get('target_weighted') else ""
         rebalance_str = f"Dynamic Rebalance: {rebalance_note}\n" if rebalance_note else ""
         msg = (
-            f"⚡ [LIVE AUTO-BUY EXECUTED] {ticker.upper()}\n"
+            f"⚡ [LIVE AUTO-BUY EXECUTED" + (" - STANDBY UNLOCKED]" if is_standby_fill else "]") + f" {ticker.upper()}\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"Execution Status: 🟢 LIVE PUBLIC.COM BROKER FILL (ML >= {min_ml_floor:.0f}% Edge)\n"
             f"Symbol: {ticker.upper()} (LONG)\n"

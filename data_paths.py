@@ -33,6 +33,7 @@ BACKUP_DIR = os.path.join(DATA_DIR, "backups")
 DB_PATH = os.path.join(DATA_DIR, "wyckoff_trades.db")
 CONFIG_PATH = os.path.join(DATA_DIR, "auto_buyer_config.json")
 MODEL_PATH = os.path.join(DATA_DIR, "wyckoff_model.pkl")
+STANDBY_PATH = os.path.join(DATA_DIR, "standby_queue.json")
 
 SEED_DB = os.path.join(REPO_DIR, "wyckoff_trades.db")
 SEED_CONFIG = os.path.join(REPO_DIR, "auto_buyer_config.json")

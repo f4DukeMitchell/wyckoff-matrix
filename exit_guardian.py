@@ -607,6 +607,12 @@ def guardian_loop():
         except Exception as e:
             print(f"[{get_est_now_str()}] [Guardian] Error in CC cycle: {e}")
 
+        try:
+            import auto_buyer
+            auto_buyer.process_standby_queue()
+        except Exception as e:
+            print(f"[{get_est_now_str()}] [Guardian] Error in standby queue cycle: {e}")
+
         time.sleep(10)
 
 _GUARDIAN_THREAD = None
