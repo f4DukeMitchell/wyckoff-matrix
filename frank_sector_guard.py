@@ -259,8 +259,7 @@ def record_stop_event(ticker: str, exit_price: float, pnl_r: float, tier: int):
                     f"• Action: Halting ALL automated entries for 30 minutes (until {est_expire.strftime('%I:%M %p')} EST).\n"
                     f"• Frank Tape Radar: Auditing SPY/QQQ stabilization every 15 minutes."
                 )
-                safe_print(f"[SectorGuard] {msg}")
-                send_message(msg, chat_id=TELEGRAM_CHAT_ID_DAY, force=True)
+                safe_print(f"[SectorGuard] (Internal Log) {msg}")
             else:
                 # SPY is stable; isolate only the most recent stopped sector for 20 minutes
                 target_etf = stop2["sector_etf"]
@@ -413,6 +412,93 @@ def audit_sector_tape(sector_etf: str) -> dict:
         "is_stabilized": is_stabilized
     }
 
+def is_trading_day(dt_et) -> bool:
+    """Returns True only on market trading days (Monday=0 to Friday=4)."""
+    return dt_et.weekday() < 5
+
+def send_frank_midday_report():
+    """Report 1: Mid-Day Tape & Sector Health Report (12:00 PM EST, trading days only)."""
+    try:
+        now_et = get_est_now()
+        spy_tape = audit_sector_tape('SPY')
+        spy_p = spy_tape.get('current_price', 0.0)
+        spy_pct = spy_tape.get('pct_vs_vwap', 0.0)
+        regime = "BULLISH / ABOVE VWAP" if spy_pct >= 0.1 else ("DISTRIBUTING / BELOW VWAP" if spy_pct <= -0.2 else "BALANCED / AT VWAP")
+
+        state = load_sector_guard_state()
+        q_sectors = state.get("quarantined_sectors", {})
+        if q_sectors:
+            q_lines = [f"{info.get('sector_name', k)} ({k})" for k, info in q_sectors.items()]
+            q_text = f"QUARANTINED: {', '.join(q_lines)}"
+        else:
+            q_text = "ALL 12 SECTORS HEALTHY & ACTIVE"
+
+        import sqlite3
+        from data_paths import DB_PATH
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT ticker, timeframe FROM alerts WHERE outcome = 'OPEN' AND user_active = 1")
+        open_rows = c.fetchall()
+        conn.close()
+
+        open_str = ", ".join([f"{r[0]} ({r[1]})" for r in open_rows]) if open_rows else "0 Active Positions (100% Cash Dry Powder)"
+
+        msg = (
+            f"[FRANK WYCKOFF] MID-DAY TAPE & SECTOR REPORT\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"• Session Time: 12:00 PM EST (Trading Session)\n"
+            f"• Macro Tape (SPY): ${spy_p:.2f} ({spy_pct:+.2f}% vs VWAP) | {regime}\n"
+            f"• Sector Health: {q_text}\n"
+            f"• Active Positions: {open_str}\n"
+            f"• Frank Verdict: Tape conditions audited. Healthy sectors cleared for Wyckoff Springs."
+        )
+        safe_print(f"[SectorGuard] {msg}")
+        send_message(msg, chat_id=TELEGRAM_CHAT_ID_DAY, force=True)
+    except Exception as e:
+        safe_print(f"[SectorGuard] Mid-day report error: {e}")
+
+def send_frank_postmarket_report():
+    """Report 2: Post-Market Institutional Wrap (4:05 PM EST, trading days only)."""
+    try:
+        now_et = get_est_now()
+        today_str = now_et.strftime('%Y-%m-%d')
+
+        import sqlite3
+        from data_paths import DB_PATH
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("""
+            SELECT ticker, outcome, pnl_r 
+            FROM alerts 
+            WHERE user_active = 1 AND timestamp LIKE ? AND outcome IN ('WIN', 'LOSS', 'BREAKEVEN')
+        """, (f"{today_str}%",))
+        rows = c.fetchall()
+        conn.close()
+
+        tot = len(rows)
+        wins = sum(1 for r in rows if r[1] == 'WIN')
+        losses = sum(1 for r in rows if r[1] == 'LOSS')
+        be = sum(1 for r in rows if r[1] == 'BREAKEVEN')
+        net_r = sum(float(r[2] or 0.0) for r in rows)
+
+        state = load_sector_guard_state()
+        q_sectors = state.get("quarantined_sectors", {})
+        q_str = f"Active Quarantines: {len(q_sectors)}" if q_sectors else "All Sector Circuit Breakers Neutral"
+
+        msg = (
+            f"[FRANK WYCKOFF] POST-MARKET INSTITUTIONAL AUDIT\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"• Date: {now_et.strftime('%b %d, %Y')} Market Close Wrap\n"
+            f"• Closed Trades Today: {tot} (Wins: {wins} | Losses: {losses} | Scratches: {be})\n"
+            f"• Total Edge Generated: {net_r:+.2f}R\n"
+            f"• Sector Circuit Breakers: {q_str}\n"
+            f"• Daily Review: Exit Guardian executed structural stops. Capital protected for tomorrow's open."
+        )
+        safe_print(f"[SectorGuard] {msg}")
+        send_message(msg, chat_id=TELEGRAM_CHAT_ID_DAY, force=True)
+    except Exception as e:
+        safe_print(f"[SectorGuard] Post-market report error: {e}")
+
 def run_sector_radar_cycle():
     """
     Daemon hook: Runs every 10 seconds inside exit_guardian.
@@ -503,6 +589,27 @@ def run_sector_radar_cycle():
                     new_pause = (now_utc + datetime.timedelta(minutes=15)).isoformat()
                     state["global_circuit_breaker"]["pause_until"] = new_pause
                     state_changed = True
+
+
+    # 3. Scheduled Daily Reports (2 per day ONLY on trading days: 12:00 PM and 4:05 PM EST)
+    now_et = get_est_now()
+    today_str = now_et.strftime('%Y-%m-%d')
+    if is_trading_day(now_et):
+        daily_reps = state.setdefault("daily_reports", {})
+        
+        # Report 1: Mid-Day Tape (12:00 PM - 12:15 PM EST)
+        if now_et.hour == 12 and now_et.minute < 15:
+            if daily_reps.get("last_midday_date") != today_str:
+                send_frank_midday_report()
+                daily_reps["last_midday_date"] = today_str
+                state_changed = True
+
+        # Report 2: Post-Market Wrap (4:05 PM - 4:25 PM EST)
+        elif now_et.hour == 16 and 5 <= now_et.minute < 25:
+            if daily_reps.get("last_postmarket_date") != today_str:
+                send_frank_postmarket_report()
+                daily_reps["last_postmarket_date"] = today_str
+                state_changed = True
 
     if state_changed:
         state["quarantined_sectors"] = quarantined
