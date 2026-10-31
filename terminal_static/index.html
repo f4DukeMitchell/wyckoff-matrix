@@ -1557,7 +1557,7 @@
       <div class="view-tabs">
         <button id="tab-terminal" class="view-tab active" onclick="switchView('terminal')">📊 TRADING</button>
         <button id="tab-charts" class="view-tab" onclick="switchView('charts')" style="border-color: #00d26a; color: #00ff88;" title="Multi-Chart Matrix: Toggle 1, 2, or 4 Charts with individual ticker & timeframe selection">📈 CHARTS</button>
-        <button id="tab-pulse" class="view-tab" onclick="switchView('pulse')" style="border-color: #ff9900; color: #ff9900;" title="Market Pulse: Today's Action, AI Bot Intelligence Briefs, Macro Wire & Ticker News">📰 MARKET PULSE</button>
+        <button id="tab-pulse" class="view-tab" onclick="switchView('pulse')" style="border-color: #ff9900; color: #ff9900;" title="Frank's Market Pulse: 15-Min Tape Desk, Jim Cramer / Wyckoff Notes & Composite Man Wire">🎙️ FRANK'S MARKET PULSE</button>
         <button id="tab-pnl" class="view-tab" onclick="switchView('pnl')" style="border-color: #ffd700; color: #ffd700;" title="P&L Station: Deep trade-by-trade analysis, execution autopsies, realized returns and win metrics for all manual and VM trades">💰 P&L STATION</button>
         <button id="tab-mllab" class="view-tab" onclick="switchView('mllab')">🧠 AI / ML LAB</button>
         <button id="tab-options" class="view-tab" onclick="switchView('options')" style="border-color: #a855f7; color: #c084fc;" title="Dedicated Options Matrix: Real-time 0.65 Delta Weekly Calls & Multi-Tranche Exits">⚡ OPTIONS MATRIX</button>
@@ -3104,7 +3104,7 @@
     <!-- Macro Ticker Header Bar -->
     <div class="pulse-header-bar">
       <div class="pulse-indices-strip">
-        <span style="font-weight: 700; color: #ff9900; font-size: 11px; margin-right: 4px;">🌐 MARKET PULSE:</span>
+        <span style="font-weight: 700; color: #ff9900; font-size: 11px; margin-right: 4px;">🎙️ FRANK'S MARKET PULSE:</span>
         <div class="pulse-ticker-chip" id="chip-spy"><span>SPY</span> <b class="c-green" id="pulse-price-spy">$--</b></div>
         <div class="pulse-ticker-chip" id="chip-qqq"><span>QQQ</span> <b class="c-green" id="pulse-price-qqq">$--</b></div>
         <div class="pulse-ticker-chip" id="chip-iwm"><span>IWM</span> <b class="c-yellow" id="pulse-price-iwm">$--</b></div>
@@ -3123,7 +3123,7 @@
       <!-- Col 1: Today's Action & Bot Intelligence -->
       <div class="pulse-pane">
         <div class="pane-header">
-          <span>⚡ TODAY'S ACTIONS &amp; BOT LEDGER</span>
+          <span>🎙️ FRANK'S 15-MIN TAPE DESK &amp; COMPOSITE MAN WIRE</span>
           <span class="c-green" id="pulse-actions-count">0 EVENTS</span>
         </div>
         <div class="pulse-pane-content" id="pulse-actions-container">
@@ -7536,6 +7536,34 @@ Position upgraded from Core Hold to Algo Active!`);
         if (actionsCountEl) actionsCountEl.innerText = `${totalEvents} EVENTS`;
 
         let html = '';
+
+        // Frank's 15-Minute Tape Desk Note (Jim Cramer / Wyckoff Composite Man)
+        if (data.frank_pulse) {
+          const fp = data.frank_pulse;
+          html += `<div style="background: #141006; border: 1px solid #ff9900; padding: 8px 10px; border-radius: 3px; margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #332200; padding-bottom: 4px; margin-bottom: 6px;">
+              <span style="font-weight: 800; color: #ff9900; font-size: 10.5px; letter-spacing: 0.5px;">🎙️ FRANK WYCKOFF // TAPE DESK NOTE</span>
+              <span style="font-size: 9px; color: #aaa; background: #221400; padding: 1px 6px; border-radius: 2px; border: 1px solid #553300;">${fp.time_str || 'LIVE'}</span>
+            </div>
+            <div style="font-size: 9.5px; font-weight: bold; color: ${fp.regime_color || '#ffd700'}; margin-bottom: 6px;">
+              REGIME: ${fp.regime || 'MONITORING'} | ${fp.spy_tape || ''}
+            </div>
+            <div style="font-size: 10px; color: #eee; font-style: italic; line-height: 1.4; background: #080602; padding: 6px 8px; border-left: 3px solid #ff9900; margin-bottom: 8px;">
+              "${fp.cramer_monologue || ''}"
+            </div>
+            <div style="background: rgba(255, 77, 77, 0.08); border: 1px dashed rgba(255, 77, 77, 0.5); padding: 5px 8px; border-radius: 2px; margin-bottom: 6px;">
+              <div style="font-size: 9px; font-weight: bold; color: #ff4d4d; margin-bottom: 2px;">⚠️ THE COMPOSITE MAN TRAP FILTER:</div>
+              <div style="font-size: 9px; color: #ccc; line-height: 1.3;">
+                <b>Iron Rule:</b> Once an article is published online, it's usually too late to trade, or the Composite Man put it there to shake retail out at support or create exit liquidity for a pump-and-dump.
+                ${fp.trap_findings && fp.trap_findings.length > 0 ? '<br><span style="color:#ffd700; margin-top:2px; display:inline-block;">• ' + fp.trap_findings[0] + '</span>' : ''}
+              </div>
+            </div>
+            <div style="font-size: 9px; color: #00ff88; font-weight: bold; margin-bottom: 3px;">📋 ACTIONABLE PLAYBOOK:</div>
+            <div style="font-size: 8.5px; color: #bbb; line-height: 1.3;">
+              ${(fp.playbook || []).map(p => `<div>• ${p}</div>`).join('')}
+            </div>
+          </div>`;
+        }
 
         // Active Algo & Broker Trades Banner
         html += `<div style="background: #11141c; border: 1px solid #1f2738; padding: 6px 8px; border-radius: 2px;">

@@ -346,6 +346,16 @@ def get_sector_guard_endpoint():
     except Exception as e:
         return {"status": "ERROR", "sector_guard": {}, "error": str(e)}
 
+@app.get("/api/terminal/frank-pulse")
+def get_frank_pulse_endpoint(force: bool = False):
+    try:
+        import frank_pulse_engine
+        latest = frank_pulse_engine.generate_frank_pulse_note(force=force)
+        notes = frank_pulse_engine.load_pulse_notes()
+        return {"status": "SUCCESS", "latest_note": latest, "notes": notes}
+    except Exception as e:
+        return {"status": "ERROR", "error": str(e), "latest_note": None, "notes": []}
+
 @app.get("/api/terminal/priority-queue")
 def get_priority_queue_endpoint():
     try:
@@ -2572,7 +2582,15 @@ def get_market_pulse_endpoint(tickers: str = None):
     try:
         import market_news
         t_list = [t.strip().upper() for t in tickers.split(',')] if tickers else ['SPY', 'QQQ', 'NVDA', 'TSLA']
-        return market_news.get_market_pulse(t_list)
+        res = market_news.get_market_pulse(t_list)
+        try:
+            import frank_pulse_engine
+            res["frank_pulse"] = frank_pulse_engine.generate_frank_pulse_note()
+            res["frank_pulse_notes"] = frank_pulse_engine.load_pulse_notes()
+        except Exception:
+            res["frank_pulse"] = None
+            res["frank_pulse_notes"] = []
+        return res
     except Exception as e:
         return {"status": "ERROR", "error": str(e)}
 

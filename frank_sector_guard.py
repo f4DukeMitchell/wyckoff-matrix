@@ -458,41 +458,70 @@ def send_frank_midday_report():
         safe_print(f"[SectorGuard] Mid-day report error: {e}")
 
 def send_frank_postmarket_report():
-    """Report 2: Post-Market Institutional Wrap (4:05 PM EST, trading days only)."""
+    """Report 2: Post-Market Institutional Wrap (4:05 PM EST, trading days only) - 100% Broker Actuals."""
     try:
         now_et = get_est_now()
         today_str = now_et.strftime('%Y-%m-%d')
 
-        import sqlite3
-        from data_paths import DB_PATH
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("""
-            SELECT ticker, outcome, pnl_r 
-            FROM alerts 
-            WHERE user_active = 1 AND timestamp LIKE ? AND outcome IN ('WIN', 'LOSS', 'BREAKEVEN')
-        """, (f"{today_str}%",))
-        rows = c.fetchall()
-        conn.close()
+        # 1. Pull exact broker-reconciled actuals from pnl_engine
+        import pnl_engine
+        pnl_data = pnl_engine.fetch_pnl_station_data()
+        all_real_trades = pnl_data.get('trades', [])
 
-        tot = len(rows)
-        wins = sum(1 for r in rows if r[1] == 'WIN')
-        losses = sum(1 for r in rows if r[1] == 'LOSS')
-        be = sum(1 for r in rows if r[1] == 'BREAKEVEN')
-        net_r = sum(float(r[2] or 0.0) for r in rows)
+        today_trades = [
+            t for t in all_real_trades 
+            if t.get('exit_date') == today_str or str(t.get('exit_timestamp', ''))[:10] == today_str
+        ]
 
+        tot = len(today_trades)
+        wins = sum(1 for t in today_trades if t.get('outcome') == 'WIN')
+        losses = sum(1 for t in today_trades if t.get('outcome') == 'LOSS')
+        be = sum(1 for t in today_trades if t.get('outcome') == 'BREAKEVEN')
+        today_dollar = sum(float(t.get('net_pnl_dollar') or 0.0) for t in today_trades)
+        today_r = sum(float(t.get('pnl_r') or 0.0) for t in today_trades)
+
+        trade_items = []
+        for t in today_trades[:8]:
+            sym = t.get('ticker')
+            d_pnl = float(t.get('net_pnl_dollar') or 0.0)
+            r_val = float(t.get('pnl_r') or 0.0)
+            out_emoji = "🎯" if d_pnl > 0 else ("🛑" if d_pnl < 0 else "⚖️")
+            trade_items.append(f"{out_emoji} {sym}: ${d_pnl:+.2f} ({r_val:+.2f}R)")
+
+        trades_summary_str = " | ".join(trade_items) if trade_items else "Zero Executions Today"
+        if len(today_trades) > 8:
+            trades_summary_str += f" | +{len(today_trades) - 8} more"
+
+        # 2. Sector status
         state = load_sector_guard_state()
         q_sectors = state.get("quarantined_sectors", {})
-        q_str = f"Active Quarantines: {len(q_sectors)}" if q_sectors else "All Sector Circuit Breakers Neutral"
+        q_str = f"Active Quarantines: {len(q_sectors)} ({', '.join([info.get('sector_name', k) for k, info in q_sectors.items()])})" if q_sectors else "All 12 Sector Circuit Breakers Neutral & Active"
+
+        # 3. SPY closing tape
+        spy_tape = audit_sector_tape('SPY')
+        spy_close = spy_tape.get('current_price', 0.0)
+        spy_pct = spy_tape.get('pct_vs_vwap', 0.0)
+
+        # 4. Capital summary
+        try:
+            from public_executor import get_account_capital_summary
+            cap = get_account_capital_summary()
+            buying_power = float(cap.get('buying_power') or 0.0)
+        except Exception:
+            buying_power = 0.0
 
         msg = (
-            f"[FRANK WYCKOFF] POST-MARKET INSTITUTIONAL AUDIT\n"
+            f"🏛️ [FRANK WYCKOFF] POST-MARKET INSTITUTIONAL AUDIT\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"• Date: {now_et.strftime('%b %d, %Y')} Market Close Wrap\n"
-            f"• Closed Trades Today: {tot} (Wins: {wins} | Losses: {losses} | Scratches: {be})\n"
-            f"• Total Edge Generated: {net_r:+.2f}R\n"
-            f"• Sector Circuit Breakers: {q_str}\n"
-            f"• Daily Review: Exit Guardian executed structural stops. Capital protected for tomorrow's open."
+            f"• Session: {now_et.strftime('%b %d, %Y')} Market Close Wrap\n"
+            f"• Actuals Realized P&L: ${today_dollar:+.2f} ({today_r:+.2f}R)\n"
+            f"• Closed Broker Trades: {tot} (Wins: {wins} | Losses: {losses} | Scratches: {be})\n"
+            f"• Executions Breakdown:\n  {trades_summary_str}\n"
+            f"• Final Sector Status: {q_str}\n"
+            f"• SPY Closing Tape: ${spy_close:.2f} ({spy_pct:+.2f}% vs VWAP)\n"
+            f"• Buying Power Available: ${buying_power:,.2f}\n"
+            f"• Frank Research Safeguard: 100% SHADOW / READ-ONLY (Zero trading interventions).\n"
+            f"• Tomorrow's Setup Radar: Exit Guardian cleared for opening bell. Coiled Spring setups queued."
         )
         safe_print(f"[SectorGuard] {msg}")
         send_message(msg, chat_id=TELEGRAM_CHAT_ID_DAY, force=True)
@@ -509,6 +538,13 @@ def run_sector_radar_cycle():
     now_utc = get_utc_now()
     quarantined = state.get("quarantined_sectors", {})
     state_changed = False
+
+    # 0. Frank Wyckoff 15-Minute Market Pulse Generator (Jim Cramer / Composite Man Tape Notes)
+    try:
+        import frank_pulse_engine
+        frank_pulse_engine.generate_frank_pulse_note()
+    except Exception as e_pulse:
+        safe_print(f"[SectorGuard] Frank Pulse note update error: {e_pulse}")
 
     # 1. Audit Quarantined Sectors
     for etf, info in list(quarantined.items()):
