@@ -416,6 +416,15 @@ def is_trading_day(dt_et) -> bool:
     """Returns True only on market trading days (Monday=0 to Friday=4)."""
     return dt_et.weekday() < 5
 
+def is_market_open(dt_et=None) -> bool:
+    """Returns True only during Regular Trading Hours (Mon-Fri 9:30 AM - 4:00 PM EST)."""
+    if dt_et is None:
+        dt_et = get_est_now()
+    if dt_et.weekday() >= 5:  # Saturday or Sunday
+        return False
+    t = dt_et.time()
+    return datetime.time(9, 30) <= t <= datetime.time(16, 0)
+
 def send_frank_midday_report():
     """Report 1: Mid-Day Tape & Sector Health Report (12:00 PM EST, trading days only)."""
     try:
@@ -536,6 +545,7 @@ def run_sector_radar_cycle():
     """
     state = load_sector_guard_state()
     now_utc = get_utc_now()
+    now_et = get_est_now()
     quarantined = state.get("quarantined_sectors", {})
     state_changed = False
 
@@ -546,7 +556,17 @@ def run_sector_radar_cycle():
     except Exception as e_pulse:
         safe_print(f"[SectorGuard] Frank Pulse note update error: {e_pulse}")
 
-    # 1. Audit Quarantined Sectors
+    # ZERO TELEGRAM NOTIFICATIONS OUTSIDE REGULAR TRADING HOURS (Mon-Fri 9:30 AM - 4:00 PM EST)
+    if not is_market_open(now_et):
+        # Auto-clear any lingering quarantines, circuit breakers, or 45-min stop logs from prior sessions
+        if quarantined or state.get("global_circuit_breaker", {}).get("active") or state.get("recent_stops_45m"):
+            state["quarantined_sectors"] = {}
+            state["global_circuit_breaker"] = {"active": False, "pause_until": None, "reason": None}
+            state["recent_stops_45m"] = []
+            save_sector_guard_state(state)
+        return
+
+    # 1. Audit Quarantined Sectors (RTH only)
     for etf, info in list(quarantined.items()):
         sec_name = info.get("sector_name", etf)
         last_audit_str = info.get("last_audited")
@@ -585,21 +605,11 @@ def run_sector_radar_cycle():
                 safe_print(f"[SectorGuard] {msg}")
                 send_message(msg, chat_id=TELEGRAM_CHAT_ID_DAY, force=True)
             else:
-                # Still waterfalling / distributing: extend 15 minutes
+                # Still waterfalling / distributing: extend 15 minutes SILENTLY (NO TELEGRAM SPAM)
                 new_until = (now_utc + datetime.timedelta(minutes=15)).isoformat()
                 info["quarantine_until"] = new_until
                 state_changed = True
-                est_new = get_est_now() + datetime.timedelta(minutes=15)
-                msg = (
-                    f"⏳ [FRANK WYCKOFF SECTOR RADAR] QUARANTINE EXTENDED\n"
-                    f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"• Sector: {sec_name.upper()} ({etf})\n"
-                    f"• Tape Status: DISTRIBUTING (Trading {pct:.2f}% below VWAP at ${curr_p:.2f}).\n"
-                    f"• Action: Extending pause 15 minutes (until {est_new.strftime('%I:%M %p')} EST).\n"
-                    f"• Other Sectors: Healthcare, Industrials, Financials & Software remain ACTIVE."
-                )
-                safe_print(f"[SectorGuard] {msg}")
-                send_message(msg, chat_id=TELEGRAM_CHAT_ID_DAY, force=True)
+                safe_print(f"[SectorGuard] Quarantine extended 15m for {sec_name} ({etf}) - silent in Telegram")
 
     # 2. Audit Global Market Circuit Breaker
     gcb = state.get("global_circuit_breaker", {})
