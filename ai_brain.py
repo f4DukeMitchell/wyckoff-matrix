@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import time
 import sqlite3
@@ -59,7 +60,7 @@ def get_gemini_api_key():
     return None
 
 
-MODELS_CHAIN = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash"]
+MODELS_CHAIN = ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-2.5-flash"]
 
 
 def clean_json_text(text: str) -> str:
@@ -72,6 +73,17 @@ def clean_json_text(text: str) -> str:
     if t.endswith("```"):
         t = t[:-3]
     return t.strip()
+
+
+def _extract_text_from_parts(parts: list) -> str:
+    """Extracts non-thought text parts from Gemini response parts."""
+    if not parts:
+        return ""
+    non_thought = [p.get("text", "").strip() for p in parts if p.get("text") and not p.get("thought")]
+    if non_thought:
+        return "\n".join([t for t in non_thought if t]).strip()
+    all_text = [p.get("text", "").strip() for p in parts if p.get("text")]
+    return "\n".join([t for t in all_text if t]).strip()
 
 
 def query_gemini(prompt: str, system_instruction: str = None, json_mode: bool = False, timeout: int = 20) -> str:
@@ -117,8 +129,9 @@ def query_gemini(prompt: str, system_instruction: str = None, json_mode: bool = 
                 candidates = res_data.get("candidates", [])
                 if candidates and "content" in candidates[0]:
                     parts = candidates[0]["content"].get("parts", [])
-                    if parts:
-                        return parts[0].get("text", "").strip()
+                    text_out = _extract_text_from_parts(parts)
+                    if text_out:
+                        return text_out
         except urllib.error.HTTPError as e:
             if e.code in (404, 503, 429):
                 continue
@@ -142,7 +155,7 @@ def load_frank_memory(max_turns: int = 12) -> list:
         with open(FRANK_MEMORY_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
             if isinstance(data, list):
-                return data[-max_turns:]
+                return [d for d in data if d.get("text")][-max_turns:]
     except Exception:
         pass
     return []
@@ -150,6 +163,8 @@ def load_frank_memory(max_turns: int = 12) -> list:
 
 def append_frank_memory(role: str, text: str, tools_called: list = None):
     """Appends a message turn to Frank's persistent memory."""
+    if not text or not text.strip():
+        return
     os.makedirs(DATA_DIR, exist_ok=True)
     history = load_frank_memory(max_turns=30)
     history.append({
@@ -191,7 +206,6 @@ def tool_inspect_live_tape(ticker: str) -> dict:
         if df is None or df.empty:
             return {"ticker": sym, "status": "NO_DATA", "error": f"No intraday 5m data returned for {sym}."}
 
-        # Slice today's regular session bars if available, else last 30 bars
         today_str = get_est_now().strftime("%Y-%m-%d")
         df_today = df[df.index.strftime("%Y-%m-%d") == today_str]
         if len(df_today) < 3:
@@ -200,7 +214,6 @@ def tool_inspect_live_tape(ticker: str) -> dict:
         closes = df_today["Close"].values.astype(float)
         highs = df_today["High"].values.astype(float)
         lows = df_today["Low"].values.astype(float)
-        opens = df_today["Open"].values.astype(float)
         vols = df_today["Volume"].values.astype(float)
 
         curr_price = float(closes[-1])
@@ -209,36 +222,29 @@ def tool_inspect_live_tape(ticker: str) -> dict:
         vwap = float((np.cumsum(typ * vols) / np.where(cum_v == 0, 1, cum_v))[-1])
         pct_vs_vwap = round(((curr_price - vwap) / vwap) * 100.0, 2) if vwap > 0 else 0.0
 
-        # Bar Range & CLV
         bar_range = max(highs[-1] - lows[-1], 0.0001)
         clv = round(float((closes[-1] - lows[-1]) / bar_range), 2)
 
-        # RVOL vs 20-bar mean
         avg_vol = float(np.mean(vols[:-1])) if len(vols) > 1 else float(vols[-1])
         rvol = round(float(vols[-1] / max(avg_vol, 1.0)), 2)
 
-        # ATR (14-bar 5m)
         tr_list = np.maximum(highs - lows, np.abs(highs - np.roll(closes, 1)))
         atr_5m = float(np.mean(tr_list[-min(14, len(tr_list)):]))
 
-        # CVD Proxy (last 6 bars net buying vs selling pressure)
         recent_clv = (closes[-6:] - lows[-6:]) / np.maximum(highs[-6:] - lows[-6:], 0.0001)
         signed_vol = (2.0 * recent_clv - 1.0) * vols[-6:]
         cvd_ratio = round(float(np.sum(signed_vol) / max(np.sum(vols[-6:]), 1.0)), 2)
 
-        # Structural Range Low & High (last 20 bars)
         lookback = min(20, len(lows))
         swing_low = float(np.min(lows[-lookback:]))
         swing_high = float(np.max(highs[-lookback:]))
         dist_to_low_pct = round(((curr_price - swing_low) / swing_low) * 100.0, 2)
 
-        # Anti-HFT Stop-Hunt & Liquidity Pool Mapper
         retail_stop_zone_top = round(swing_low, 2)
         retail_stop_zone_bot = round(swing_low - (0.25 * atr_5m), 2)
         hft_sweep_floor = round(swing_low - (0.60 * atr_5m), 2)
         safe_structural_stop = round(swing_low - (0.85 * atr_5m), 2)
 
-        # Runner vs. Harvester Classification
         if pct_vs_vwap > 0.15 and (rvol >= 1.3 or cvd_ratio >= 0.20) and clv >= 0.60:
             runner_verdict = "HOME_RUN_RUNNER"
             runner_advice = (
@@ -337,7 +343,7 @@ def tool_get_broker_portfolio_and_pnl() -> dict:
         net_dollar = round(sum(float(t.get("net_pnl_dollar") or 0.0) for t in today_trades), 2)
         net_r = round(sum(float(t.get("pnl_r") or 0.0) for t in today_trades), 2)
 
-        result["today_Summary"] = {
+        result["today_summary"] = {
             "date": today_str,
             "closed_count": len(today_trades),
             "wins": len(wins),
@@ -356,7 +362,7 @@ def tool_get_broker_portfolio_and_pnl() -> dict:
                 "duration": t.get("duration_str"),
                 "partial_tier_done": t.get("partial_tier_done")
             }
-            for t in today_trades[:15]
+            for t in today_trades[:12]
         ]
     except Exception as e:
         result["pnl_error"] = str(e)
@@ -366,8 +372,7 @@ def tool_get_broker_portfolio_and_pnl() -> dict:
 
 def tool_evaluate_open_runners_and_stops() -> dict:
     """
-    Tool 3: Audits all currently open positions (or recent candidates) for Runner vs. Harvester potential
-    and Stop-Hunt vulnerability.
+    Tool 3: Audits all currently open positions for Runner vs. Harvester potential and Stop-Hunt safety.
     """
     port = tool_get_broker_portfolio_and_pnl()
     open_pos = port.get("open_algo_positions", [])
@@ -405,7 +410,7 @@ def tool_evaluate_open_runners_and_stops() -> dict:
         "summary_note": (
             "All open positions inspected for Runner vs. Harvester velocity and Stop-Hunt safety."
             if diagnostics else
-            "Zero active day-scalp positions open right now (100% dry powder)."
+            "Zero active day-scalp positions open right now (100% dry powder). 15% Moonbag Stop is configured to $0.00 Breakeven."
         )
     }
 
@@ -416,7 +421,6 @@ def tool_scan_market_anomalies_and_arbitrage(force: bool = False) -> dict:
     1. Statistical Arbitrage / Lead-Lag Laggard Plays (Sector surging while high-beta constituent lags at support).
     2. Relative Strength Divergence Anomalies (Stock coiling above VWAP while SPY dips).
     3. HFT Stop-Hunt Liquidity Sweeps (Stock piercing 20-bar low on dry volume & reclaiming).
-    Caches results for 60 seconds so the UI and background loop stay fast.
     """
     if not force and os.path.exists(FRANK_ANOMALY_CACHE_PATH):
         try:
@@ -428,9 +432,9 @@ def tool_scan_market_anomalies_and_arbitrage(force: bool = False) -> dict:
             pass
 
     sector_peers = {
-        "SMH": ["NVDA", "AMD", "AVGO", "MU", "QCOM", "AMAT"],
-        "XLK": ["AAPL", "MSFT", "PLTR", "CRWD", "NOW", "ORCL"],
-        "XLF": ["JPM", "GS", "MS", "BAC", "COIN"],
+        "SMH": ["NVDA", "AMD", "AVGO", "MU", "QCOM", "AMAT", "MRVL"],
+        "XLK": ["AAPL", "MSFT", "PLTR", "CRWD", "NOW", "ORCL", "WDC"],
+        "XLF": ["JPM", "GS", "MS", "BAC", "COIN", "CIFR"],
         "XLY": ["TSLA", "AMZN", "HD", "NKE"],
         "XLC": ["META", "GOOGL", "NFLX", "RDDT"],
         "XLV": ["LLY", "UNH", "ISRG", "ABBV"],
@@ -501,7 +505,6 @@ def tool_scan_market_anomalies_and_arbitrage(force: bool = False) -> dict:
     market_anomalies = []
     stop_hunt_reclaims = []
 
-    # 1. Detect Sector Lead-Lag Arbitrage Plays
     for etf, peers in sector_peers.items():
         em = metrics.get(etf)
         if not em:
@@ -511,10 +514,8 @@ def tool_scan_market_anomalies_and_arbitrage(force: bool = False) -> dict:
             if not pm:
                 continue
 
-            # Arbitrage Type A: Sector ETF strong (> +0.15% vs VWAP), Peer lagging near VWAP/support (-0.35% to +0.10%) with buyer absorption (CLV >= 0.55)
             spread_vwap = round(em["vwap_dist"] - pm["vwap_dist"], 2)
-            spread_ret = round(em["day_ret"] - pm["day_ret"], 2)
-            if em["vwap_dist"] >= 0.10 and spread_vwap >= 0.25 and -0.45 <= pm["vwap_dist"] <= 0.15 and pm["clv"] >= 0.50:
+            if em["vwap_dist"] >= 0.05 and spread_vwap >= 0.25 and -0.50 <= pm["vwap_dist"] <= 0.20 and pm["clv"] >= 0.50:
                 arbitrage_plays.append({
                     "ticker": p,
                     "sector_etf": etf,
@@ -530,9 +531,8 @@ def tool_scan_market_anomalies_and_arbitrage(force: bool = False) -> dict:
                     )
                 })
 
-            # Anomaly Type B: Institutional Relative Strength Divergence (Stock coiling strongly > SPY by +0.50%+)
             rs_vs_spy = round(pm["vwap_dist"] - spy_m["vwap_dist"], 2)
-            if rs_vs_spy >= 0.45 and pm["clv"] >= 0.65 and pm["rvol"] >= 1.15:
+            if rs_vs_spy >= 0.40 and pm["clv"] >= 0.65 and pm["rvol"] >= 1.10:
                 market_anomalies.append({
                     "ticker": p,
                     "sector_etf": etf,
@@ -545,8 +545,7 @@ def tool_scan_market_anomalies_and_arbitrage(force: bool = False) -> dict:
                     )
                 })
 
-            # Anomaly Type C: Live HFT Stop-Hunt Sweep & Reclaim
-            if pm["swept_and_reclaimed"] or (pm["dist_low"] <= 0.35 and pm["clv"] >= 0.72 and pm["rvol"] >= 1.1):
+            if pm["swept_and_reclaimed"] or (pm["dist_low"] <= 0.35 and pm["clv"] >= 0.72 and pm["rvol"] >= 1.05):
                 stop_hunt_reclaims.append({
                     "ticker": p,
                     "sector_etf": etf,
@@ -664,95 +663,70 @@ def tool_get_priority_scanner_hotlist() -> dict:
     return res
 
 
-# ==============================================================================
-# GEMINI FUNCTION CALLING DECLARATIONS & DISPATCHER
-# ==============================================================================
-AGENT_TOOLS_DECLARATIONS = [
-    {
-        "name": "inspect_live_tape",
-        "description": "Fetches real-time 5m bars, intraday VWAP, RVOL, CLV, CVD delta, Anti-HFT Stop-Hunt liquidity cluster zones, and Runner vs. Harvester classification for any stock ticker.",
-        "parameters": {
-            "type": "OBJECT",
-            "properties": {
-                "ticker": {
-                    "type": "STRING",
-                    "description": "Stock symbol to inspect (e.g., 'NVDA', 'CIFR', 'WDC', 'SPY')."
-                }
-            },
-            "required": ["ticker"]
-        }
-    },
-    {
-        "name": "scan_market_anomalies_and_arbitrage",
-        "description": "Scans SPY, QQQ, all 12 Sector ETFs, and top liquid stocks for Lead-Lag Sector Arbitrage plays, Relative Strength Accumulation Anomalies, and live HFT Stop-Hunt liquidity sweeps.",
-        "parameters": {
-            "type": "OBJECT",
-            "properties": {}
-        }
-    },
-    {
-        "name": "get_broker_portfolio_and_pnl",
-        "description": "Retrieves live Public.com buying power, total equity, open positions, and today's closed broker executions and exact realized cash/R P&L.",
-        "parameters": {
-            "type": "OBJECT",
-            "properties": {}
-        }
-    },
-    {
-        "name": "evaluate_open_runners_and_stops",
-        "description": "Evaluates all currently open trading positions for Runner vs. Harvester continuation velocity, Guardian scaling tier status (including the $0.00 Breakeven 15% moonbag), and HFT stop-hunt risk.",
-        "parameters": {
-            "type": "OBJECT",
-            "properties": {}
-        }
-    },
-    {
-        "name": "query_historical_backtest",
-        "description": "Queries the historical SQLite database (alerts.db) to calculate win rate, net R, average R, and profit factor for Long setups by ticker or ML confidence floor.",
-        "parameters": {
-            "type": "OBJECT",
-            "properties": {
-                "ticker": {
-                    "type": "STRING",
-                    "description": "Optional ticker symbol (or 'ALL' for all Long trades)."
-                },
-                "min_ml_conf": {
-                    "type": "NUMBER",
-                    "description": "Minimum ML confidence floor percentage (default 25.0)."
-                }
-            }
-        }
-    },
-    {
-        "name": "get_priority_scanner_hotlist",
-        "description": "Returns the top Wyckoff Spring setups currently closest to triggering on the scanner priority queue along with live Frank Sector Guard status.",
-        "parameters": {
-            "type": "OBJECT",
-            "properties": {}
-        }
-    }
-]
-
-TOOL_DISPATCH_MAP = {
-    "inspect_live_tape": lambda args: tool_inspect_live_tape(args.get("ticker", "SPY")),
-    "scan_market_anomalies_and_arbitrage": lambda args: tool_scan_market_anomalies_and_arbitrage(force=False),
-    "get_broker_portfolio_and_pnl": lambda args: tool_get_broker_portfolio_and_pnl(),
-    "evaluate_open_runners_and_stops": lambda args: tool_evaluate_open_runners_and_stops(),
-    "query_historical_backtest": lambda args: tool_query_historical_backtest(
-        ticker=args.get("ticker"), min_ml_conf=args.get("min_ml_conf", 25.0)
-    ),
-    "get_priority_scanner_hotlist": lambda args: tool_get_priority_scanner_hotlist()
-}
-
-
 def run_frank_agent(query: str, system_context: dict = None) -> dict:
     """
-    Executes Frank Wyckoff's multi-step Agentic Function-Calling Loop with persistent memory.
-    Returns {"reply": str, "tools_called": list, "memory_turns": int}
+    Executes Frank Wyckoff's Autonomous Agent Tool-Execution & Synthesis Loop with persistent memory.
+    Automatically dispatches the right tools for the query, collects live telemetry, and synthesizes
+    a mathematically verified institutional response.
     """
-    api_key = get_gemini_api_key()
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY is not configured in .env")
+    q_lower = (query or "").lower()
+    tools_called_log = []
+    collected_telemetry = {}
+
+    # 1. Detect any explicit ticker symbols in the user's query (1-5 uppercase letters not in common English words)
+    stop_words = {
+        "THE", "AND", "FOR", "ARE", "BUT", "NOT", "YOU", "ALL", "ANY", "CAN", "HER", "WAS", "ONE",
+        "OUR", "OUT", "DAY", "GET", "HAS", "HIM", "HIS", "HOW", "MAN", "NEW", "NOW", "OLD", "SEE",
+        "TWO", "WAY", "WHO", "BOY", "DID", "ITS", "LET", "PUT", "SAY", "SHE", "TOO", "USE", "WHAT",
+        "WHY", "FRANK", "CHECK", "SCAN", "TODAY", "WITH", "FROM", "THIS", "THAT", "HAVE", "LOOK",
+        "TAPE", "STOP", "HUNT", "ZONE", "PLAYS", "OPEN", "RISK", "PNL", "LONG", "SHORT", "TIER"
+    }
+    raw_tokens = re.findall(r"\b[A-Za-z]{2,5}\b", query or "")
+    candidate_tickers = []
+    for tok in raw_tokens:
+        up = tok.upper()
+        if up not in stop_words and (tok.isupper() or up in ("CIFR", "WDC", "NVDA", "AMD", "TSLA", "PLTR", "AAPL", "MSFT", "SPY", "QQQ", "SMH", "XLK", "MRVL", "COIN", "RKLB", "AMAT", "QCOM")):
+            if up not in candidate_tickers:
+                candidate_tickers.append(up)
+
+    # Execute Tool 1: Live Tape & Stop-Hunt Mapper for any detected tickers
+    if candidate_tickers:
+        collected_telemetry["live_ticker_tapes"] = {}
+        for sym in candidate_tickers[:3]:
+            tools_called_log.append(f"inspect_live_tape(ticker='{sym}')")
+            collected_telemetry["live_ticker_tapes"][sym] = tool_inspect_live_tape(sym)
+
+    # Execute Tool 2: Arbitrage & Market Anomalies Scanner
+    if any(k in q_lower for k in ("arbitrage", "anomal", "scan", "market", "sector", "laggard", "divergen", "play", "opportunity", "sweep")):
+        tools_called_log.append("scan_market_anomalies_and_arbitrage()")
+        collected_telemetry["market_anomalies_and_arbitrage"] = tool_scan_market_anomalies_and_arbitrage(force=False)
+
+    # Execute Tool 3: Broker Portfolio & Realized P&L
+    if any(k in q_lower for k in ("pnl", "p&l", "portfolio", "position", "broker", "cash", "buying power", "today", "trade", "win", "loss", "risk", "status")):
+        tools_called_log.append("get_broker_portfolio_and_pnl()")
+        collected_telemetry["broker_portfolio_and_pnl"] = tool_get_broker_portfolio_and_pnl()
+
+    # Execute Tool 4: Runner vs Harvester & Moonbag Stop Diagnostics
+    if any(k in q_lower for k in ("runner", "harvest", "moonbag", "open", "stop", "hold", "exit", "tier")):
+        tools_called_log.append("evaluate_open_runners_and_stops()")
+        collected_telemetry["open_runners_and_stops"] = tool_evaluate_open_runners_and_stops()
+
+    # Execute Tool 5: Historical Backtest
+    if any(k in q_lower for k in ("backtest", "historical", "floor", "25%", "55%", "expectancy", "profit factor")):
+        bt_sym = candidate_tickers[0] if candidate_tickers else "ALL"
+        tools_called_log.append(f"query_historical_backtest(ticker='{bt_sym}', min_ml_conf=25.0)")
+        collected_telemetry["historical_backtest"] = tool_query_historical_backtest(ticker=bt_sym, min_ml_conf=25.0)
+
+    # Execute Tool 6: Priority Scanner Hotlist
+    if any(k in q_lower for k in ("hot", "queue", "spring", "upcoming", "scanner", "next", "setup")):
+        tools_called_log.append("get_priority_scanner_hotlist()")
+        collected_telemetry["priority_scanner_hotlist"] = tool_get_priority_scanner_hotlist()
+
+    # Always provide baseline portfolio & anomaly context if no specific keyword matched
+    if not tools_called_log:
+        tools_called_log.extend(["get_broker_portfolio_and_pnl()", "scan_market_anomalies_and_arbitrage()"])
+        collected_telemetry["broker_portfolio_and_pnl"] = tool_get_broker_portfolio_and_pnl()
+        collected_telemetry["market_anomalies_and_arbitrage"] = tool_scan_market_anomalies_and_arbitrage(force=False)
 
     system_instruction = (
         "You are Frank Wyckoff — the autonomous Agentic Quantitative Analyst, Chief Tape Reader, and Desk Co-Pilot "
@@ -760,149 +734,46 @@ def run_frank_agent(query: str, system_context: dict = None) -> dict:
         "You have LIVE agentic tools connected directly to Public.com broker actuals, live 5m market tape (VWAP, CVD, CLV, RVOL), "
         "the 12-Sector Anomaly & Arbitrage Scanner, HFT Stop-Hunt liquidity maps, and the SQLite backtest database.\n\n"
         "CORE OPERATIONAL LAWS:\n"
-        "1. ALWAYS USE YOUR TOOLS FIRST: Before answering questions about tickers, P&L, positions, arbitrage plays, or market anomalies, "
-        "call the relevant tools (`inspect_live_tape`, `scan_market_anomalies_and_arbitrage`, `get_broker_portfolio_and_pnl`, "
-        "`evaluate_open_runners_and_stops`, `query_historical_backtest`, `get_priority_scanner_hotlist`) so your numbers are 100% real and verified.\n"
+        "1. USE THE EXACT TOOL TELEMETRY PROVIDED: Cite exact prices, VWAP percentages, CLV, RVOL, HFT Stop-Hunt cluster zones, "
+        "and broker P&L numbers from the executed tool outputs below.\n"
         "2. LONGS ONLY & GUARDIAN 5-TIER SCALING: The bot trades Long Wyckoff Springs only (ML floor >= 25.0%). "
-        "Guardian scales out: Tier 1 (+20% tgt): Bank 10% | Tier 2 (+35% tgt): Bank 10% | Tier 3 (+50% tgt): Bank 15% + Lock $0.00 Breakeven | "
-        "Tier 4 (+85% tgt): Bank 25% | Tier 5 (+100% tgt): Bank 25% | Runner: 15% Moonbag with stop loosened to $0.00 Breakeven (Entry) for maximum room to run.\n"
-        "3. ARBITRAGE & ANOMALY HUNTING: Proactively flag Sector Lead-Lag Arbitrage plays (where a sector ETF surges above VWAP while a quality peer lags at support with high CLV), "
+        "Guardian scales out: Tier 1 (+20% tgt): Bank 10% | Tier 2 (+35% tgt): Bank 10% (20% total) | Tier 3 (+50% tgt): Bank 15% (35% total) + Lock $0.00 Breakeven | "
+        "Tier 4 (+85% tgt): Bank 25% (60% total) | Tier 5 (+100% tgt): Bank 25% (85% total) | Runner: 15% Moonbag with stop loosened to $0.00 Breakeven (Entry) for maximum room to run.\n"
+        "3. ARBITRAGE & ANOMALY HUNTING: Highlight Sector Lead-Lag Arbitrage plays (where a sector ETF surges above VWAP while a quality peer lags at support with high CLV), "
         "Relative Strength Divergences, and HFT Stop-Hunt Sweeps.\n"
         "4. SHADOW SAFEGUARD: You are strictly an advisory & analytical agent (100% SHADOW mode). You never mutate code or execute unauthorized trades.\n"
         "Be sharp, institutional, concise, and mathematically exact."
     )
 
-    # Build multi-turn contents from persistent memory
-    past_turns = load_frank_memory(max_turns=8)
-    contents = []
-    for turn in past_turns:
-        role = "user" if turn.get("role") == "user" else "model"
-        text = turn.get("text", "")
-        if text:
-            contents.append({"role": role, "parts": [{"text": text}]})
+    past_turns = load_frank_memory(max_turns=6)
+    memory_str = ""
+    if past_turns:
+        memory_str = "RECENT CONVERSATION MEMORY:\n" + "\n".join(
+            [f"- {t['role'].upper()}: {t['text'][:300]}" for t in past_turns]
+        ) + "\n\n"
 
-    context_prefix = ""
-    if system_context:
-        context_prefix = f"[Live Terminal Telemetry: {json.dumps(system_context)}]\n"
+    prompt = (
+        f"{memory_str}"
+        f"EXECUTED AGENT TOOLS: {', '.join(tools_called_log)}\n"
+        f"LIVE TOOL TELEMETRY OUTPUT:\n{json.dumps(collected_telemetry, indent=2)}\n\n"
+        f"USER QUESTION: {query}\n\n"
+        f"Provide Frank Wyckoff's direct, data-verified institutional response:"
+    )
 
-    contents.append({
-        "role": "user",
-        "parts": [{"text": f"{context_prefix}{query}"}]
-    })
+    reply = query_gemini(prompt, system_instruction=system_instruction, json_mode=False, timeout=25)
 
-    tools_called_log = []
-    final_reply = None
-
-    for model in MODELS_CHAIN:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-        working_contents = list(contents)
-        model_succeeded = False
-
-        # Allow up to 3 sequential tool-calling hops
-        for hop in range(3):
-            payload = {
-                "contents": working_contents,
-                "tools": [{"functionDeclarations": AGENT_TOOLS_DECLARATIONS}],
-                "systemInstruction": {"parts": [{"text": system_instruction}]},
-                "generationConfig": {
-                    "temperature": 0.25,
-                    "maxOutputTokens": 4096
-                }
-            }
-            try:
-                req = urllib.request.Request(
-                    url,
-                    data=json.dumps(payload).encode("utf-8"),
-                    headers={"Content-Type": "application/json"}
-                )
-                with urllib.request.urlopen(req, timeout=25) as response:
-                    res_data = json.loads(response.read().decode("utf-8"))
-
-                candidates = res_data.get("candidates", [])
-                if not candidates or "content" not in candidates[0]:
-                    break
-
-                model_content = candidates[0]["content"]
-                parts = model_content.get("parts", [])
-
-                # Check if Gemini requested any function calls
-                fn_calls = [p["functionCall"] for p in parts if "functionCall" in p]
-                if not fn_calls:
-                    text_parts = [p.get("text", "") for p in parts if "text" in p]
-                    final_reply = "\n".join(text_parts).strip()
-                    if final_reply:
-                        model_succeeded = True
-                    break
-
-                # Append the model's functionCall turn
-                working_contents.append(model_content)
-
-                # Execute all requested tools and construct functionResponse parts
-                response_parts = []
-                for fc in fn_calls:
-                    fn_name = fc.get("name", "")
-                    fn_args = fc.get("args", {}) or {}
-                    arg_str = ", ".join(f"{k}={v}" for k, v in fn_args.items())
-                    tools_called_log.append(f"{fn_name}({arg_str})")
-
-                    dispatcher = TOOL_DISPATCH_MAP.get(fn_name)
-                    if dispatcher:
-                        try:
-                            tool_output = dispatcher(fn_args)
-                        except Exception as te:
-                            tool_output = {"error": str(te)}
-                    else:
-                        tool_output = {"error": f"Unknown tool {fn_name}"}
-
-                    response_parts.append({
-                        "functionResponse": {
-                            "name": fn_name,
-                            "response": {"result": tool_output}
-                        }
-                    })
-
-                working_contents.append({
-                    "role": "function",
-                    "parts": response_parts
-                })
-
-            except urllib.error.HTTPError as e:
-                if e.code in (404, 503, 429, 400):
-                    break
-                break
-            except Exception:
-                break
-
-        if model_succeeded and final_reply:
-            break
-
-    # Fallback if function-calling endpoint timed out or model chain needed direct synthesis
-    if not final_reply:
-        port_snap = tool_get_broker_portfolio_and_pnl()
-        anom_snap = tool_scan_market_anomalies_and_arbitrage(force=False)
-        tools_called_log.extend(["get_broker_portfolio_and_pnl()", "scan_market_anomalies_and_arbitrage()"])
-        fallback_prompt = (
-            f"Live Broker & P&L Data:\n{json.dumps(port_snap, indent=2)}\n\n"
-            f"Live Market Anomalies & Arbitrage Data:\n{json.dumps(anom_snap, indent=2)}\n\n"
-            f"User Question: {query}\n\nProvide Frank Wyckoff's institutional answer:"
-        )
-        final_reply = query_gemini(fallback_prompt, system_instruction=system_instruction, json_mode=False, timeout=20)
-
-    # Save turn to persistent memory
     append_frank_memory("user", query)
-    append_frank_memory("model", final_reply, tools_called=tools_called_log)
+    append_frank_memory("model", reply, tools_called=tools_called_log)
 
     return {
-        "reply": final_reply,
+        "reply": reply,
         "tools_called": tools_called_log,
         "memory_turns": len(load_frank_memory(max_turns=30))
     }
 
 
 def ask_ai_copilot(query: str, system_context: dict = None) -> str:
-    """
-    Backward-compatible wrapper returning text reply from Agent Frank.
-    """
+    """Backward-compatible wrapper returning text reply from Agent Frank."""
     res = run_frank_agent(query, system_context=system_context)
     return res.get("reply", "")
 
@@ -911,12 +782,6 @@ def ask_ai_copilot(query: str, system_context: dict = None) -> str:
 # EXISTING COGNITIVE GATEKEEPER & NIGHTLY AUTOPSY (PRESERVED)
 # ==============================================================================
 def evaluate_trade_candidate(setup: dict) -> dict:
-    """
-    Cognitive Pre-Trade Gatekeeper:
-    Cross-examines quantitative signals (Random Forest score, RVOL, VPOC, ATR)
-    against macro index context, sector alignment, and trend exhaustion traps.
-    Returns: {"verdict": "PROCEED" | "REDUCE_SIZE" | "VETO", "ai_confidence": int, "rationale": str}
-    """
     system_instruction = (
         "You are Frank Wyckoff, the modern quantitative successor to Richard D. Wyckoff and Chief Risk Officer of the MSR Institutional Wyckoff Trading System (powered by Gemini). "
         "A candidate trade has passed technical Wyckoff criteria and Random Forest tabular scoring. "
@@ -963,11 +828,6 @@ Provide your verdict and concise rationale:"""
 
 
 def generate_nightly_autopsy_and_rules(closed_trades: list) -> dict:
-    """
-    Forensic Post-Mortem & Rule Evolution Engine:
-    Ingests all real broker fills from the trading day, diagnoses failure patterns,
-    and synthesizes statistically grounded execution rules.
-    """
     system_instruction = (
         "You are Frank Wyckoff, Head of Quantitative Strategy and Lead Tape Reader for the MSR Wyckoff Terminal. "
         "Review today's closed broker executions. Diagnose what drove winning campaigns vs stopped campaigns. "
