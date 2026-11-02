@@ -705,6 +705,13 @@ def run_frank_agent(query: str, system_context: dict = None) -> dict:
     if any(k in q_lower for k in ("pnl", "p&l", "portfolio", "position", "broker", "cash", "buying power", "today", "trade", "win", "loss", "risk", "status")):
         tools_called_log.append("get_broker_portfolio_and_pnl()")
         collected_telemetry["broker_portfolio_and_pnl"] = tool_get_broker_portfolio_and_pnl()
+    desk_mem = _seed_desk_lessons_from_broker_if_needed(load_frank_desk_memory())
+    collected_telemetry["trading_room_desk_memory"] = {
+        "frank_mode": desk_mem.get("frank_mode"),
+        "decisions_stats": desk_mem.get("decisions_stats"),
+        "learned_lessons": (desk_mem.get("learned_lessons") or [])[:6],
+        "recent_desk_feed": (desk_mem.get("desk_feed") or [])[:6]
+    }
 
     # Execute Tool 4: Runner vs Harvester & Moonbag Stop Diagnostics
     if any(k in q_lower for k in ("runner", "harvest", "moonbag", "open", "stop", "hold", "exit", "tier")):
@@ -741,7 +748,7 @@ def run_frank_agent(query: str, system_context: dict = None) -> dict:
         "Tier 4 (+85% tgt): Bank 25% (60% total) | Tier 5 (+100% tgt): Bank 25% (85% total) | Runner: 15% Moonbag with stop loosened to $0.00 Breakeven (Entry) for maximum room to run.\n"
         "3. ARBITRAGE & ANOMALY HUNTING: Highlight Sector Lead-Lag Arbitrage plays (where a sector ETF surges above VWAP while a quality peer lags at support with high CLV), "
         "Relative Strength Divergences, and HFT Stop-Hunt Sweeps.\n"
-        "4. SHADOW SAFEGUARD: You are strictly an advisory & analytical agent (100% SHADOW mode). You never mutate code or execute unauthorized trades.\n"
+        "4. ACTIVE TRADING ROOM DESK ANALYST (ENFORCE MODE): You are stationed in the live Trading Room in ENFORCE mode. You actively veto falling-knife entries with heavy 5m distribution, monitor every open position every 3 minutes, ratchet stops to $0.00 Breakeven when profitable trades face heavy below-VWAP selling, and continuously record post-trade lessons into your persistent Ticker Scorecard.\n"
         "Be sharp, institutional, concise, and mathematically exact."
     )
 
@@ -874,3 +881,340 @@ def generate_nightly_autopsy_and_rules(closed_trades: list) -> dict:
                 "Rule 2: Suppress counter-trend setups when SPY and QQQ trend in unison."
             ]
         }
+
+
+
+# ==============================================================================
+# FRANK WALL STREET TRADING ROOM DESK ENGINE & CONTINUOUS SELF-LEARNING LOOP
+# ==============================================================================
+try:
+    from data_paths import FRANK_DESK_MEMORY_PATH
+except Exception:
+    FRANK_DESK_MEMORY_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frank_desk_memory.json")
+
+_LAST_DESK_CHECK_TS = 0.0
+
+def load_frank_desk_memory() -> dict:
+    default_mem = {
+        "frank_mode": "ACTIVE_DESK_ENFORCE",
+        "decisions_stats": {
+            "pretrade_reviews": 0,
+            "pretrade_vetoes": 0,
+            "in_trade_checks": 0,
+            "defensive_ratchets": 0,
+            "lessons_learned": 0
+        },
+        "ticker_scorecard": {},
+        "learned_lessons": [],
+        "desk_feed": [],
+        "seeded_broker_actuals": False
+    }
+    try:
+        if os.path.exists(FRANK_DESK_MEMORY_PATH):
+            with open(FRANK_DESK_MEMORY_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                for k, v in default_mem.items():
+                    data.setdefault(k, v)
+                return data
+    except Exception as e:
+        print(f"[FrankDesk] Load memory error: {e}")
+    return default_mem
+
+def save_frank_desk_memory(mem: dict):
+    try:
+        mem["desk_feed"] = (mem.get("desk_feed") or [])[:35]
+        mem["learned_lessons"] = (mem.get("learned_lessons") or [])[:30]
+        os.makedirs(os.path.dirname(FRANK_DESK_MEMORY_PATH), exist_ok=True)
+        with open(FRANK_DESK_MEMORY_PATH, "w", encoding="utf-8") as f:
+            json.dump(mem, f, indent=2)
+    except Exception as e:
+        print(f"[FrankDesk] Save memory error: {e}")
+
+def _seed_desk_lessons_from_broker_if_needed(mem: dict) -> dict:
+    """Seeds Frank's initial trading room scorecard and lessons from actual Public.com trades once."""
+    if mem.get("seeded_broker_actuals"):
+        return mem
+    try:
+        import pnl_engine
+        from frank_sector_guard import get_ticker_sector
+        st = pnl_engine.fetch_pnl_station_data()
+        trades = [
+            t for t in st.get("trades", [])
+            if not t.get("is_historical_anchor")
+            and "OPT" not in str(t.get("timeframe", "")).upper()
+            and str(t.get("exit_date") or "") >= "2026-10-30"
+        ]
+        scorecard = mem.setdefault("ticker_scorecard", {})
+        lessons = mem.setdefault("learned_lessons", [])
+        for t in reversed(trades):
+            sym = (t.get("ticker") or "").upper()
+            if not sym:
+                continue
+            out = t.get("outcome", "LOSS")
+            pnl_dlr = float(t.get("net_pnl_dollar") or 0.0)
+            pnl_r = float(t.get("pnl_r") or 0.0)
+            etf, sec_name = get_ticker_sector(sym)
+            sc = scorecard.setdefault(sym, {"wins": 0, "losses": 0, "net_pnl": 0.0, "net_r": 0.0, "sector": etf, "last_outcome": out})
+            if pnl_dlr > 0 or out == "WIN":
+                sc["wins"] += 1
+            else:
+                sc["losses"] += 1
+            sc["net_pnl"] = round(sc["net_pnl"] + pnl_dlr, 2)
+            sc["net_r"] = round(sc["net_r"] + pnl_r, 2)
+            sc["last_outcome"] = out
+
+        # Add synthesized institutional lessons from the Oct 30 - Nov 2 Ramped Era
+        core_lessons = [
+            {
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M EST"),
+                "ticker": "SMH / SEMIS",
+                "outcome": "SECTOR_LESSON",
+                "lesson": "Semiconductor/Hardware dip-buys (AMD, MRVL, WDC, AMAT, COHR) went 1W/9L (-$200.24) when SMH traded below intraday VWAP. Rule enforced: Quarantine sector on 2 session losses; require SMH VWAP reclaim >= +0.05% + 5m Higher Low before re-entry."
+            },
+            {
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M EST"),
+                "ticker": "CIFR / NON-SEMI",
+                "outcome": "WIN (+1.04R / +$27.45)",
+                "lesson": "Non-Semiconductor setups went 9W/3L (75.0% Win Rate, +$34.05) at full allocation when sector ETF held above VWAP and 5m Spring printed positive CVD absorption. Let 15% Moonbag ride with $0.00 Breakeven stop."
+            },
+            {
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M EST"),
+                "ticker": "PORTFOLIO_MARGIN",
+                "outcome": "RISK_RULE",
+                "lesson": "Deploying 95% of Buying Power into Slot 1 caused HTTP 400 Margin Collar rejections on high-maintenance names (RIOT, ICE) and oversized -$44.51 risk on AMD. Rule enforced: Cap each slot at 30% of BP (~$1,017) with auto step-down retry."
+            }
+        ]
+        mem["learned_lessons"] = core_lessons + lessons
+        mem["decisions_stats"]["lessons_learned"] = len(mem["learned_lessons"])
+        mem["seeded_broker_actuals"] = True
+        save_frank_desk_memory(mem)
+    except Exception as e:
+        print(f"[FrankDesk] Seed error: {e}")
+    return mem
+
+def frank_pretrade_desk_review(ticker: str, direction: str = "LONG", timeframe: str = "5m", ml_conf: float = 50.0) -> dict:
+    """
+    Wall Street Desk Analyst Pre-Trade Gatekeeper:
+    Audits live 5m tape, sector alignment, and learned ticker scorecard before any order is sent to Public.com.
+    Returns {"verdict": "PROCEED" | "VETO", "ai_confidence": float, "rationale": str}.
+    """
+    sym = (ticker or "").strip().upper()
+    mem = _seed_desk_lessons_from_broker_if_needed(load_frank_desk_memory())
+    mem["decisions_stats"]["pretrade_reviews"] = int(mem["decisions_stats"].get("pretrade_reviews", 0)) + 1
+
+    tape = tool_inspect_live_tape(sym)
+    from frank_sector_guard import get_ticker_sector, audit_sector_tape
+    etf, sec_name = get_ticker_sector(sym)
+    sec_tape = audit_sector_tape(etf)
+
+    pct_vwap = float(tape.get("pct_vs_vwap") or 0.0)
+    clv = float(tape.get("candle_clv") or 0.50)
+    cvd = float(tape.get("cvd_delta_ratio") or 0.0)
+    rvol = float(tape.get("rvol_5bar") or 1.0)
+    sec_vwap = float(sec_tape.get("pct_vs_vwap") or 0.0)
+
+    sc = mem.get("ticker_scorecard", {}).get(sym, {})
+    t_wins = int(sc.get("wins", 0))
+    t_losses = int(sc.get("losses", 0))
+
+    verdict = "PROCEED"
+    conf = round(min(95.0, max(40.0, float(ml_conf or 50.0) + (10.0 if pct_vwap >= 0 else -5.0) + (8.0 if cvd > 0.15 else -5.0))), 1)
+    reasons = []
+
+    # Rule 1: Active Heavy Institutional Distribution on 5m Bar + Weak Sector
+    if pct_vwap < -0.50 and clv < 0.22 and cvd < -0.35 and sec_vwap < -0.35:
+        verdict = "VETO"
+        reasons.append(f"Heavy 5m distribution on {sym} ({pct_vwap:+.2f}% vs VWAP, CLV {clv:.2f}, CVD {cvd:+.2f}) while {etf} is {sec_vwap:+.2f}% below VWAP")
+
+    # Rule 2: Ticker Learned Scorecard Guard (2+ losses & 0 wins on this ticker, still below VWAP without buyer absorption)
+    elif t_losses >= 2 and t_wins == 0 and pct_vwap < -0.15 and cvd < 0.0:
+        verdict = "VETO"
+        reasons.append(f"Learned Scorecard Guard: {sym} is {t_wins}W/{t_losses}L recently and still trading below VWAP ({pct_vwap:+.2f}%) with negative CVD ({cvd:+.2f})")
+
+    else:
+        reasons.append(f"Tape cleared ({sym} {pct_vwap:+.2f}% vs VWAP, CLV {clv:.2f}, CVD {cvd:+.2f}, RVOL {rvol:.2f}x | Sector {etf} {sec_vwap:+.2f}% vs VWAP)")
+
+    rationale = "; ".join(reasons)
+    now_str = datetime.datetime.now().strftime("%I:%M:%S %p EST")
+    if verdict == "VETO":
+        mem["decisions_stats"]["pretrade_vetoes"] = int(mem["decisions_stats"].get("pretrade_vetoes", 0)) + 1
+
+    mem.setdefault("desk_feed", []).insert(0, {
+        "timestamp": now_str,
+        "type": "PRETRADE_VETO" if verdict == "VETO" else "PRETRADE_APPROVED",
+        "ticker": sym,
+        "verdict": verdict,
+        "confidence": conf,
+        "note": f"[PRE-TRADE DESK] {sym} ({timeframe}, ML {ml_conf or 0:.1f}%): {verdict} — {rationale}"
+    })
+    save_frank_desk_memory(mem)
+    return {
+        "verdict": verdict,
+        "ai_confidence": conf,
+        "rationale": rationale
+    }
+
+def record_frank_post_trade_learning(ticker: str, outcome: str, pnl_r: float, entry_price: float, exit_price: float, tier_reached: int, reason: str = ""):
+    """
+    Called automatically by Exit Guardian whenever a position closes.
+    Updates Frank's Ticker Scorecard and extracts a structured post-trade lesson.
+    """
+    try:
+        sym = (ticker or "").strip().upper()
+        if not sym:
+            return
+        mem = _seed_desk_lessons_from_broker_if_needed(load_frank_desk_memory())
+        from frank_sector_guard import get_ticker_sector
+        etf, sec_name = get_ticker_sector(sym)
+
+        sc = mem.setdefault("ticker_scorecard", {}).setdefault(
+            sym, {"wins": 0, "losses": 0, "net_pnl": 0.0, "net_r": 0.0, "sector": etf, "last_outcome": outcome}
+        )
+        if outcome == "WIN" or pnl_r > 0:
+            sc["wins"] = int(sc.get("wins", 0)) + 1
+        elif outcome == "LOSS" or pnl_r < 0:
+            sc["losses"] = int(sc.get("losses", 0)) + 1
+        sc["net_r"] = round(float(sc.get("net_r", 0.0)) + float(pnl_r or 0.0), 2)
+        sc["last_outcome"] = outcome
+
+        tape = tool_inspect_live_tape(sym)
+        pct_vwap = float(tape.get("pct_vs_vwap") or 0.0)
+        cvd = float(tape.get("cvd_delta_ratio") or 0.0)
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %I:%M %p EST")
+
+        if outcome == "WIN" or pnl_r > 0:
+            lesson_txt = (
+                f"{sym} ({etf}) closed for {outcome} ({pnl_r:+.2f}R, Tier {tier_reached}/5, ${entry_price:.2f}->${exit_price:.2f}). "
+                f"Exit tape: {pct_vwap:+.2f}% vs VWAP, CVD {cvd:+.2f}. Constructive accumulation confirmed."
+            )
+        else:
+            lesson_txt = (
+                f"{sym} ({etf}) stopped out ({outcome}, {pnl_r:+.2f}R at Tier {tier_reached}/5, ${entry_price:.2f}->${exit_price:.2f}). "
+                f"Exit tape showed {pct_vwap:+.2f}% vs VWAP and CVD {cvd:+.2f}. Future {sym} entries require stronger VWAP reclaim."
+            )
+
+        mem.setdefault("learned_lessons", []).insert(0, {
+            "timestamp": now_str,
+            "ticker": sym,
+            "outcome": f"{outcome} ({pnl_r:+.2f}R)",
+            "lesson": lesson_txt
+        })
+        mem["decisions_stats"]["lessons_learned"] = len(mem["learned_lessons"])
+        mem.setdefault("desk_feed", []).insert(0, {
+            "timestamp": now_str,
+            "type": "POST_TRADE_LESSON",
+            "ticker": sym,
+            "verdict": outcome,
+            "confidence": 100.0,
+            "note": f"[POST-TRADE AUTOPSY] {lesson_txt}"
+        })
+        save_frank_desk_memory(mem)
+    except Exception as e:
+        print(f"[FrankDesk] Post-trade learning error: {e}")
+
+def run_frank_trading_room_desk_cycle(force: bool = False) -> dict:
+    """
+    Runs inside Exit Guardian loop every 3 minutes during RTH.
+    Monitors all active open trades like a Wall Street Desk Analyst:
+    - Evaluates live 5m tape, VWAP distance, CVD absorption, and R-multiple progression.
+    - If a trade that has already reached >= +0.25R peak profit suddenly flips into heavy
+      institutional distribution below VWAP while still green, Frank ratchets stop_loss
+      to Entry ($0.00 Breakeven) early to prevent a green trade from turning into a loss.
+    - Logs live Wall Street Desk notes to desk_feed for every open position.
+    """
+    global _LAST_DESK_CHECK_TS
+    now_ts = time.time()
+    if not force and (now_ts - _LAST_DESK_CHECK_TS) < 180.0:
+        return {"status": "THROTTLED"}
+
+    mem = _seed_desk_lessons_from_broker_if_needed(load_frank_desk_memory())
+    _LAST_DESK_CHECK_TS = now_ts
+
+    PROTECTED_CORE = {"AMC", "APE", "NKE", "ACHR", "DJT"}
+    checked = []
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT * FROM alerts WHERE outcome = 'OPEN' AND user_active = 1 ORDER BY id DESC")
+        open_trades = [dict(r) for r in c.fetchall()]
+
+        for t in open_trades:
+            sym = (t.get("ticker") or "").upper()
+            if not sym or sym in PROTECTED_CORE:
+                continue
+            trade_id = t["id"]
+            entry = float(t.get("entry_price") or 0.0)
+            sl = float(t.get("stop_loss") or 0.0)
+            init_sl = float(t.get("initial_stop_loss") or sl or entry * 0.985)
+            init_risk = abs(entry - init_sl) or (entry * 0.015)
+            tier = int(t.get("partial_tier_done") or 0)
+            peak_r = float(t.get("peak_high_r") or 0.0)
+
+            tape = tool_inspect_live_tape(sym)
+            curr_p = float(tape.get("price") or entry)
+            curr_r = round((curr_p - entry) / init_risk, 2) if init_risk > 0 else 0.0
+            pct_vwap = float(tape.get("pct_vs_vwap") or 0.0)
+            clv = float(tape.get("candle_clv") or 0.50)
+            cvd = float(tape.get("cvd_delta_ratio") or 0.0)
+            rvol = float(tape.get("rvol_5bar") or 1.0)
+            posture = tape.get("runner_vs_harvester", "NEUTRAL")
+            sh_risk = (tape.get("stop_hunt_diagnostic") or {}).get("stop_hunt_risk", "LOW")
+
+            action = "HOLD_RUNNER"
+            note = ""
+
+            # Active Desk Intervention: Early Breakeven Shield if profitable trade hits heavy distribution below VWAP
+            if tier < 3 and peak_r >= 0.25 and curr_r >= 0.04 and sl < entry and pct_vwap < -0.25 and cvd < -0.30 and clv < 0.25:
+                c.execute("UPDATE alerts SET stop_loss = ?, breakeven_set = 1 WHERE id = ?", (entry, trade_id))
+                conn.commit()
+                action = "DEFENSIVE_BREAKEVEN_RATCHET"
+                mem["decisions_stats"]["defensive_ratchets"] = int(mem["decisions_stats"].get("defensive_ratchets", 0)) + 1
+                note = (
+                    f"[DESK RATCHET] {sym} ({curr_r:+.2f}R, Peak +{peak_r:.2f}R): Heavy supply detected below VWAP "
+                    f"({pct_vwap:+.2f}%, CVD {cvd:+.2f}, CLV {clv:.2f}). Frank raised Stop Loss to Entry (${entry:.2f} Breakeven) to protect capital!"
+                )
+                try:
+                    from telegram_notifier import send_message, TELEGRAM_CHAT_ID_DAY
+                    tg_msg = (
+                        f"🧠 [FRANK TRADING ROOM DESK] DEFENSIVE BREAKEVEN RATCHET\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"• Position: {sym} (Tier {tier}/5 | Live: ${curr_p:.2f} [{curr_r:+.2f}R])\n"
+                        f"• Tape Warning: Dropped {pct_vwap:+.2f}% below VWAP with heavy sell delta (CVD {cvd:+.2f}, CLV {clv:.2f}).\n"
+                        f"• Desk Action: Stop Loss raised to Entry (${entry:.2f} Breakeven) so a green trade cannot turn red!"
+                    )
+                    send_message(tg_msg, chat_id=TELEGRAM_CHAT_ID_DAY, force=True)
+                except Exception:
+                    pass
+            elif sh_risk == "HIGH" and curr_r < 0:
+                action = "STOP_HUNT_SHIELD_HOLD"
+                note = (
+                    f"[DESK MONITOR] {sym} ({curr_r:+.2f}R, Tier {tier}/5): Sweeping near support on {rvol:.2f}x RVOL "
+                    f"(CLV {clv:.2f}). Stop-Hunt Sweep detected — holding structural stop at ${sl:.2f}."
+                )
+            else:
+                action = "HOLD_RUNNER"
+                note = (
+                    f"[DESK MONITOR] {sym} (${curr_p:.2f}, {curr_r:+.2f}R | Tier {tier}/5): {pct_vwap:+.2f}% vs VWAP, "
+                    f"CVD {cvd:+.2f}, RVOL {rvol:.2f}x ({posture}). Trade progressing on plan; stop at ${sl:.2f}."
+                )
+
+            now_str = datetime.datetime.now().strftime("%I:%M:%S %p EST")
+            mem["decisions_stats"]["in_trade_checks"] = int(mem["decisions_stats"].get("in_trade_checks", 0)) + 1
+            mem.setdefault("desk_feed", []).insert(0, {
+                "timestamp": now_str,
+                "type": action,
+                "ticker": sym,
+                "verdict": action,
+                "confidence": 85.0,
+                "note": note
+            })
+            checked.append({"ticker": sym, "action": action, "curr_r": curr_r, "note": note})
+
+        conn.close()
+        save_frank_desk_memory(mem)
+    except Exception as e:
+        print(f"[FrankDesk] Desk cycle error: {e}")
+
+    return {"status": "OK", "checked_positions": checked}

@@ -6109,6 +6109,37 @@ Position upgraded from Core Hold to Algo Active!`);
           }
         }
 
+        // Render Trading Room Desk Feed & Self-Learning Memory
+        const deskBox = document.getElementById('frank-drawer-desk-memory');
+        if (deskBox && data.desk_memory) {
+          const dm = data.desk_memory;
+          const stats = dm.decisions_stats || {};
+          const lessons = dm.learned_lessons || [];
+          const feed = dm.desk_feed || [];
+          let dHtml = `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:5px; font-size:9px;">
+            <span style="background:rgba(0,255,136,0.12); color:#00ff88; border:1px solid #00ff88; padding:1px 5px; border-radius:2px; font-weight:bold;">🟢 ENFORCE DESK ACTIVE</span>
+            <span style="background:#111827; color:#cbd5e1; border:1px solid #334155; padding:1px 5px; border-radius:2px;">Pre-Trade Vetoes: <b style="color:#ff4d4d;">${stats.pretrade_vetoes || 0}</b>/${stats.pretrade_reviews || 0}</span>
+            <span style="background:#111827; color:#cbd5e1; border:1px solid #334155; padding:1px 5px; border-radius:2px;">BE Ratchets: <b style="color:#ffd700;">${stats.defensive_ratchets || 0}</b></span>
+            <span style="background:#111827; color:#cbd5e1; border:1px solid #334155; padding:1px 5px; border-radius:2px;">Learned Rules: <b style="color:#38bdf8;">${lessons.length}</b></span>
+          </div>`;
+          if (feed.length > 0) {
+            feed.slice(0, 2).forEach(f => {
+              const fCol = f.type === 'PRETRADE_VETO' ? '#ff4d4d' : (f.type === 'DEFENSIVE_BREAKEVEN_RATCHET' ? '#ffd700' : '#00ff88');
+              dHtml += `<div style="background:#0c1322; border-left:2px solid ${fCol}; padding:4px 6px; margin-bottom:3px; font-size:9px; color:#e2e8f0;">
+                <span style="color:#94a3b8;">[${f.timestamp || ''}]</span> ${f.note || ''}
+              </div>`;
+            });
+          }
+          if (lessons.length > 0) {
+            lessons.slice(0, 2).forEach(l => {
+              dHtml += `<div style="background:#141004; border-left:2px solid #c084fc; padding:4px 6px; margin-bottom:3px; font-size:9px; color:#cbd5e1;">
+                <b style="color:#c084fc;">🧠 LEARNED [${l.ticker}]:</b> ${l.lesson}
+              </div>`;
+            });
+          }
+          deskBox.innerHTML = dHtml;
+        }
+
         // Render Persistent Chat Memory if chatBox is empty or on initial load
         if (chatBox && data.memory && data.memory.length > 0 && !chatBox.dataset.loaded) {
           chatBox.dataset.loaded = '1';
@@ -9249,7 +9280,7 @@ Position upgraded from Core Hold to Algo Active!`);
         <div>
           <div style="display:flex; align-items:center; gap:8px;">
             <h3 style="margin:0; font-size:16px; color:#ffd700; letter-spacing:0.5px;">🧠 FRANK WYCKOFF // UPCOMING TRADES RADAR ANALYSIS</h3>
-            <span style="background:rgba(0,255,136,0.12); color:#00ff88; border:1px solid #00ff88; font-size:9.5px; font-weight:bold; padding:2px 6px; border-radius:3px;">SHADOW MODE ACTIVE</span>
+            <span style="background:rgba(0,255,136,0.12); color:#00ff88; border:1px solid #00ff88; font-size:9.5px; font-weight:bold; padding:2px 6px; border-radius:3px;">🟢 ACTIVE DESK ANALYST (ENFORCE)</span>
           </div>
           <div id="frank-radar-modal-subtitle" style="font-size:11px; color:#94a3b8; margin-top:4px;">Ranked upcoming Wyckoff spring tests, UTADs, and tape absorption setups across the priority queue.</div>
         </div>
@@ -9321,6 +9352,17 @@ Position upgraded from Core Hold to Algo Active!`);
       </div>
       <div id="frank-drawer-runners" style="font-size:10px; color:#94a3b8;">
         Checking active positions...
+      </div>
+    </div>
+
+    <!-- Wall Street Trading Room Desk & Continuous Self-Learning Memory -->
+    <div style="padding:8px 12px; border-bottom:1px solid #1e293b; background:#080c14; max-height:150px; overflow-y:auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+        <b style="color:#c084fc; font-size:10px; letter-spacing:0.4px;">🏛️ WALL STREET TRADING ROOM DESK &amp; LEARNED LESSONS</b>
+        <span style="font-size:8.5px; color:#00ff88; font-weight:bold;">3m LIVE GUARDIAN AUDIT</span>
+      </div>
+      <div id="frank-drawer-desk-memory" style="font-size:9.5px; color:#94a3b8;">
+        Loading Trading Room Desk memory &amp; learned lessons...
       </div>
     </div>
 

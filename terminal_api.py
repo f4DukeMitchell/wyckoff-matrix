@@ -1918,20 +1918,24 @@ def ai_chat_endpoint(payload: AIChatPayload):
 
 @app.get("/api/ai/frank_drawer_state")
 def get_frank_drawer_state_endpoint(force_scan: bool = False):
-    """Returns Frank's persistent chat memory, live Market Anomaly/Arbitrage Radar, and Runner/Stop-Hunt diagnostics."""
+    """Returns Frank's persistent chat memory, live Market Anomaly/Arbitrage Radar, Runner/Stop-Hunt diagnostics, and Trading Room Desk Memory."""
     try:
         import ai_brain
+        if force_scan:
+            ai_brain.run_frank_trading_room_desk_cycle(force=True)
         memory = ai_brain.load_frank_memory(max_turns=20)
         anomalies = ai_brain.tool_scan_market_anomalies_and_arbitrage(force=force_scan)
         runners = ai_brain.tool_evaluate_open_runners_and_stops()
+        desk_memory = ai_brain._seed_desk_lessons_from_broker_if_needed(ai_brain.load_frank_desk_memory())
         return {
             "success": True,
             "memory": memory,
             "anomalies": anomalies,
-            "runners": runners
+            "runners": runners,
+            "desk_memory": desk_memory
         }
     except Exception as e:
-        return {"success": False, "error": str(e), "memory": [], "anomalies": {}, "runners": {}}
+        return {"success": False, "error": str(e), "memory": [], "anomalies": {}, "runners": {}, "desk_memory": {}}
 
 @app.post("/api/ai/clear_memory")
 def clear_frank_memory_endpoint():

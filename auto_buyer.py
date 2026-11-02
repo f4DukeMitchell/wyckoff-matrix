@@ -458,22 +458,21 @@ def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     if losses_today >= 2:
         return False, f"DAILY_LOSS_LIMIT_REACHED ({ticker.upper()} has {losses_today} losses today)"
 
-    # 7. Frank Proving Grounds (Default: SHADOW MODE - Zero Interference with Live Trades)
+    # 7. Frank Wall Street Trading Room Desk Gatekeeper (Active ENFORCE Mode)
     try:
-        from frank import evaluate_setup
+        from ai_brain import frank_pretrade_desk_review
         from config_manager import load_config
         cfg = load_config()
-        frank_mode = str(cfg.get("frank_mode", "SHADOW")).upper()
+        frank_mode = str(cfg.get("frank_mode", "ENFORCE")).upper()
 
-        setup_payload = {
-            "ticker": ticker.upper(),
-            "direction": "LONG",
-            "timeframe": timeframe,
-            "ml_confidence": ml_conf
-        }
-        ai_verdict = evaluate_setup(setup_payload)
+        ai_verdict = frank_pretrade_desk_review(
+            ticker=ticker.upper(),
+            direction="LONG",
+            timeframe=timeframe,
+            ml_conf=ml_conf
+        )
         verdict = ai_verdict.get("verdict", "PROCEED")
-        conf = ai_verdict.get("ai_confidence", 70)
+        conf = ai_verdict.get("ai_confidence", 75)
         rationale = ai_verdict.get("rationale", "")
 
         # Record Shadow Telemetry for Frank's Proving Grounds Scorecard

@@ -542,6 +542,11 @@ def run_guardian_cycle():
                 final_r = round(curr_r, 2)
                 c.execute("UPDATE alerts SET outcome = 'WIN', exit_price = ?, pnl_r = ? WHERE id = ?", (price, final_r, trade_id))
                 conn.commit()
+                try:
+                    from ai_brain import record_frank_post_trade_learning
+                    record_frank_post_trade_learning(sym, 'WIN', final_r, entry, price, tier, 'RUNNER_TRAIL_EXIT')
+                except Exception:
+                    pass
                 runner_exit_msg = (
                     f"🎯 [GUARDIAN] RUNNER TRAIL STOP HIT: {sym} closed at ${price:.2f} (+{final_r:+.2f}R)!\n"
                     f"Position 100% closed. 85% banked in tiers, runner exited at +{final_r:+.2f}R."
@@ -581,6 +586,11 @@ def run_guardian_cycle():
                     WHERE id = ?
                 """, (outcome, price, final_r, trade_id))
                 conn.commit()
+                try:
+                    from ai_brain import record_frank_post_trade_learning
+                    record_frank_post_trade_learning(sym, outcome, final_r, entry, price, tier, 'STOP_EXIT')
+                except Exception:
+                    pass
 
                 stop_msg = (
                     f"🛑 [GUARDIAN] POSITION EXITED: {sym} hit stop at ${price:.2f} ({outcome}, {final_r:+.2f}R).\n"
@@ -618,6 +628,12 @@ def guardian_loop():
             run_sector_radar_cycle()
         except Exception as e:
             print(f"[{get_est_now_str()}] [Guardian] Error in Sector Radar cycle: {e}")
+
+        try:
+            from ai_brain import run_frank_trading_room_desk_cycle
+            run_frank_trading_room_desk_cycle(force=False)
+        except Exception as e:
+            print(f"[{get_est_now_str()}] [Guardian] Error in Frank Desk cycle: {e}")
 
         time.sleep(10)
 
