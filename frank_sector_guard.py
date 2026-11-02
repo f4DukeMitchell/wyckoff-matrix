@@ -566,6 +566,13 @@ def run_sector_radar_cycle():
             save_sector_guard_state(state)
         return
 
+    # 0b. Frank Continuous Market Anomaly & Statistical Arbitrage Monitor (Cached 60s, RTH only, Silent)
+    try:
+        import ai_brain
+        ai_brain.tool_scan_market_anomalies_and_arbitrage(force=False)
+    except Exception as e_anom:
+        safe_print(f"[SectorGuard] Frank Anomaly Radar update error: {e_anom}")
+
     # 1. Audit Quarantined Sectors (RTH only)
     for etf, info in list(quarantined.items()):
         sec_name = info.get("sector_name", etf)

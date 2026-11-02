@@ -1891,9 +1891,9 @@ def trigger_ml_evolution():
 
 @app.post("/api/ai/chat")
 def ai_chat_endpoint(payload: AIChatPayload):
-    """Answers user queries via Gemini AI Brain with live terminal context."""
+    """Answers user queries via Frank Wyckoff's Autonomous Function-Calling Agent Loop."""
     try:
-        from ai_brain import ask_ai_copilot
+        from ai_brain import run_frank_agent
         summary = {}
         try:
             cap = get_account_capital_summary()
@@ -1903,8 +1903,48 @@ def ai_chat_endpoint(payload: AIChatPayload):
             }
         except Exception:
             pass
-        reply = ask_ai_copilot(payload.message, system_context=summary)
-        return {"success": True, "reply": reply}
+        res = run_frank_agent(payload.message, system_context=summary)
+        return {
+            "success": True,
+            "reply": res.get("reply", ""),
+            "tools_called": res.get("tools_called", []),
+            "memory_turns": res.get("memory_turns", 0)
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/ai/frank_drawer_state")
+def get_frank_drawer_state_endpoint(force_scan: bool = False):
+    """Returns Frank's persistent chat memory, live Market Anomaly/Arbitrage Radar, and Runner/Stop-Hunt diagnostics."""
+    try:
+        import ai_brain
+        memory = ai_brain.load_frank_memory(max_turns=20)
+        anomalies = ai_brain.tool_scan_market_anomalies_and_arbitrage(force=force_scan)
+        runners = ai_brain.tool_evaluate_open_runners_and_stops()
+        return {
+            "success": True,
+            "memory": memory,
+            "anomalies": anomalies,
+            "runners": runners
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e), "memory": [], "anomalies": {}, "runners": {}}
+
+@app.post("/api/ai/clear_memory")
+def clear_frank_memory_endpoint():
+    """Clears Frank's persistent multi-turn conversation history."""
+    try:
+        import ai_brain
+        return ai_brain.clear_frank_memory()
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/ai/tape_diagnostic/{ticker}")
+def get_frank_tape_diagnostic_endpoint(ticker: str):
+    """Returns instant live Runner vs. Harvester and HFT Stop-Hunt Liquidity Cluster map for any ticker."""
+    try:
+        import ai_brain
+        return {"success": True, "diagnostic": ai_brain.tool_inspect_live_tape(ticker)}
     except Exception as e:
         return {"success": False, "error": str(e)}
 

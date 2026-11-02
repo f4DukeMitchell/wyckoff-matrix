@@ -78,15 +78,15 @@ def generate_trade_autopsy(trade: Dict[str, Any]) -> Dict[str, Any]:
     else:
         progression_steps.append(f"Entry Fill executed at ${entry_p:.4f}.")
         if tier >= 1 or peak_r >= 0.20:
-            progression_steps.append("Tier 1 reached (+20% of Target): Banked 10% partial profit; initial risk compressed.")
+            progression_steps.append("Tier 1 reached (+20% of Target): Banked 10% partial profit (10% total banked); initial risk compressed.")
         if tier >= 2 or peak_r >= 0.35:
-            progression_steps.append("Tier 2 reached (+35% of Target): Banked additional 20% partial profit (30% total banked).")
+            progression_steps.append("Tier 2 reached (+35% of Target): Banked 10% partial profit (20% total banked); stop tightened.")
         if tier >= 3 or peak_r >= 0.50:
-            progression_steps.append("Tier 3 reached (+50% of Target): Stop Loss dynamically adjusted to Breakeven (0.0R risk locked).")
+            progression_steps.append("Tier 3 reached (+50% of Target): Banked 15% partial profit (35% total banked); Stop Loss locked at $0.00 Breakeven.")
         if tier >= 4 or peak_r >= 0.85:
             progression_steps.append("Tier 4 reached (+85% of Target): Front-run resistance banked 25% (60% total banked).")
         if tier >= 5 or peak_r >= 1.00:
-            progression_steps.append("Tier 5 hit (+100% Full Target): Banked 25% (85% total banked); runner moonbag set to trail.")
+            progression_steps.append("Tier 5 hit (+100% Full Target): Banked 25% (85% total banked); 15% moonbag stop loosened to $0.00 Breakeven.")
 
         if outcome == 'CLOSED_MANUAL':
             progression_steps.append("User executed manual exit on Public.com; Guardian auto-reconciled position to CLOSED_MANUAL.")

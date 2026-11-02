@@ -498,13 +498,14 @@ def run_guardian_cycle():
                 except Exception as ex:
                     print(f"[{get_est_now_str()}] [Guardian] Tier 5 partial sell error for {sym}: {ex}")
 
-            t5_sl = (entry + (t4_thresh_r * init_risk)) if is_long else (entry - (t4_thresh_r * init_risk))
+            # Loosen Moonbag Stop to $0.00 Breakeven (entry) so the 15% runner has maximum room to breathe
+            t5_sl = entry
             c.execute("""
                 UPDATE alerts 
                 SET partial_tier_done = 5, partial_exit_done = 1,
-                    partial_exit_price = ?, partial_pnl_r = ?, stop_loss = ? 
+                    partial_exit_price = ?, partial_pnl_r = ?, stop_loss = ?, trailing_stop_price = ? 
                 WHERE id = ?
-            """, (price, round(curr_r, 2), t5_sl, trade_id))
+            """, (price, round(curr_r, 2), t5_sl, t5_sl, trade_id))
             conn.commit()
             tier = 5
             t['partial_tier_done'] = 5
@@ -514,23 +515,17 @@ def run_guardian_cycle():
             t5_msg = (
                 f"🚀 [GUARDIAN] TIER 5 FULL TARGET HIT (100%): {sym} reaches +{curr_r:.2f}R (+{t5_thresh_r:.2f}R target)!\n"
                 f"• Action: Banked 25% ({sell_qty} shares, 85% total banked!).\n"
-                f"• Runner: Final 15% moonbag trailing 0.25R below peak into 3:58 PM EOD flatten."
+                f"• Runner: Final 15% moonbag stop loosened to $0.00 Breakeven (${entry:.2f}) to allow maximum room to run into 3:58 PM EOD flatten."
             )
             print(f"[{get_est_now_str()}] {t5_msg}")
             send_tg(t5_msg)
 
         # -------------------------------------------------------------
-        # TIER 6: UNCAPPED 15% RUNNER (Trailing 0.25R below Peak High)
+        # TIER 6: UNCAPPED 15% RUNNER (Loosened to $0.00 Breakeven Entry)
         # -------------------------------------------------------------
         if tier >= 5:
-            trail_stop_r = max(t4_thresh_r, peak_r - 0.25)
-            runner_sl = (entry + (trail_stop_r * init_risk)) if is_long else (entry - (trail_stop_r * init_risk))
-
-            if is_long and runner_sl > curr_sl:
-                c.execute("UPDATE alerts SET stop_loss = ?, trailing_stop_price = ? WHERE id = ?", (runner_sl, runner_sl, trade_id))
-                conn.commit()
-                curr_sl = runner_sl
-            elif not is_long and runner_sl < curr_sl:
+            runner_sl = entry
+            if abs(curr_sl - runner_sl) > 1e-4:
                 c.execute("UPDATE alerts SET stop_loss = ?, trailing_stop_price = ? WHERE id = ?", (runner_sl, runner_sl, trade_id))
                 conn.commit()
                 curr_sl = runner_sl
