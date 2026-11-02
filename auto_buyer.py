@@ -690,55 +690,28 @@ def rebalance_and_calculate_dynamic_trim(ticker: str, price: float, bp: float, c
     cap_summary = get_account_capital_summary()
     live_bp = float(cap_summary.get('buying_power', bp))
     
-    # CASE 1: 0 Open Trades (Slot 1 receives 100% buying power)
+    # Margin-Safe 3-Slot Architecture (30% / 43% of rem / 75% of rem -> ~30% of Total BP per Slot, keeping 10% Margin Cushion)
+    # Prevents HTTP 400 Margin/Collar rejections when deploying into 50%-100% margin maintenance equities.
     if active_count == 0:
-        dollar_alloc = max(10.0, round(live_bp * 0.95, 2))
-        return True, "SLOT_1_FULL_CAPITAL", dollar_alloc, "100% Capital Deployment"
+        if live_bp < 25.0:
+            return False, f"INSUFFICIENT_MARGIN_BP (${live_bp:.2f})", 0.0, None
+        dollar_alloc = max(10.0, round(live_bp * 0.30, 2))
+        return True, "SLOT_1_MARGIN_SAFE", dollar_alloc, "Slot 1/3 Margin-Safe Allocation (30% of BP, 10% Margin Cushion Reserved)"
         
-    # CASE 2: 1 Open Trade (Target 50% allocation each)
+    # CASE 2: 1 Open Trade (Slot 2 receives ~43% of remaining 70% BP = 30% of original BP)
     elif active_count == 1:
         t1_id, t1_ticker, t1_entry, t1_shares, t1_be, t1_tier, t1_trail = open_trades[0]
-        t1_entry = float(t1_entry or 0.0)
-        t1_shares = float(t1_shares or 0.0)
-        t1_be = int(t1_be or 0)
-        t1_tier = int(t1_tier or 0)
-        t1_trail = float(t1_trail or 0.0)
-        
-        # Check Breakeven Guarding: has Trade 1 eliminated downside risk?
-        is_guarded = (t1_be == 1) or (t1_tier >= 2) or (t1_trail >= t1_entry and t1_trail > 0)
-        
-        if is_guarded and t1_shares > 0:
-            sell_qty = round(t1_shares * 0.50, 4)
-            print(f"[DynamicTrim] Trimming 50% of guarded {t1_ticker} ({sell_qty} shs) to fund Trade 2 ({ticker})...")
-            try:
-                execute_exit_position(t1_ticker, quantity=sell_qty, direction='LONG')
-                conn = sqlite3.connect(DB_PATH)
-                c = conn.cursor()
-                c.execute("UPDATE alerts SET initial_shares = ? WHERE id = ?", (round(t1_shares - sell_qty, 4), t1_id))
-                conn.commit()
-                conn.close()
-            except Exception as ex:
-                print(f"[DynamicTrim] Warning trimming {t1_ticker}: {ex}")
-                
-            time.sleep(1.5)
-            cap_summary = get_account_capital_summary()
-            live_bp = float(cap_summary.get('buying_power', live_bp))
-            dollar_alloc = max(10.0, round(live_bp * 0.95, 2))
-            note = f"Trimmed 50% of guarded runner {t1_ticker} ({sell_qty} shs) to rebalance 50/50"
-            return True, "SLOT_2_REBALANCED_50", dollar_alloc, note
+        if live_bp >= 50.0:
+            dollar_alloc = max(10.0, round(live_bp * 0.43, 2))
+            return True, "SLOT_2_MARGIN_SAFE", dollar_alloc, f"Slot 2/3 Margin-Safe Allocation (kept {t1_ticker} intact)"
         else:
-            # Protect Trade 1 from being chopped in a pullback
-            if live_bp >= 50.0:
-                dollar_alloc = round(live_bp * 0.95, 2)
-                return True, "SLOT_2_REMAINING_CASH", dollar_alloc, f"Protected {t1_ticker} from pullback trim (used liquid cash)"
-            else:
-                return False, f"TRADE_1_UNGUARDED_PROTECTED ({t1_ticker} still in initial test)", 0.0, None
+            return False, f"INSUFFICIENT_MARGIN_FOR_SLOT_2 (${live_bp:.2f} BP remaining)", 0.0, None
                 
-    # CASE 3: 2 Open Trades (Target 33.3% allocation each)
+    # CASE 3: 2 Open Trades (Slot 3 receives 75% of remaining 40% BP = 30% of original BP, leaving 10% Margin Cushion)
     elif active_count == 2:
-        if live_bp >= 300.0:
-            dollar_alloc = min(round(live_bp * 0.95, 2), 960.0)
-            return True, "SLOT_3_ALLOCATION", dollar_alloc, "Funded Slot 3 from liquid cash"
+        if live_bp >= 50.0:
+            dollar_alloc = max(10.0, round(live_bp * 0.75, 2))
+            return True, "SLOT_3_MARGIN_SAFE", dollar_alloc, "Slot 3/3 Margin-Safe Allocation (10% Margin Collar Cushion preserved)"
         else:
             trimmed = False
             for tid, tticker, tentry, tshares, tbe, ttier, ttrail in open_trades:
@@ -839,6 +812,7 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
     try:
         print(f"[{get_market_time().strftime('%H:%M:%S')}] ⚡ EXECUTING AUTONOMOUS BUY: {ticker} (${dollar_alloc:.2f}) on Public.com...")
         order_res = execute_dollar_buy(ticker.upper(), dollar_alloc)
+        dollar_alloc = float(order_res.get('amount') or dollar_alloc)
         
         # Mark active in database and store optimal_target_r
         conn = sqlite3.connect(DB_PATH)

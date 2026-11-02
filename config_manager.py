@@ -79,7 +79,7 @@ def calculate_sizing_allocation(buying_power: float, target_r: float = 1.0) -> d
     
     # Base dollar allocation from user command
     if alloc_mode == "DYNAMIC_TRIM":
-        base_alloc = round(buying_power / 3.0, 2)
+        base_alloc = round(buying_power * 0.30, 2)
     elif alloc_mode == "PERCENT_BP":
         base_alloc = round(buying_power * (alloc_val / 100.0), 2)
     else:

@@ -118,29 +118,64 @@ def calculate_test_allocation(pct=0.01, min_amount=5.0, max_amount=150.0):
 def execute_dollar_buy(ticker, dollar_amount):
     """
     Executes a fractional dollar market BUY order on Public.com.
+    Includes Automatic Margin Step-Down Protection: if Public.com returns HTTP 400
+    (due to ticker-specific 50%-100% margin maintenance or market-order collar buffer),
+    automatically steps down the dollar allocation (75% -> 50% -> 35% -> 25%) until
+    the order clears within margin limits.
     """
     client = get_client()
     acc_id = get_account_id()
-    order_uuid = str(uuid.uuid4())
-    
-    req = OrderRequest(
-        order_id=order_uuid,
-        instrument=OrderInstrument(symbol=ticker.upper(), type='EQUITY'),
-        order_side=OrderSide.BUY,
-        order_type=OrderType.MARKET,
-        expiration=OrderExpirationRequest(time_in_force=TimeInForce.DAY),
-        amount=Decimal(f"{dollar_amount:.2f}")
-    )
-    
-    # Execute live order
-    res = client.place_order(req, account_id=acc_id)
-    return {
-        'order_id': order_uuid,
-        'ticker': ticker.upper(),
-        'amount': dollar_amount,
-        'status': str(getattr(res, 'status', 'SUBMITTED')),
-        'account_id': acc_id
-    }
+
+    # Cap requested amount to 85% of current live buying power to leave Market Order Collar buffer
+    try:
+        cap = get_account_capital_summary()
+        live_bp = float(cap.get('buying_power') or 0.0)
+        if live_bp > 15.0:
+            max_safe_bp = round(live_bp * 0.85, 2)
+            if dollar_amount > max_safe_bp:
+                print(f"[MarginGuard] Capping {ticker} buy from ${dollar_amount:.2f} to 85% BP ceiling (${max_safe_bp:.2f})")
+                dollar_amount = max_safe_bp
+    except Exception:
+        pass
+
+    step_factors = [1.0, 0.72, 0.50, 0.35, 0.25, 0.15]
+    last_err = None
+
+    for factor in step_factors:
+        try_amount = round(float(dollar_amount) * factor, 2)
+        if try_amount < 10.0:
+            break
+        order_uuid = str(uuid.uuid4())
+        req = OrderRequest(
+            order_id=order_uuid,
+            instrument=OrderInstrument(symbol=ticker.upper(), type='EQUITY'),
+            order_side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            expiration=OrderExpirationRequest(time_in_force=TimeInForce.DAY),
+            amount=Decimal(f"{try_amount:.2f}")
+        )
+        try:
+            res = client.place_order(req, account_id=acc_id)
+            if factor < 1.0:
+                print(f"[MarginGuard] ✅ {ticker} order succeeded at stepped-down margin size ${try_amount:.2f} ({int(factor*100)}% of requested)")
+            return {
+                'order_id': order_uuid,
+                'ticker': ticker.upper(),
+                'amount': try_amount,
+                'status': str(getattr(res, 'status', 'SUBMITTED')),
+                'account_id': acc_id,
+                'margin_stepped_down': factor < 1.0
+            }
+        except Exception as e:
+            last_err = e
+            err_str = str(e)
+            if "400" in err_str or "buying power" in err_str.lower() or "margin" in err_str.lower() or "insufficient" in err_str.lower():
+                print(f"[MarginGuard] HTTP 400 Margin/Collar rejection on {ticker} at ${try_amount:.2f} ({err_str}) -> stepping down allocation...")
+                continue
+            else:
+                raise e
+
+    raise last_err if last_err else RuntimeError(f"Unable to place buy order for {ticker} within margin limits.")
 
 def execute_short_sell(ticker, dollar_amount=None):
     """
