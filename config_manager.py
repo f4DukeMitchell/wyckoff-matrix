@@ -15,7 +15,7 @@ DEFAULT_CONFIG = {
     "auto_buy_enabled": True,         # Master engine switch
     "stalker_auto_buy": False,        # 1m stalker real-money buys OFF: triggers are paper-logged only until validated
     "frank_mode": "SHADOW",           # "SHADOW" (Proving mode: telemetry only, ZERO trade interference) or "ENFORCE"
-    "min_ml_conf": 25.0,              # Calibrated ML confidence floor for regularized Random Forest (default 25.0%)
+    "min_ml_conf": 35.0,              # Calibrated ML confidence floor for optimal Profit Factor (default 35.0%)
     "allowed_timeframes": ["5m", "15m"], # Active automated day-trade timeframes
     "alpha_rotation_enabled": True,   # Timeframe-aware alpha replacement when at max slots
     "min_rotation_gap": 8.0           # Minimum ML Edge advantage required to swap (8.0% delta)
@@ -32,6 +32,10 @@ def load_config() -> dict:
                 data = json.load(f)
             merged = dict(DEFAULT_CONFIG)
             merged.update(data)
+            # Auto-upgrade legacy 25.0% ML floor to 35.0% Profit Factor Sweet Spot
+            if float(merged.get("min_ml_conf", 35.0)) == 25.0:
+                merged["min_ml_conf"] = 35.0
+                save_config_internal(merged)
             return merged
         except Exception as e:
             print(f"[ConfigManager] Error reading {CONFIG_PATH}: {e}, using defaults.")

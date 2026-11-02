@@ -32,18 +32,23 @@ from telegram_notifier import send_message, TELEGRAM_CHAT_ID_DAY
 # 1. INSTITUTIONAL SECTOR TAXONOMY
 # ─────────────────────────────────────────────────────────────────────────────
 SECTOR_MAP = {
-    # Semiconductors (SMH)
+    # Semiconductors & Storage Hardware (SMH)
     'NVDA': 'SMH', 'AMD': 'SMH', 'AVGO': 'SMH', 'QCOM': 'SMH', 'AMAT': 'SMH',
     'MU': 'SMH', 'LRCX': 'SMH', 'INTC': 'SMH', 'SNPS': 'SMH', 'CDNS': 'SMH',
     'KLAC': 'SMH', 'COHR': 'SMH', 'ACLS': 'SMH', 'MRVL': 'SMH', 'ON': 'SMH',
     'ADI': 'SMH', 'TXN': 'SMH', 'MPWR': 'SMH', 'ASML': 'SMH', 'ARM': 'SMH',
     'TSM': 'SMH', 'SWKS': 'SMH', 'QRVO': 'SMH', 'MCHP': 'SMH', 'TER': 'SMH',
+    'WDC': 'SMH', 'STX': 'SMH', 'SNDK': 'SMH', 'ALAB': 'SMH', 'CRDO': 'SMH',
+    'MTSI': 'SMH', 'NXPI': 'SMH', 'LSCC': 'SMH', 'RMBS': 'SMH', 'ONTO': 'SMH',
+    'CAMT': 'SMH', 'NVMI': 'SMH', 'LITE': 'SMH', 'FN': 'SMH', 'MKSI': 'SMH',
+    'ENTG': 'SMH', 'GFS': 'SMH', 'UMC': 'SMH', 'STM': 'SMH', 'WOLF': 'SMH',
 
     # Technology & Enterprise Software (XLK)
     'AAPL': 'XLK', 'MSFT': 'XLK', 'CRM': 'XLK', 'ADBE': 'XLK', 'NOW': 'XLK',
     'PANW': 'XLK', 'PLTR': 'XLK', 'CRWD': 'XLK', 'CSCO': 'XLK', 'ORCL': 'XLK',
     'SNOW': 'XLK', 'DDOG': 'XLK', 'NET': 'XLK', 'WDAY': 'XLK', 'FTNT': 'XLK',
     'DELL': 'XLK', 'SMCI': 'XLK', 'ANET': 'XLK', 'IBM': 'XLK', 'HPE': 'XLK',
+    'NTAP': 'XLK', 'PSTG': 'XLK', 'CIEN': 'XLK', 'JNPR': 'XLK',
 
     # Communication Services & Digital Platforms (XLC)
     'GOOGL': 'XLC', 'GOOG': 'XLC', 'META': 'XLC', 'NFLX': 'XLC', 'DIS': 'XLC',
@@ -54,7 +59,7 @@ SECTOR_MAP = {
     'AMZN': 'XLY', 'TSLA': 'XLY', 'HD': 'XLY', 'MCD': 'XLY', 'NKE': 'XLY',
     'SBUX': 'XLY', 'BKNG': 'XLY', 'LOW': 'XLY', 'TJX': 'XLY', 'TGT': 'XLY',
     'LULU': 'XLY', 'ROST': 'XLY', 'ABNB': 'XLY', 'MAR': 'XLY', 'ORLY': 'XLY',
-    'CHRW': 'XLY', 'EBAY': 'XLY', 'ETSY': 'XLY',
+    'CHRW': 'XLY', 'EBAY': 'XLY', 'ETSY': 'XLY', 'LCID': 'XLY', 'RIVN': 'XLY',
 
     # Healthcare, Pharma & Medical Devices (XLV)
     'UNH': 'XLV', 'JNJ': 'XLV', 'LLY': 'XLV', 'ABBV': 'XLV', 'MRK': 'XLV',
@@ -68,11 +73,13 @@ SECTOR_MAP = {
     'UPS': 'XLI', 'RTX': 'XLI', 'DE': 'XLI', 'LMT': 'XLI', 'ETN': 'XLI',
     'WM': 'XLI', 'GD': 'XLI', 'TDG': 'XLI', 'EMR': 'XLI', 'PCAR': 'XLI',
     'URI': 'XLI', 'FDX': 'XLI', 'NSC': 'XLI', 'CSX': 'XLI', 'PH': 'XLI',
+    'FIX': 'XLI', 'JCI': 'XLI', 'RKLB': 'XLI', 'PWR': 'XLI', 'VRT': 'XLI',
 
-    # Financials & Banking (XLF)
+    # Financials, Banking & Digital Assets (XLF)
     'JPM': 'XLF', 'BAC': 'XLF', 'WFC': 'XLF', 'C': 'XLF', 'GS': 'XLF',
     'MS': 'XLF', 'BLK': 'XLF', 'SCHW': 'XLF', 'V': 'XLF', 'MA': 'XLF',
     'AXP': 'XLF', 'PGR': 'XLF', 'CB': 'XLF', 'MMC': 'XLF', 'AON': 'XLF',
+    'CIFR': 'XLF', 'MARA': 'XLF', 'RIOT': 'XLF', 'COIN': 'XLF', 'HOOD': 'XLF',
 
     # Energy & Petroleum (XLE)
     'XOM': 'XLE', 'CVX': 'XLE', 'COP': 'XLE', 'SLB': 'XLE', 'EOG': 'XLE',
@@ -163,25 +170,35 @@ def save_sector_guard_state(state: dict):
 # ─────────────────────────────────────────────────────────────────────────────
 # 3. CIRCUIT BREAKER TRIGGER & STOP LOGGING
 # ─────────────────────────────────────────────────────────────────────────────
+def get_session_end_utc() -> datetime.datetime:
+    """Returns today's 4:00 PM EST market close in UTC."""
+    now_et = get_est_now()
+    eod_et = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
+    if eod_et <= now_et:
+        eod_et = now_et + datetime.timedelta(minutes=30)
+    return eod_et.astimezone(timezone.utc)
+
 def record_stop_event(ticker: str, exit_price: float, pnl_r: float, tier: int):
     """
     Called whenever Exit Guardian executes a stop loss with outcome == 'LOSS'.
-    Evaluates rolling 45-minute stop frequency. If >= 2 stops:
-    - Same sector -> 30-min Sector Quarantine
-    - Multi-sector -> 30-min Broad Market Pause if macro weak, else recent sector quarantine
+    Evaluates full trading session (6.5-hour) stop frequency per sector:
+    - If any sector takes >= 2 stops during the trading session, Frank quarantines that sector
+      for the rest of the trading day (until 4:00 PM EST) while Frank's 15m Tape Radar monitors
+      for a confirmed VWAP Reclaim + 5m Higher Low re-entry.
+    - Multi-sector rapid stops (within 45m) during SPY weakness -> 30-min Broad Market Pause.
     """
     state = load_sector_guard_state()
     now_utc = get_utc_now()
-    cutoff_45m = now_utc - datetime.timedelta(minutes=45)
+    cutoff_session = now_utc - datetime.timedelta(hours=6, minutes=30)
 
     etf, sec_name = get_ticker_sector(ticker)
 
-    # Clean old stops older than 45 minutes
+    # Keep all stops from the current 6.5-hour trading session
     valid_stops = []
     for s in state.get("recent_stops", []):
         try:
             t = pd.to_datetime(s.get("timestamp"), utc=True).to_pydatetime()
-            if t >= cutoff_45m:
+            if t >= cutoff_session:
                 valid_stops.append(s)
         except Exception:
             continue
@@ -194,49 +211,58 @@ def record_stop_event(ticker: str, exit_price: float, pnl_r: float, tier: int):
         "exit_price": float(exit_price),
         "pnl_r": float(pnl_r),
         "tier": int(tier),
-        "timestamp": now_utc.isoformat()
+        "timestamp": now_utc.isoformat(),
+        "forgiven_by_reentry": False
     }
     valid_stops.append(new_stop)
     state["recent_stops"] = valid_stops
 
-    safe_print(f"[SectorGuard] Recorded stop for {ticker} ({sec_name}). Rolling 45m stops: {len(valid_stops)}")
+    # Count unforgiven stops in this same sector across the entire session
+    same_sector_stops = [
+        s for s in valid_stops
+        if s.get("sector_etf") == etf and not s.get("forgiven_by_reentry", False)
+    ]
+    safe_print(f"[SectorGuard] Recorded stop for {ticker} ({sec_name}). Session stops in {etf}: {len(same_sector_stops)} (Total session stops: {len(valid_stops)})")
 
-    # Check Circuit Breaker threshold (>= 2 stops in 45m)
-    if len(valid_stops) >= 2:
+    # Scenario A: 2+ Stops in the Same Sector During Session -> Quarantine Until 4:00 PM EST (with Frank Re-Entry Radar)
+    if len(same_sector_stops) >= 2:
+        stop1 = same_sector_stops[-2]
+        stop2 = same_sector_stops[-1]
+        target_etf = etf
+        target_name = sec_name
+        eod_utc = get_session_end_utc()
+        quarantine_until = eod_utc.isoformat()
+
+        state["quarantined_sectors"][target_etf] = {
+            "sector_name": target_name,
+            "quarantine_until": quarantine_until,
+            "quarantined_at": now_utc.isoformat(),
+            "reason": f"2 session stops in {target_name} ({stop1['ticker']}, {stop2['ticker']})",
+            "last_audited": now_utc.isoformat(),
+            "audit_count": 0,
+            "initial_stops": [s['ticker'] for s in same_sector_stops]
+        }
+        save_sector_guard_state(state)
+
+        msg = (
+            f"🚨 [FRANK WYCKOFF CIRCUIT BREAKER] FULL-SESSION SECTOR QUARANTINE\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"• Sector: {target_name.upper()} ({target_etf})\n"
+            f"• Trigger: {len(same_sector_stops)} session stop-outs in {target_name} ({', '.join(s['ticker'] for s in same_sector_stops)}).\n"
+            f"• Action: Quarantining {target_name} for the rest of the session (until 04:00 PM EST).\n"
+            f"• Frank Re-Entry Radar: Auditing {target_etf} every 15 minutes for genuine VWAP Reclaim + 5m Higher Low before allowing re-entry.\n"
+            f"• Healthy Sectors: Unaffected sectors remain 100% ACTIVE."
+        )
+        safe_print(f"[SectorGuard] {msg}")
+        send_message(msg, chat_id=TELEGRAM_CHAT_ID_DAY, force=True)
+
+    # Scenario B: Multi-Sector Rapid Stops (2 stops within 45m across different sectors)
+    elif len(valid_stops) >= 2:
         stop1 = valid_stops[-2]
         stop2 = valid_stops[-1]
-        
-        # Scenario A: Same Sector Bleed
-        if stop1["sector_etf"] == stop2["sector_etf"]:
-            target_etf = stop1["sector_etf"]
-            target_name = stop1["sector_name"]
-            quarantine_until = (now_utc + datetime.timedelta(minutes=30)).isoformat()
+        t1 = pd.to_datetime(stop1.get("timestamp"), utc=True).to_pydatetime()
+        if (now_utc - t1).total_seconds() <= 45 * 60:
 
-            state["quarantined_sectors"][target_etf] = {
-                "sector_name": target_name,
-                "quarantine_until": quarantine_until,
-                "reason": f"2 consecutive stops within 45m ({stop1['ticker']}, {stop2['ticker']})",
-                "last_audited": now_utc.isoformat(),
-                "audit_count": 0,
-                "initial_stops": [stop1['ticker'], stop2['ticker']]
-            }
-            save_sector_guard_state(state)
-
-            est_expire = get_est_now() + datetime.timedelta(minutes=30)
-            msg = (
-                f"🚨 [FRANK WYCKOFF CIRCUIT BREAKER] SECTOR QUARANTINE\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"• Sector: {target_name.upper()} ({target_etf})\n"
-                f"• Trigger: 2 consecutive stops in {target_name} ({stop1['ticker']} & {stop2['ticker']}).\n"
-                f"• Action: Halting NEW {target_name} entries for 30 minutes (until {est_expire.strftime('%I:%M %p')} EST).\n"
-                f"• Frank Tape Radar: Auditing {target_etf} volume and VWAP every 15 minutes.\n"
-                f"• Healthy Sectors: Healthcare, Industrials, Financials & Software remain 100% ACTIVE."
-            )
-            safe_print(f"[SectorGuard] {msg}")
-            send_message(msg, chat_id=TELEGRAM_CHAT_ID_DAY, force=True)
-
-        # Scenario B: Multi-Sector Stops
-        else:
             # Check macro tape (SPY)
             spy_tape = audit_sector_tape('SPY')
             is_macro_dump = bool(spy_tape.get('pct_vs_vwap', 0.0) < -0.35)
@@ -386,20 +412,21 @@ def audit_sector_tape(sector_etf: str) -> dict:
     vwap = float(cum_pv[-1] / cum_vol[-1]) if cum_vol[-1] > 0 else curr_p
     pct_vs_vwap = ((curr_p - vwap) / vwap) * 100.0
 
-    # Tape Check 1: VWAP Reclaim (trading >= VWAP or within 0.12%)
-    vwap_reclaimed = pct_vs_vwap >= -0.12
+    # Tape Check 1: Genuine Intraday VWAP Reclaim (sector ETF must reclaim VWAP >= +0.05%)
+    vwap_reclaimed = pct_vs_vwap >= 0.05
 
-    # Tape Check 2: 5m Structural Higher Low (last 3 bars)
+    # Tape Check 2: 5m Structural Higher Low (last 3 bars vs prior 3 bars)
     recent_low = float(min(low[-2:]))
     prev_low = float(min(low[-5:-2]))
-    higher_low = recent_low >= (prev_low * 0.999)
+    higher_low = recent_low >= (prev_low * 1.000)
 
-    # Tape Check 3: Volume Dry-Up (Supply Exhaustion)
+    # Tape Check 3: Volume Stabilization / Demand Support
     recent_avg_vol = float(np.mean(vol[-3:]))
     day_avg_vol = float(np.mean(vol))
     volume_dryup = recent_avg_vol <= (day_avg_vol * 1.15)
 
-    is_stabilized = vwap_reclaimed or (higher_low and volume_dryup and pct_vs_vwap >= -0.40)
+    # Strict Frank Re-Entry Requirement: Must reclaim VWAP (>= +0.05%) AND print a 5m Higher Low
+    is_stabilized = bool(vwap_reclaimed and higher_low)
 
     return {
         "sector_etf": sector_etf,
@@ -566,6 +593,56 @@ def run_sector_radar_cycle():
             save_sector_guard_state(state)
         return
 
+    # 0a. Sync Today's Session Stop-Outs (Ensures any sector with >=2 losses today is immediately quarantined & monitored for Re-Entry)
+    today_et_str = now_et.strftime("%Y-%m-%d")
+    if state.get("last_session_stop_sync_date") != today_et_str:
+        try:
+            import pnl_engine
+            st_data = pnl_engine.fetch_pnl_station_data()
+            today_losses = [
+                t for t in st_data.get("trades", [])
+                if (t.get("exit_date") == today_et_str or str(t.get("exit_timestamp", ""))[:10] == today_et_str)
+                and t.get("outcome") == "LOSS"
+                and "OPT" not in str(t.get("timeframe", "")).upper()
+            ]
+            existing_syms = {s.get("ticker") for s in state.get("recent_stops", [])}
+            sec_counts = {}
+            for t in reversed(today_losses):
+                sym = (t.get("ticker") or "").upper()
+                if not sym:
+                    continue
+                etf_c, name_c = get_ticker_sector(sym)
+                sec_counts.setdefault(etf_c, []).append(sym)
+                if sym not in existing_syms:
+                    state.setdefault("recent_stops", []).append({
+                        "ticker": sym,
+                        "sector_etf": etf_c,
+                        "sector_name": name_c,
+                        "exit_price": float(t.get("exit_price") or 0.0),
+                        "pnl_r": float(t.get("pnl_r") or -1.0),
+                        "tier": int(t.get("partial_tier_done") or 0),
+                        "timestamp": t.get("exit_timestamp") or now_utc.isoformat(),
+                        "forgiven_by_reentry": False
+                    })
+            for etf_c, syms_c in sec_counts.items():
+                if len(syms_c) >= 2 and etf_c not in quarantined:
+                    _, name_c = get_ticker_sector(syms_c[0])
+                    eod_utc = get_session_end_utc()
+                    quarantined[etf_c] = {
+                        "sector_name": name_c,
+                        "quarantine_until": eod_utc.isoformat(),
+                        "quarantined_at": (now_utc - datetime.timedelta(minutes=35)).isoformat(),
+                        "reason": f"{len(syms_c)} session stops in {name_c} ({', '.join(syms_c)})",
+                        "last_audited": (now_utc - datetime.timedelta(minutes=16)).isoformat(),
+                        "audit_count": 1,
+                        "initial_stops": syms_c
+                    }
+                    safe_print(f"[SectorGuard] Backfilled session quarantine for {name_c} ({etf_c}): {syms_c}")
+            state["last_session_stop_sync_date"] = today_et_str
+            state_changed = True
+        except Exception as e_sync:
+            safe_print(f"[SectorGuard] Session stop sync error: {e_sync}")
+
     # 0b. Frank Continuous Market Anomaly & Statistical Arbitrage Monitor (Cached 60s, RTH only, Silent)
     try:
         import ai_brain
@@ -573,20 +650,23 @@ def run_sector_radar_cycle():
     except Exception as e_anom:
         safe_print(f"[SectorGuard] Frank Anomaly Radar update error: {e_anom}")
 
-    # 1. Audit Quarantined Sectors (RTH only)
+    # 1. Audit Quarantined Sectors Every 15 Minutes for Frank Re-Entry (RTH only)
     for etf, info in list(quarantined.items()):
         sec_name = info.get("sector_name", etf)
         last_audit_str = info.get("last_audited")
         q_until_str = info.get("quarantine_until")
+        q_at_str = info.get("quarantined_at") or last_audit_str
 
         last_audit = pd.to_datetime(last_audit_str, utc=True).to_pydatetime() if last_audit_str else (now_utc - datetime.timedelta(minutes=20))
         q_until = pd.to_datetime(q_until_str, utc=True).to_pydatetime() if q_until_str else now_utc
+        q_at = pd.to_datetime(q_at_str, utc=True).to_pydatetime() if q_at_str else (now_utc - datetime.timedelta(minutes=35))
 
         minutes_since_audit = (now_utc - last_audit).total_seconds() / 60.0
+        minutes_in_quarantine = (now_utc - q_at).total_seconds() / 60.0
         time_expired = now_utc >= q_until
 
-        # Run tape audit every 15 minutes OR when time has elapsed
-        if minutes_since_audit >= 15.0 or time_expired:
+        # Run Frank Re-Entry Tape Audit every 15 minutes (after minimum 30m cool-off) OR when EOD expires
+        if (minutes_since_audit >= 15.0 and minutes_in_quarantine >= 30.0) or time_expired:
             tape = audit_sector_tape(etf)
             curr_p = tape.get("current_price", 0.0)
             vwap = tape.get("vwap", 0.0)
@@ -596,27 +676,28 @@ def run_sector_radar_cycle():
             info["last_audited"] = now_utc.isoformat()
             info["audit_count"] = int(info.get("audit_count", 0)) + 1
 
-            # Decision: LIFT or EXTEND
-            if stabilized or (time_expired and pct >= -0.30):
-                # Lift Quarantine!
+            # Decision: LIFT FOR RE-ENTRY (only if Frank confirms VWAP Reclaim >= +0.05% + Higher Low) or KEEP QUARANTINED UNTIL 4:00 PM EST
+            if stabilized:
                 del quarantined[etf]
+                for s in state.get("recent_stops", []):
+                    if s.get("sector_etf") == etf:
+                        s["forgiven_by_reentry"] = True
                 state_changed = True
                 msg = (
-                    f"✅ [FRANK WYCKOFF SECTOR RADAR] QUARANTINE LIFTED\n"
+                    f"✅ [FRANK WYCKOFF SECTOR RADAR] RE-ENTRY APPROVED — QUARANTINE LIFTED\n"
                     f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"• Sector: {sec_name.upper()} ({etf})\n"
-                    f"• Tape Status: STABILIZED (Price: ${curr_p:.2f} | VWAP: ${vwap:.2f} [{pct:+.2f}%]).\n"
-                    f"• Supply Exhaustion: Selling volume dried up; structure stabilizing.\n"
-                    f"• Action: Quarantine LIFTED. Automated entries for {sec_name} RE-ENABLED!"
+                    f"• Tape Status: VWAP RECLAIMED & HIGHER LOW CONFIRMED (Price: ${curr_p:.2f} | VWAP: ${vwap:.2f} [{pct:+.2f}%]).\n"
+                    f"• Action: Quarantine LIFTED for {sec_name}. Automated re-entries RE-ENABLED!"
                 )
                 safe_print(f"[SectorGuard] {msg}")
                 send_message(msg, chat_id=TELEGRAM_CHAT_ID_DAY, force=True)
             else:
-                # Still waterfalling / distributing: extend 15 minutes SILENTLY (NO TELEGRAM SPAM)
-                new_until = (now_utc + datetime.timedelta(minutes=15)).isoformat()
-                info["quarantine_until"] = new_until
+                # Keep quarantined until 4:00 PM EST (silent in Telegram)
+                eod_utc = get_session_end_utc()
+                info["quarantine_until"] = max(q_until, eod_utc).isoformat()
                 state_changed = True
-                safe_print(f"[SectorGuard] Quarantine extended 15m for {sec_name} ({etf}) - silent in Telegram")
+                safe_print(f"[SectorGuard] {sec_name} ({etf}) still below Re-Entry threshold ({pct:+.2f}% vs VWAP) - remaining quarantined until 4:00 PM EST")
 
     # 2. Audit Global Market Circuit Breaker
     gcb = state.get("global_circuit_breaker", {})

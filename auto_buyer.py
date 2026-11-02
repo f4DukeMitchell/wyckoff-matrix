@@ -27,7 +27,7 @@ def get_config():
 # Calibrated ML confidence floor. With Frank's regularized Random Forest (41.0% base WIN rate),
 # high-quality Spring setups produce calibrated probabilities between 25.0% and 45.0%.
 # Configurable dynamically via auto_buyer_config.json / min_ml_conf (default 25.0%).
-AUTO_BUY_MIN_ML_CONF = float(os.getenv("AUTO_BUY_MIN_ML_CONF", "25.0"))
+AUTO_BUY_MIN_ML_CONF = float(os.getenv("AUTO_BUY_MIN_ML_CONF", "35.0"))
 
 # Allowed Auto-Buy Timeframes: 5m Day Trades & 15m Momentum Springs
 AUTO_BUY_ALLOWED_TIMEFRAMES = ["5m", "15m"]

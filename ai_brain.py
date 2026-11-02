@@ -585,7 +585,7 @@ def tool_scan_market_anomalies_and_arbitrage(force: bool = False) -> dict:
     return payload
 
 
-def tool_query_historical_backtest(ticker: str = None, min_ml_conf: float = 25.0) -> dict:
+def tool_query_historical_backtest(ticker: str = None, min_ml_conf: float = 35.0) -> dict:
     """
     Tool 5: Queries alerts.db directly to calculate historical LONG win rate, net R, average R,
     and profit factor for a given ML confidence floor or specific ticker.
@@ -714,8 +714,8 @@ def run_frank_agent(query: str, system_context: dict = None) -> dict:
     # Execute Tool 5: Historical Backtest
     if any(k in q_lower for k in ("backtest", "historical", "floor", "25%", "55%", "expectancy", "profit factor")):
         bt_sym = candidate_tickers[0] if candidate_tickers else "ALL"
-        tools_called_log.append(f"query_historical_backtest(ticker='{bt_sym}', min_ml_conf=25.0)")
-        collected_telemetry["historical_backtest"] = tool_query_historical_backtest(ticker=bt_sym, min_ml_conf=25.0)
+        tools_called_log.append(f"query_historical_backtest(ticker='{bt_sym}', min_ml_conf=35.0)")
+        collected_telemetry["historical_backtest"] = tool_query_historical_backtest(ticker=bt_sym, min_ml_conf=35.0)
 
     # Execute Tool 6: Priority Scanner Hotlist
     if any(k in q_lower for k in ("hot", "queue", "spring", "upcoming", "scanner", "next", "setup")):
@@ -736,7 +736,7 @@ def run_frank_agent(query: str, system_context: dict = None) -> dict:
         "CORE OPERATIONAL LAWS:\n"
         "1. USE THE EXACT TOOL TELEMETRY PROVIDED: Cite exact prices, VWAP percentages, CLV, RVOL, HFT Stop-Hunt cluster zones, "
         "and broker P&L numbers from the executed tool outputs below.\n"
-        "2. LONGS ONLY & GUARDIAN 5-TIER SCALING: The bot trades Long Wyckoff Springs only (ML floor >= 25.0%). "
+        "2. LONGS ONLY & GUARDIAN 5-TIER SCALING: The bot trades Long Wyckoff Springs only (ML floor >= 35.0%). "
         "Guardian scales out: Tier 1 (+20% tgt): Bank 10% | Tier 2 (+35% tgt): Bank 10% (20% total) | Tier 3 (+50% tgt): Bank 15% (35% total) + Lock $0.00 Breakeven | "
         "Tier 4 (+85% tgt): Bank 25% (60% total) | Tier 5 (+100% tgt): Bank 25% (85% total) | Runner: 15% Moonbag with stop loosened to $0.00 Breakeven (Entry) for maximum room to run.\n"
         "3. ARBITRAGE & ANOMALY HUNTING: Highlight Sector Lead-Lag Arbitrage plays (where a sector ETF surges above VWAP while a quality peer lags at support with high CLV), "
