@@ -1200,7 +1200,7 @@ def run_frank_trading_room_desk_cycle(force: bool = False) -> dict:
                     f"CVD {cvd:+.2f}, RVOL {rvol:.2f}x ({posture}). Trade progressing on plan; stop at ${sl:.2f}."
                 )
 
-            now_str = datetime.datetime.now().strftime("%I:%M:%S %p EST")
+            now_str = get_est_now().strftime("%I:%M:%S %p EST")
             mem["decisions_stats"]["in_trade_checks"] = int(mem["decisions_stats"].get("in_trade_checks", 0)) + 1
             mem.setdefault("desk_feed", []).insert(0, {
                 "timestamp": now_str,
