@@ -12,7 +12,11 @@ from public_api_sdk.models.order import OpenCloseIndicator
 load_dotenv()
 API_KEY = os.getenv('PUBLIC_API_KEY')
 
+import time
 _CLIENT = None
+_CACHED_ACC_ID = None
+_CACHED_PORT = None
+_CACHED_PORT_TS = 0.0
 
 def get_client():
     global _CLIENT
@@ -23,19 +27,38 @@ def get_client():
     return _CLIENT
 
 def get_account_id():
+    global _CACHED_ACC_ID
+    if _CACHED_ACC_ID:
+        return _CACHED_ACC_ID
     client = get_client()
     accounts = client.get_accounts()
     if not accounts.accounts:
         raise ValueError("No Public.com account found.")
-    return accounts.accounts[0].account_id
+    _CACHED_ACC_ID = accounts.accounts[0].account_id
+    return _CACHED_ACC_ID
+
+def _get_portfolio_fast(ttl: float = 3.5):
+    global _CACHED_PORT, _CACHED_PORT_TS
+    now = time.time()
+    if _CACHED_PORT is not None and (now - _CACHED_PORT_TS) < ttl:
+        return _CACHED_PORT
+    try:
+        client = get_client()
+        acc_id = get_account_id()
+        _CACHED_PORT = client.get_portfolio(account_id=acc_id)
+        _CACHED_PORT_TS = now
+        return _CACHED_PORT
+    except Exception:
+        if _CACHED_PORT is not None:
+            return _CACHED_PORT
+        raise
 
 def get_account_capital_summary():
     """
     Returns buying power and equity for 1% risk allocation calculations.
     """
-    client = get_client()
     acc_id = get_account_id()
-    port = client.get_portfolio(account_id=acc_id)
+    port = _get_portfolio_fast(ttl=3.5)
     
     # Portfolio equity total
     total_equity = sum(float(x.value) for x in port.equity if x.value) if port.equity else 0.0
@@ -59,9 +82,7 @@ def get_broker_portfolio_positions():
     (including non-algo positions like manual holdings or long-term investments).
     """
     try:
-        client = get_client()
-        acc_id = get_account_id()
-        port = client.get_portfolio(account_id=acc_id)
+        port = _get_portfolio_fast(ttl=3.5)
         positions = []
         for p in (port.positions or []):
             sym = p.instrument.symbol if hasattr(p, 'instrument') else None
