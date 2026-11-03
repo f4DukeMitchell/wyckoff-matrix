@@ -104,29 +104,33 @@ def get_current_study_module() -> dict:
     return WYCKOFF_SYLLABUS[next_idx]
 
 def get_todays_market_summary() -> str:
-    """Fetches real-world SPY and market tape telemetry for today to ground Frank's research."""
+    """Fetches real-world SPY and market tape telemetry from Public.com API to ground Frank's research in exact prices."""
     try:
-        import yfinance as yf
-        spy = yf.Ticker("SPY")
-        hist = spy.history(period="5d", interval="1d")
-        if len(hist) >= 1:
-            today_bar = hist.iloc[-1]
-            c = float(today_bar['Close'])
-            o = float(today_bar['Open'])
-            h = float(today_bar['High'])
-            l = float(today_bar['Low'])
-            v = int(today_bar['Volume'])
-            pct = ((c - o) / o) * 100.0
-            avg_vol = int(hist['Volume'].mean()) if len(hist) > 1 else v
-            vol_ratio = round(v / avg_vol, 2) if avg_vol > 0 else 1.0
-            vol_desc = "above average (+expansion)" if vol_ratio > 1.1 else ("below average (-dry up)" if vol_ratio < 0.9 else "average")
-            return (
-                f"SPY opened ${o:.2f}, touched low of ${l:.2f}, high of ${h:.2f}, and closed at ${c:.2f} ({pct:+.2f}%). "
-                f"Today's volume was {v:,} shares ({vol_ratio}x of 5-day average, {vol_desc})."
-            )
+        from public_data import fetch_public_bars
+        df = fetch_public_bars("SPY", interval="5m", period="5d")
+        if df is not None and not df.empty:
+            df = df.copy()
+            df["date_str"] = df.index.strftime("%Y-%m-%d")
+            latest_date = df["date_str"].iloc[-1]
+            day_df = df[df["date_str"] == latest_date]
+            if not day_df.empty:
+                o = float(day_df["Open"].iloc[0])
+                h = float(day_df["High"].max())
+                l = float(day_df["Low"].min())
+                c = float(day_df["Close"].iloc[-1])
+                v = int(day_df["Volume"].sum())
+                pct = ((c - o) / o) * 100.0 if o > 0 else 0.0
+                # Compute intraday VWAP
+                tp = (day_df["High"] + day_df["Low"] + day_df["Close"]) / 3.0
+                vwap = float((tp * day_df["Volume"]).sum() / max(1, day_df["Volume"].sum()))
+                return (
+                    f"On {latest_date}, SPY opened at ${o:.2f}, ranged between a low of ${l:.2f} and a high of ${h:.2f}, "
+                    f"and closed/traded at ${c:.2f} ({pct:+.2f}% vs open, Intraday VWAP ${vwap:.2f}, Volume {v:,} shares). "
+                    f"IMPORTANT: Cite these exact SPY prices (${o:.2f} open, ${h:.2f} high, ${l:.2f} low, ${c:.2f} close) — never invent different prices."
+                )
     except Exception as e:
-        pass
-    return "SPY held firm within recent multi-day trading range with contracting volume on intraday pullbacks."
+        print(f"[StudyEngine] Public.com SPY summary error: {e}")
+    return "SPY traded within its active intraday range near VWAP equilibrium."
 
 def conduct_daily_study_session(force_refresh: bool = False) -> dict:
     """

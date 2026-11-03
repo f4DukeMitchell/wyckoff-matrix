@@ -1585,14 +1585,14 @@ def get_ml_overview():
     c.execute("SELECT * FROM ml_model_history ORDER BY id DESC")
     history_rows = [dict(r) for r in c.fetchall()]
     
-    # Count closed trades in database
-    c.execute("SELECT COUNT(*), SUM(CASE WHEN outcome = 'WIN' THEN 1 ELSE 0 END) FROM alerts WHERE outcome != 'OPEN'")
+    # Count closed LONG trades in active strategy corpus (Shorts are permanently disabled)
+    c.execute("SELECT COUNT(*), SUM(CASE WHEN outcome = 'WIN' THEN 1 ELSE 0 END) FROM alerts WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN') AND direction = 'LONG'")
     tot_trades, tot_wins = c.fetchone()
     tot_trades = tot_trades or 0
     tot_wins = tot_wins or 0
     overall_win_rate = (tot_wins / tot_trades * 100.0) if tot_trades else 0.0
 
-    # Comprehensive Win/Loss/Breakeven record breakdown
+    # Comprehensive Win/Loss/Breakeven record breakdown (Active LONG-ONLY Strategy)
     c.execute("""
         SELECT 
             COUNT(id) as total,
@@ -1602,7 +1602,7 @@ def get_ml_overview():
             COALESCE(SUM(pnl_r), 0.0) as net_r,
             COALESCE(AVG(CASE WHEN outcome = 'WIN' THEN pnl_r END), 0.0) as avg_win_r,
             COALESCE(AVG(CASE WHEN outcome = 'LOSS' THEN pnl_r END), 0.0) as avg_loss_r
-        FROM alerts WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN')
+        FROM alerts WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN') AND direction = 'LONG'
     """)
     row_overall = dict(c.fetchone() or {})
     tot = row_overall.get('total') or 0
