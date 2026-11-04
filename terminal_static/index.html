@@ -1600,6 +1600,11 @@
           <span>TARGET-WEIGHTED SIZING</span>
         </label>
         <span class="meta-divider">|</span>
+        <span id="futures-ticker" style="font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; gap: 7px; background: rgba(0,0,0,0.5); padding: 1px 6px; border-radius: 3px; border: 1px solid #222;" title="Live Shadow Futures Telemetry (/ES, /NQ, ^VIX)">
+          <span id="es-pill" style="color: #00e5ff;">ES: --</span>
+          <span id="nq-pill" style="color: #00e5ff;">NQ: --</span>
+          <span id="vix-pill" style="color: #ffb300;">VIX: --</span>
+        </span>
         <span id="clock" class="c-muted" style="font-weight: 600;">00:00:00</span>
       </div>
     </div>
@@ -4904,6 +4909,30 @@
         const cap = data.capital || {};
         cachedBuyingPower = cap.buying_power || 2000.0;
         document.getElementById('bp-val').innerText = `$${cachedBuyingPower.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+        
+        // Shadow Futures Telemetry Live Updater
+        if (data.futures_pulse) {
+          const fp = data.futures_pulse;
+          const es = fp.es || {};
+          const nq = fp.nq || {};
+          const vix = fp.vix || {};
+          
+          const esEl = document.getElementById('es-pill');
+          if (esEl && es.price) {
+            const esColor = (es.pct_vwap >= 0) ? '#00e676' : '#ff5252';
+            esEl.innerHTML = `ES: <b>${es.price.toLocaleString()}</b> <span style="color:${esColor}">(${es.pct_vwap >= 0 ? '+' : ''}${es.pct_vwap}%)</span>`;
+          }
+          const nqEl = document.getElementById('nq-pill');
+          if (nqEl && nq.price) {
+            const nqColor = (nq.pct_vwap >= 0) ? '#00e676' : '#ff5252';
+            nqEl.innerHTML = `NQ: <b>${nq.price.toLocaleString()}</b> <span style="color:${nqColor}">(${nq.pct_vwap >= 0 ? '+' : ''}${nq.pct_vwap}%)</span>`;
+          }
+          const vixEl = document.getElementById('vix-pill');
+          if (vixEl && vix.price) {
+            const vixColor = (vix.change_pct <= 0) ? '#00e676' : '#ffb300';
+            vixEl.innerHTML = `VIX: <b>${vix.price}</b> <span style="color:${vixColor}">(${vix.change_pct >= 0 ? '+' : ''}${vix.change_pct}%)</span>`;
+          }
+        }
 
         // Sync user configuration from server once
         if (!window._configInitialized && data.config) {

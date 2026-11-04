@@ -102,6 +102,11 @@ def startup_event():
         start_guardian_daemon()
     except Exception as e:
         print(f"Error launching Exit Guardian daemon: {e}")
+    try:
+        from futures_harvester import start_futures_harvester_daemon
+        start_futures_harvester_daemon()
+    except Exception as e:
+        print(f"Error launching Futures Harvester daemon: {e}")
 
 # --- REST ENDPOINTS ---
 
@@ -326,6 +331,7 @@ def get_terminal_state():
         "priority_stats": p_stats,
         "standby_queue": standby_list,
         "sector_guard": sec_guard_info,
+        "futures_pulse": (lambda: (__import__('futures_harvester').get_latest_futures_pulse() or {}))(),
         "history": history,
         "telegram_alerts": telegram_alerts
     }
