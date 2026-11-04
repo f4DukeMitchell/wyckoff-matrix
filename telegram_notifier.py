@@ -85,10 +85,21 @@ def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, reg
         now_et = datetime.datetime.now()
     is_pre = (now_et.hour < 9) or (now_et.hour == 9 and now_et.minute < 30)
 
-    # Suppress intraday day trade scalp alerts (1m, 5m, 15m) outside regular market hours (after 4:00 PM or before 9:30 AM EST)
-    is_regular_market = (now_et.weekday() < 5) and ((now_et.hour > 9 or (now_et.hour == 9 and now_et.minute >= 30)) and (now_et.hour < 16))
-    if timeframe in ["1m", "5m", "15m"] and not is_regular_market:
-        print(f"[{now_et.strftime('%H:%M:%S')}] [Telegram Notice] Suppressed {timeframe} intraday trade alert for {ticker} (Regular market hours closed).")
+    # Strict 9:40 AM Opening Shield: Suppress ALL day-trade scalp alerts (1m, 5m, 15m) before 9:40 AM EST and after 4:00 PM EST
+    # Gated to eliminate pre-market noise and the 9:30 - 9:40 AM opening order-imbalance whipsaw
+    is_active_window = (now_et.weekday() < 5) and ((now_et.hour > 9 or (now_et.hour == 9 and now_et.minute >= 40)) and (now_et.hour < 16))
+    if timeframe in ["1m", "5m", "15m"] and not is_active_window:
+        print(f"[{now_et.strftime('%H:%M:%S EST')}] [Telegram Shield] Suppressed {timeframe} intraday trade alert for {ticker} (Shield active before 9:40 AM or after 4:00 PM EST).")
+        return False
+
+    # Also suppress ANY alert if auto_reason indicates waiting for 9:40 AM opening gate
+    if auto_reason and ("940" in str(auto_reason) or "WAITING_FOR_940AM" in str(auto_reason)):
+        print(f"[{now_et.strftime('%H:%M:%S EST')}] [Telegram Shield] Suppressed {timeframe} paper alert for {ticker} (Waiting for 9:40 AM confirmation).")
+        return False
+
+    # For swing timeframes (1h, 1d), also suppress during overnight / early pre-market hours before 9:40 AM EST
+    if timeframe not in ["1m", "5m", "15m"] and ((now_et.hour < 9) or (now_et.hour == 9 and now_et.minute < 40)):
+        print(f"[{now_et.strftime('%H:%M:%S EST')}] [Telegram Shield] Suppressed {timeframe} swing alert for {ticker} before 9:40 AM EST.")
         return False
 
     trade_style = styles.get(timeframe, "Unknown")
