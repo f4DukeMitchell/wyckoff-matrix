@@ -791,7 +791,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] 2nd Spring Auto-Buy error: {e}")
 
                 if TELEGRAM_ENABLED and not auto_executed:
-                    tg_trade_alert(ticker, "LONG (2nd SPRING / TEST)", price, open_second_spring['initial_stop_loss'], open_second_spring['take_profit'], regime, interval, flow, open_second_spring['id'], ml_confidence=ml_conf, auto_reason=auto_reason)
+                    if not (auto_reason and "940" in str(auto_reason)):
+                        tg_trade_alert(ticker, "LONG (2nd SPRING / TEST)", price, open_second_spring['initial_stop_loss'], open_second_spring['take_profit'], regime, interval, flow, open_second_spring['id'], ml_confidence=ml_conf, auto_reason=auto_reason)
                 last_alerted[ticker] = current_time
                 return
 
@@ -858,8 +859,8 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                 last_alerted[ticker] = current_time
                 return
 
-            # Short Timing Gate 1: Morning Expansion Shield (no shorts before 10:30 AM EST)
-            if interval == "5m" and (now.hour == 9 or (now.hour == 10 and now.minute < 30)):
+            # Short Timing Gate 1: Morning Expansion Shield (no shorts before 10:30 AM EST on any timeframe)
+            if (now.hour == 9 or (now.hour == 10 and now.minute < 30)):
                 print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] MORNING EXPANSION SHIELD: {ticker} short suppressed before 10:30 AM EST")
                 return
 
@@ -1443,18 +1444,23 @@ if __name__ == "__main__":
                     # Note: Live broker trades (user_active=1) are handled exclusively by exit_guardian
                     # which manages 5-tier scaling, breakeven stop, and the 15% uncapped runner into EOD flatten.
                     if (t.get('user_active') == 1 or t.get('telegram_alerted') == 1) and TELEGRAM_ENABLED:
-                        from telegram_notifier import send_message, TELEGRAM_CHAT_ID_DAY
-                        outcome_str = t.get('outcome', 'CLOSED')
-                        pnl_val = t.get('pnl_r', 0) or 0.0
-                        if outcome_str == 'CLOSED':
-                            emoji = "🌅"
-                            alert_msg = f"{emoji} EOD FLATTEN: {t.get('ticker')} closed at session end.\nReturn: {pnl_val:+.2f}R Units"
+                        now_check = get_market_now()
+                        # Suppress paper exit alerts before 9:40 AM EST to eliminate pre-market noise
+                        if t.get('user_active') != 1 and (now_check.hour < 9 or (now_check.hour == 9 and now_check.minute < 40)):
+                            pass
                         else:
-                            emoji = "🎉" if outcome_str == 'WIN' else ("🛡️" if outcome_str == 'BREAKEVEN' else "🚨")
-                            alert_msg = f"{emoji} PAPER EXIT ALERT: {t.get('ticker')} ({outcome_str})\nReturn: {pnl_val:+.2f}R Units"
-                        send_message(alert_msg)
-                        if TELEGRAM_CHAT_ID_DAY:
-                            send_message(alert_msg, chat_id=TELEGRAM_CHAT_ID_DAY)
+                            from telegram_notifier import send_message, TELEGRAM_CHAT_ID_DAY
+                            outcome_str = t.get('outcome', 'CLOSED')
+                            pnl_val = t.get('pnl_r', 0) or 0.0
+                            if outcome_str == 'CLOSED':
+                                emoji = "🌅"
+                                alert_msg = f"{emoji} EOD FLATTEN: {t.get('ticker')} closed at session end.\nReturn: {pnl_val:+.2f}R Units"
+                            else:
+                                emoji = "🎉" if outcome_str == 'WIN' else ("🛡️" if outcome_str == 'BREAKEVEN' else "🚨")
+                                alert_msg = f"{emoji} PAPER EXIT ALERT: {t.get('ticker')} ({outcome_str})\nReturn: {pnl_val:+.2f}R Units"
+                            send_message(alert_msg)
+                            if TELEGRAM_CHAT_ID_DAY:
+                                send_message(alert_msg, chat_id=TELEGRAM_CHAT_ID_DAY)
             except: pass
         
         now = get_market_now()
