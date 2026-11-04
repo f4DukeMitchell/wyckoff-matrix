@@ -1,0 +1,9 @@
+{
+  "auto_roll_enabled": true,
+  "auto_take_profit_enabled": true,
+  "take_profit_decay_pct": 0.2,
+  "no_loss_buyback_guard": true,
+  "roll_only_on_expiry_day": true,
+  "min_net_roll_credit": 0.02,
+  "active_trades": []
+}

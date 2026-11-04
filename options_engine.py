@@ -608,32 +608,32 @@ def get_covered_calls_scanner_data(force_refresh=False):
                                     "pin_safety_status": pin_safety_status,
                                     "pin_bias_desc": pin_bias_desc,
                                     "algo_pin_target": algo_pin_target,
-                                    "algo_rec_text": f"TARGET STRIKE ${s:.2f}: Exploit Market Maker pin pull (-${dist_to_mp:.2f} below spot) to rapidly capture 50% decay."
+                                    "algo_rec_text": f"TARGET STRIKE ${s:.2f}: Exploit Market Maker pin pull (-${dist_to_mp:.2f} below spot) to harvest 80%-100% Theta decay with zero debit buybacks."
                                 },
                                 "milestones": {
                                     "m1": {
-                                        "title": "MILESTONE 1: INSTANT CASH CREDIT DEPOSIT",
+                                        "title": "MILESTONE 1: INSTANT UPFRONT CASH DEPOSIT",
                                         "desc": f"Sell to Open {cfg['contracts']}x ${s:.2f} Call at mid (${mid:.2f}). Deposit +${total_cash:.2f} cash into buying power immediately upon fill.",
-                                        "target": f"+${total_cash:.2f}"
+                                        "target": f"+${total_cash:.2f} CASH"
                                     },
                                     "m2": {
-                                        "title": "MILESTONE 2: DOWNSIDE BREAKEVEN CUSHION",
-                                        "desc": f"Cost basis effectively reduced by ${mid:.2f}/sh. Immediate breakeven safety floor is ${price - mid:.2f}.",
-                                        "target": f"${price - mid:.2f}"
+                                        "title": "MILESTONE 2: ZERO-LOSS HOLD SHIELD (NO PANIC BUYBACKS)",
+                                        "desc": f"Strict institutional rule: Never buy back a covered call at a loss during mid-week rallies. Hold through fluctuations (Floor: ${price - mid:.2f}) and let Theta decay work.",
+                                        "target": "NO DEBIT EXIT"
                                     },
                                     "m3": {
-                                        "title": "MILESTONE 3: 50% PROFIT TAKE & RE-ROLL",
-                                        "desc": f"If option price decays by 50% to ${mid*0.5:.2f} (banking +${total_cash*0.5:.2f} profit early assisted by MM Pin Gravity), buy back to close and immediately re-sell next weekly cycle.",
-                                        "target": f"${mid*0.5:.2f} (50% Decay)"
+                                        "title": "MILESTONE 3: 80% THETA DECAY HARVEST & RELOAD",
+                                        "desc": f"When option decays by 80%+ down to <= ${max(0.01, round(mid*0.20, 2)):.2f} (locking in +${round((mid - max(0.01, round(mid*0.20, 2))) * cfg['contracts'] * 100, 2):.2f} profit early), buy back for pennies and re-deploy next cycle.",
+                                        "target": f"<= ${max(0.01, round(mid*0.20, 2)):.2f} (80% Decay)"
                                     },
                                     "m4": {
-                                        "title": "MILESTONE 4: ROLL DEFENSE TRIGGER",
-                                        "desc": f"If {sym} surges toward ${s*0.96:.2f}, roll up-and-out: buy back call and sell next month's higher strike for net credit to keep 100% of shares.",
-                                        "target": f"${s*0.96:.2f}"
+                                        "title": "MILESTONE 4: EXPIRATION FRIDAY NET-CREDIT ROLL ONLY",
+                                        "desc": f"Evaluated ONLY on Expiration Friday (DTE <= 1) if {sym} >= ${s:.2f}: Roll out 1-2 weeks strictly for a NET CREDIT (New Bid > Buyback Cost). Never roll for a debit.",
+                                        "target": "NET CREDIT ONLY"
                                     },
                                     "m5": {
-                                        "title": "MILESTONE 5: ASSIGNMENT CASH LIQUIDATION",
-                                        "desc": f"If {sym} finishes above ${s:.2f} at expiration, broker delivers ${s * cfg['contracts'] * 100:.2f} share sale cash + keep ${total_cash:.2f} premium.",
+                                        "title": "MILESTONE 5: WORTHLESS EXPIRY ($0.00) OR MAX CASH DELIVERY",
+                                        "desc": f"If {sym} finishes < ${s:.2f} at Friday 4:00 PM, call expires worthless ($0.00) & you keep 100% of +${total_cash:.2f} cash + all shares. If >= ${s:.2f}, delivers ${called_cash:.2f} total cash.",
                                         "target": f"${called_cash:.2f} TOTAL CASH"
                                     }
                                 }

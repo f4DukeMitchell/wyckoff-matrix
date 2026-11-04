@@ -2313,7 +2313,7 @@
     <div class="options-ribbon">
       <div class="options-kpi-card">
         <span class="options-kpi-title">TARGET EXPIRATION</span>
-        <span class="options-kpi-val c-purple" id="opt-target-exp">OCT 16, 2026 (7 DTE)</span>
+        <span class="options-kpi-val c-purple" id="opt-target-exp">NOV 13, 2026 (9 DTE)</span>
         <span class="options-kpi-sub">WEEKLY FRIDAY LIQUIDITY</span>
       </div>
       <div class="options-kpi-card">
@@ -4788,9 +4788,9 @@
                   <!-- Box 2: Guardian Defenses -->
                   <div class="detail-box">
                     <div class="detail-title" style="color: var(--wsr-cyan);">🤖 GUARDIAN AUTOMATED DEFENSES</div>
-                    <div>Milestone 3 (50% Decay TP): <b class="c-green">Auto-Buyback &le; $0.03</b> (Bank +$93 early)</div>
-                    <div>Milestone 4 (Roll Defense): <b class="c-yellow">Armed at &ge; $3.36</b> (96% strike surge defense)</div>
-                    <div>Milestone 5 (Max Pin): <b class="c-white">Pin &lt; $3.50 on Oct 23</b> (Keeps 100% shares + $186)</div>
+                    <div>Milestone 2 (Hold Shield): <b class="c-cyan">Zero Mid-Week Debit Buybacks</b> (No Panic Exit)</div>
+                    <div>Milestone 3 (80% Decay TP): <b class="c-green">Auto-Buyback &le; 20% Mark</b> (Lock 80%+ Profit)</div>
+                    <div>Milestone 4 (Friday Roll): <b class="c-yellow">Expiration Day Net-Credit Only</b> (New Bid &gt; Ask)</div>
                     <div>Max If Called: <b class="c-green">+$1,643.00 Total Profit</b> ($10,850 cash delivery)</div>
                   </div>
 
@@ -6613,6 +6613,10 @@ Position upgraded from Core Hold to Algo Active!`);
       document.getElementById('wb-ticker').innerText = item.ticker;
       document.getElementById('wb-price').innerText = `$${item.stock_price.toFixed(2)}`;
       document.getElementById('wb-expiry').innerText = `${item.expiry || item.expiration} (${item.dte} DTE)`;
+      const topExpEl = document.getElementById('opt-target-exp');
+      if (topExpEl && (item.expiry || item.expiration)) {
+        topExpEl.innerText = `${item.expiry || item.expiration} (${item.dte} DTE)`;
+      }
       document.getElementById('wb-pcr').innerText = `${item.pcr_vol || item.volume || '--'}`;
 
       const catBadge = document.getElementById('wb-cat-badge');
@@ -6666,7 +6670,7 @@ Position upgraded from Core Hold to Algo Active!`);
           const t2 = document.getElementById('step-tag-2');
           const d2 = document.querySelector('#step-ms-2 div:last-child');
           if (s2) s2.innerHTML = `<span style="color: #00e5ff;">${ms.m2.title}</span>`;
-          if (t2) t2.innerHTML = `<span class="c-cyan" style="font-weight: 700;">FLOOR ${ms.m2.target}</span>`;
+          if (t2) t2.innerHTML = `<span class="c-cyan" style="font-weight: 700;">${ms.m2.target}</span>`;
           if (d2) d2.innerText = ms.m2.desc;
         }
         if (ms.m3) {
@@ -6682,7 +6686,7 @@ Position upgraded from Core Hold to Algo Active!`);
           const t4 = document.getElementById('step-tag-4');
           const d4 = document.getElementById('rm-desc-tier4');
           if (s4) s4.innerHTML = `<span style="color: #ff9800;">${ms.m4.title}</span>`;
-          if (t4) t4.innerHTML = `<span class="c-yellow" style="font-weight: 700;">TRIGGER ${ms.m4.target}</span>`;
+          if (t4) t4.innerHTML = `<span class="c-yellow" style="font-weight: 700;">${ms.m4.target}</span>`;
           if (d4) d4.innerText = ms.m4.desc;
         }
         if (ms.m5) {
@@ -6965,7 +6969,7 @@ Position upgraded from Core Hold to Algo Active!`);
         const mid = item.mid || 0.06;
         const totalCash = item.upfront_cash || (mid * item.contracts_count * 100);
 
-        if (!confirm(`🛡️ CONFIRM COVERED CALL ORDER:\n\nSell to Open ${item.contracts_count} contracts of ${item.ticker} ($${item.strike.toFixed(2)} Call exp ${item.expiry}) at Mid-Price $${mid.toFixed(2)} on Public.com?\n\n💰 Instant Cash Deposited: +$${totalCash.toFixed(2)}\n🤖 Covered Call Guardian will AUTOMATICALLY manage 50% take-profit and roll defense to preserve all ${item.shares_held} shares!`)) {
+        if (!confirm(`🛡️ CONFIRM COVERED CALL ORDER:\n\nSell to Open ${item.contracts_count} contracts of ${item.ticker} ($${item.strike.toFixed(2)} Call exp ${item.expiry}) at Mid-Price $${mid.toFixed(2)} on Public.com?\n\n💰 Instant Cash Deposited: +$${totalCash.toFixed(2)}\n🤖 Covered Call Guardian v2.0 ARMED:\n• Zero-Loss Hold Shield (no mid-week debit buybacks)\n• 80% Theta Decay Harvest (<= $${Math.max(0.01, (mid*0.20)).toFixed(2)})\n• Expiration Friday Net-Credit Roll Only!`)) {
           return;
         }
 
@@ -6987,7 +6991,7 @@ Position upgraded from Core Hold to Algo Active!`);
           });
           const data = await res.json();
           if (data.success) {
-            alert(`✓ COVERED CALL EXECUTED!\n\nContract: ${callSym}\nSize: ${item.contracts_count} Contracts\nInstant Cash Deposited: +$${totalCash.toFixed(2)}\nStatus: ${data.order.status}\n\n🤖 Automated Covered Call Guardian is ARMED! It will auto-close at 50% decay (Milestone 3) and auto-roll up-and-out if stock surges (Milestone 4)!`);
+            alert(`✓ COVERED CALL EXECUTED!\n\nContract: ${callSym}\nSize: ${item.contracts_count} Contracts\nInstant Cash Deposited: +$${totalCash.toFixed(2)}\nStatus: ${data.order.status}\n\n🤖 Covered Call Guardian v2.0 ARMED: Zero-Loss Hold Shield (no mid-week debit buybacks), 80% Theta Decay Harvest, and Expiration Friday Net-Credit Roll Only!`);
             fetchOptionsScanner();
           } else {
             alert('Order error: ' + (data.detail || JSON.stringify(data)));
