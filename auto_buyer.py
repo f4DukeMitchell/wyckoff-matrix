@@ -27,7 +27,7 @@ def get_config():
 # Calibrated ML confidence floor. With Frank's regularized Random Forest (41.0% base WIN rate),
 # high-quality Spring setups produce calibrated probabilities between 25.0% and 45.0%.
 # Configurable dynamically via auto_buyer_config.json / min_ml_conf (default 25.0%).
-AUTO_BUY_MIN_ML_CONF = float(os.getenv("AUTO_BUY_MIN_ML_CONF", "35.0"))
+AUTO_BUY_MIN_ML_CONF = float(os.getenv("AUTO_BUY_MIN_ML_CONF", "50.0"))
 
 # Allowed Auto-Buy Timeframes: 5m Day Trades & 15m Momentum Springs
 AUTO_BUY_ALLOWED_TIMEFRAMES = ["5m", "15m"]
@@ -398,8 +398,13 @@ def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
     if current_t > AUTO_BUY_END_TIME:
         return False, f"AFTER_3:58PM_CUTOFF (Current: {current_t.strftime('%H:%M:%S')})"
 
-    # 3. Time-of-day lunch block removed: empirical data shows Longs hold 66.7% win rate during lunch
-    # All setups evaluated strictly by structural Wyckoff quality and ML confidence floor
+    # 3. Midday Chop Blackout (11:15 AM - 2:00 PM EST)
+    # Institutional volume dries up and false breakout chop dominates the midday session.
+    # New day-trade entries are strictly suppressed; high-probability execution resumes at 2:00 PM EST.
+    MIDDAY_BLACKOUT_START = datetime.time(11, 15)
+    MIDDAY_BLACKOUT_END = datetime.time(14, 0)
+    if MIDDAY_BLACKOUT_START <= current_t < MIDDAY_BLACKOUT_END:
+        return False, f"MIDDAY_CHOP_BLACKOUT (11:15-14:00 EST: {current_t.strftime('%H:%M:%S')})" 
 
     # 4. ML Confidence Gate (Calibrated to Frank's Regularized Forest: default 25.0% floor)
     min_ml_floor = float(cfg.get("min_ml_conf", AUTO_BUY_MIN_ML_CONF))
@@ -541,8 +546,14 @@ def execute_autonomous_second_spring_buy(parent_trade_id, ticker, price, ml_conf
         return False, "AFTER_3:58PM_CUTOFF"
 
 
-    if ml_conf is not None and ml_conf < AUTO_BUY_MIN_ML_CONF:
-        return False, f"ML_CONF_TOO_LOW ({ml_conf:.1f}% < {AUTO_BUY_MIN_ML_CONF}%)"
+    MIDDAY_BLACKOUT_START = datetime.time(11, 15)
+    MIDDAY_BLACKOUT_END = datetime.time(14, 0)
+    if MIDDAY_BLACKOUT_START <= current_t < MIDDAY_BLACKOUT_END:
+        return False, f"MIDDAY_CHOP_BLACKOUT (11:15-14:00 EST: {current_t.strftime('%H:%M:%S')})"
+
+    min_ml_floor = float(cfg.get('min_ml_conf', AUTO_BUY_MIN_ML_CONF))
+    if ml_conf is not None and ml_conf < min_ml_floor:
+        return False, f"ML_CONF_TOO_LOW ({ml_conf:.1f}% < {min_ml_floor:.1f}%)"
 
     # Fetch parent trade
     conn = sqlite3.connect(DB_PATH)

@@ -6,7 +6,7 @@
   "target_weighted_sizing": false,
   "min_r_units": 0.65,
   "auto_buy_enabled": true,
-  "min_ml_conf": 25.0,
+  "min_ml_conf": 50.0,
   "allowed_timeframes": [
     "5m",
     "15m"

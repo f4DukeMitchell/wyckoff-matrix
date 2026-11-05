@@ -590,26 +590,57 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
         except Exception:
             orb_regime_code = 0
 
-        c_below = (lows[curr] < range_low[curr]) or (lows[curr-1] < range_low[curr-1])
-        vol_dry = rel_vol[curr] < VOL_LIMIT
-        # Mode 2: High-Volume Institutional Absorption Spring (Shakeout with Hammer CLV >= 0.65 & Positive CVD >= 0.20)
-        vol_absorption = (rel_vol[curr] >= VOL_LIMIT) and (candle_clv >= 0.65) and (cvd_delta_ratio >= 0.20)
-        vol_spring_ok = vol_dry or vol_absorption
+        # WYCKOFF PHASE C ACCUMULATION ENGINE (SPRING & CONFIRMED SECONDARY TEST GATE)
+        # 1. Structural Liquidity Sweep: Price probed below Range Low in previous 1 to 10 bars
+        sweep_bars_long = [k for k in range(max(0, curr - 10), curr) if lows[k] < range_low[k]]
+        has_spring_sweep = len(sweep_bars_long) > 0
+        spring_trough = min(lows[k] for k in sweep_bars_long) if has_spring_sweep else lows[curr]
         
-        # Also catch late-candle 5m Spring completions on curr-1 if the new bar just opened and still holds u1[curr]
-        c_below_prev = (curr >= 2) and ((lows[curr-1] < range_low[curr-1]) or (lows[curr-2] < range_low[curr-2]))
-        prev_rng = abs(highs[curr-1] - lows[curr-1]) if curr >= 1 else 0.0
-        prev_clv = float(np.clip((closes[curr-1] - lows[curr-1]) / prev_rng, 0.0, 1.0)) if prev_rng > 1e-6 else 0.5
-        prev_cvd = float((2.0 * (closes[curr-1] - lows[curr-1]) - prev_rng) / prev_rng) if prev_rng > 1e-6 else 0.0
-        vol_prev_ok = (curr >= 1) and ((rel_vol[curr-1] < VOL_LIMIT) or (prev_clv >= 0.65 and prev_cvd >= 0.20))
-        is_spring_just_closed = (
-            interval == '5m' and curr >= 2 and
-            c_below_prev and u1[curr-1] and not u1[curr-2] and u1[curr] and not u9[curr] and vol_prev_ok
+        # Current bar sweep status
+        c_below_curr = (lows[curr] < range_low[curr]) or (curr >= 1 and lows[curr-1] < range_low[curr-1])
+        
+        # Range height and price position within trading range
+        tr_height = max(0.01, range_high[curr] - range_low[curr])
+        price_in_range_ratio = (closes[curr] - range_low[curr]) / tr_height
+        
+        # Indicator 2.4: Secondary Test Volume Dry-Up (Supply Exhaustion)
+        prev_v = vols[curr - 1] if curr >= 1 else 1.0
+        st_vol_ratio = float(vols[curr] / prev_v) if prev_v > 0 else 1.0
+        st_volume_dry = (rel_vol[curr] < 0.75) or (st_vol_ratio < 0.75)
+        
+        # Mode 2: High-Volume Institutional Absorption Spring (Shakeout with Hammer CLV >= 0.65 & Positive CVD >= 0.20)
+        vol_absorption = (rel_vol[curr] >= 1.2) and (candle_clv >= 0.65) and (cvd_delta_ratio >= 0.20)
+        
+        # Entry Mode 1: Confirmed Secondary Test (ST in Phase C) — Primary High-Probability Gate
+        # Avoids top-ticking the chop impulse. Requires:
+        # 1) Sweep occurred 1 to 8 bars ago
+        # 2) Low holds at or above spring trough (higher low or equal low)
+        # 3) Price is in lower 45% of trading range (not bought at chop ceiling)
+        # 4) True dry-up volume (RVOL < 0.75x or ST volume ratio < 0.75x)
+        # 5) Micro-trend green and candle holds support
+        is_secondary_test = (
+            has_spring_sweep and
+            (curr - max(sweep_bars_long) >= 1) and (curr - max(sweep_bars_long) <= 8) and
+            (lows[curr] >= spring_trough * 0.998) and
+            (price_in_range_ratio <= 0.45 or (closes[curr] - spring_trough) / spring_trough <= 0.012) and
+            st_volume_dry and
+            u1[curr] and not u9[curr] and
+            (closes[curr] >= opens[curr] or candle_clv >= 0.45)
         )
         
-        # LONG (Spring): 100% Intact Dry-Up (< 1.2x) + High-Volume Institutional Absorption + late-candle catch
-        is_spring = (c_below and u1[curr] and not u1[curr-1] and not u9[curr] and vol_spring_ok) or is_spring_just_closed
-        is_absorption_spring = bool(is_spring and not vol_dry and (vol_absorption or (is_spring_just_closed and rel_vol[curr-1] >= VOL_LIMIT)))
+        # Entry Mode 2: Un-stretched Direct Spring Pinbar / Hammer
+        # Direct sweep entry ONLY allowed if candle is tight at support (<=0.6% from trough, NOT an extended impulse):
+        is_direct_tight_spring = (
+            c_below_curr and
+            ((closes[curr] - min(lows[curr], lows[curr-1])) / max(0.01, min(lows[curr], lows[curr-1])) <= 0.006) and
+            (candle_clv >= 0.60) and
+            (st_volume_dry or vol_absorption) and
+            u1[curr] and not u9[curr]
+        )
+        
+        # Combined Phase C Spring Signal
+        is_spring = is_secondary_test or is_direct_tight_spring
+        is_absorption_spring = bool(is_spring and not st_volume_dry and vol_absorption)
         
         # SHORT (UTAD / LPSY - Decoupled Wyckoff Distribution Engine):
         # 1. Structural UTAD Sweep: Price probed above Range High in previous 1 to 10 bars
@@ -687,12 +718,18 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     return
             
             price = closes[curr]
-            sl = min(lows[curr], lows[curr-1]) * (1.0 - SL_BUFFER)
+            sweep_anchor = min(spring_trough, lows[curr], lows[curr-1] if curr >= 1 else lows[curr])
+            sl = sweep_anchor * (1.0 - SL_BUFFER)
             risk = abs(price - sl)
             if risk <= 0.001:
                 return
 
-            spring_subtype = "High-Vol Absorption Spring" if is_absorption_spring else "Dry-Up Spring"
+            if is_secondary_test:
+                spring_subtype = "Confirmed Secondary Test (ST)"
+            elif is_absorption_spring:
+                spring_subtype = "High-Vol Absorption Spring"
+            else:
+                spring_subtype = "Dry-Up Spring"
             regime = f"BEARISH ({spring_subtype})" if not u9[curr] and not u14[curr] else f"MIXED ({spring_subtype})"
             
             # --- Extract All 4 Institutional Tactics ---
@@ -847,7 +884,7 @@ def evaluate_ticker_data(ticker, df, interval, lookback, spy_bullish, hour_of_da
                     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Auto-buyer hook error: {e}")
 
             if TELEGRAM_ENABLED and not auto_executed:
-                tg_trade_alert(ticker, "LONG (SPRING)", price, sl, tp, regime, interval, flow, trade_id, ml_confidence=ml_conf, auto_reason=auto_reason)
+                tg_trade_alert(ticker, f"LONG ({spring_subtype.upper()})", price, sl, tp, regime, interval, flow, trade_id, ml_confidence=ml_conf, auto_reason=auto_reason)
                 if TRACKER_ENABLED and trade_id: mark_trade_alerted(trade_id)
             elif TRACKER_ENABLED and trade_id:
                 mark_trade_alerted(trade_id)
