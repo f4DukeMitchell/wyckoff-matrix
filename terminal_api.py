@@ -188,14 +188,18 @@ def get_terminal_state():
         pos['initial_risk_dollar'] = round(risk * init_shares, 2)
         pos['risk_per_share'] = round(risk, 4)
 
-        # Realized cash profit from banked scaling tiers
+        # Realized cash profit from banked scaling tiers (50% @ T4, 35% @ T5)
         realized_profit = 0.0
         if is_long and init_shares > 0:
-            if tier >= 1: realized_profit += (0.10 * init_shares) * (0.20 * risk)
-            if tier >= 2: realized_profit += (0.10 * init_shares) * (0.40 * risk)
-            if tier >= 3: realized_profit += (0.10 * init_shares) * (0.65 * risk)
-            if tier >= 4: realized_profit += (0.25 * init_shares) * (1.00 * risk)
-            if tier >= 5: realized_profit += (0.25 * init_shares) * (1.30 * risk)
+            tp = float(pos.get('take_profit') or 0.0)
+            target_gain = abs(tp - entry) if (tp > 0 and entry > 0) else (1.15 * risk)
+            if tier >= 4:
+                realized_profit += (0.50 * init_shares) * (0.85 * target_gain)
+            if tier >= 5:
+                realized_profit += (0.35 * init_shares) * (1.00 * target_gain)
+            # Backward-compatibility for legacy tiers if shares were already sold prior to tier 4
+            if tier < 4 and pos.get('shares_sold', 0.0) > 0:
+                realized_profit += float(pos['shares_sold']) * (0.35 * risk)
         pos['realized_profit_dollar'] = round(realized_profit, 2)
 
         if curr_price and entry > 0:

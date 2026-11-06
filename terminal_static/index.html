@@ -1590,8 +1590,8 @@
             <option value="pct">% OF BP</option>
             <option value="fixed">$ FIXED</option>
           </select>
-          <input type="text" id="custom-size-val" value="100% ➔ 33%" disabled oninput="updateCalculatedSlot()" onchange="saveSizingToServer()" style="width: 72px; background: #000; color: var(--wsr-yellow); border: 1px solid var(--wsr-yellow); font-family: inherit; font-size: 10px; text-align: center; font-weight: bold; padding: 1px 2px; border-radius: 2px;" />
-          <b class="meta-val c-yellow" id="slot-val">($-- ➔ $--)</b>
+          <input type="text" id="custom-size-val" value="30% / SLOT" disabled oninput="updateCalculatedSlot()" onchange="saveSizingToServer()" style="width: 72px; background: #000; color: var(--wsr-yellow); border: 1px solid var(--wsr-yellow); font-family: inherit; font-size: 10px; text-align: center; font-weight: bold; padding: 1px 2px; border-radius: 2px;" />
+          <b class="meta-val c-yellow" id="slot-val">($-- / slot)</b>
           <button id="btn-save-sizing" onclick="saveSizingToServer(true)" style="background: rgba(0, 230, 118, 0.12); color: #00e676; border: 1px solid #00e676; font-family: inherit; font-size: 9.5px; font-weight: bold; padding: 1px 6px; border-radius: 2px; cursor: pointer; margin-left: 4px; transition: all 0.15s ease;" title="Save risk sizing to server">💾 SAVE</button>
         </span>
         <span class="meta-divider">|</span>
@@ -3585,7 +3585,7 @@
         const fullBp = Math.max(0.0, cachedBuyingPower);
         const slotBp = Math.max(5.0, cachedBuyingPower / 3.0);
         dollarAmount = slotBp;
-        label = `DYNAMIC ($${fullBp.toFixed(0)} ➔ $${slotBp.toFixed(0)})`;
+        label = `DYNAMIC ($${slotBp.toFixed(0)} / slot)`;
       } else if (mode === 'pct') {
         dollarAmount = Math.max(5.0, (cachedBuyingPower * (inputVal / 100.0)));
         label = `${inputVal}%`;
@@ -3603,7 +3603,7 @@
         if (mode === 'dynamic') {
           const fullBp = Math.max(0.0, cachedBuyingPower);
           const slotBp = Math.max(5.0, cachedBuyingPower / 3.0);
-          slotEl.innerText = `($${fullBp.toFixed(0)} ➔ $${slotBp.toFixed(0)})`;
+          slotEl.innerText = `($${slotBp.toFixed(0)} x 3 slots)`;
         } else {
           const sizing = getSelectedRiskSizing();
           slotEl.innerText = `($${sizing.dollarAmount.toFixed(2)})`;
@@ -3667,7 +3667,7 @@
       const inputEl = document.getElementById('custom-size-val');
       if (mode === 'dynamic') {
         inputEl.disabled = true;
-        inputEl.value = "100% ➔ 33%";
+        inputEl.value = "30% / SLOT";
         inputEl.style.width = "72px";
       } else if (mode === 'pct') {
         inputEl.disabled = false;
@@ -4952,7 +4952,7 @@
           if (inputEl) {
             if (modeEl && modeEl.value === 'dynamic') {
               inputEl.disabled = true;
-              inputEl.value = "100% ➔ 33%";
+              inputEl.value = "30% / SLOT";
               inputEl.style.width = "72px";
             } else if (data.config.alloc_value !== undefined) {
               inputEl.disabled = false;
