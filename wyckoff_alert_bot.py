@@ -1470,34 +1470,31 @@ if __name__ == "__main__":
                     if t.get('is_breakeven'):
                         b_msg = f"🛡️ BREAKEVEN RATCHET: {t.get('ticker')} is up +{t.get('current_r', 0):.1f}R!\nStop Loss moved to Entry (${t.get('entry_price', 0):.2f}). Risk is now $0.00!"
                         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {b_msg}")
-                        if (t.get('user_active') == 1 or t.get('telegram_alerted') == 1) and TELEGRAM_ENABLED:
-                            from telegram_notifier import send_message
-                            send_message(b_msg)
+                        # Suppress paper breakeven Telegram alerts; live trades are handled by exit_guardian
                         continue
 
                     msg = f"Trade Closed: {t.get('ticker', '?')} -> {t.get('outcome', '?')} ({t.get('pnl_r', 0):+.1f}R)"
                     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {msg}")
                     
-                    # Note: Live broker trades (user_active=1) are handled exclusively by exit_guardian
-                    # which manages 5-tier scaling, breakeven stop, and the 15% uncapped runner into EOD flatten.
-                    if (t.get('user_active') == 1 or t.get('telegram_alerted') == 1) and TELEGRAM_ENABLED:
-                        now_check = get_market_now()
-                        # Suppress paper exit alerts before 9:40 AM EST to eliminate pre-market noise
-                        if t.get('user_active') != 1 and (now_check.hour < 9 or (now_check.hour == 9 and now_check.minute < 40)):
-                            pass
-                        else:
-                            from telegram_notifier import send_message, TELEGRAM_CHAT_ID_DAY
-                            outcome_str = t.get('outcome', 'CLOSED')
-                            pnl_val = t.get('pnl_r', 0) or 0.0
-                            if outcome_str == 'CLOSED':
-                                emoji = "🌅"
-                                alert_msg = f"{emoji} EOD FLATTEN: {t.get('ticker')} closed at session end.\nReturn: {pnl_val:+.2f}R Units"
-                            else:
-                                emoji = "🎉" if outcome_str == 'WIN' else ("🛡️" if outcome_str == 'BREAKEVEN' else "🚨")
-                                alert_msg = f"{emoji} PAPER EXIT ALERT: {t.get('ticker')} ({outcome_str})\nReturn: {pnl_val:+.2f}R Units"
-                            send_message(alert_msg)
-                            if TELEGRAM_CHAT_ID_DAY:
-                                send_message(alert_msg, chat_id=TELEGRAM_CHAT_ID_DAY)
+                    # Live broker trades (user_active=1) are handled exclusively by exit_guardian
+                    # (5-tier scaling, breakeven stop, and 15% uncapped runner).
+                    # Paper exit alerts are suppressed to keep Telegram strictly reserved for live trades.
+                    try:
+                        import config_manager
+                        cfg = config_manager.load_config()
+                        paper_alerts_on = cfg.get("telegram_paper_alerts", False)
+                    except Exception:
+                        paper_alerts_on = False
+
+                    if paper_alerts_on and t.get('telegram_alerted') == 1 and TELEGRAM_ENABLED:
+                        from telegram_notifier import send_message, TELEGRAM_CHAT_ID_DAY
+                        outcome_str = t.get('outcome', 'CLOSED')
+                        pnl_val = t.get('pnl_r', 0) or 0.0
+                        emoji = "🎉" if outcome_str == 'WIN' else ("🛡️" if outcome_str == 'BREAKEVEN' else "🚨")
+                        alert_msg = f"{emoji} PAPER EXIT ALERT: {t.get('ticker')} ({outcome_str})\nReturn: {pnl_val:+.2f}R Units"
+                        send_message(alert_msg)
+                        if TELEGRAM_CHAT_ID_DAY:
+                            send_message(alert_msg, chat_id=TELEGRAM_CHAT_ID_DAY)
             except: pass
         
         now = get_market_now()

@@ -61,6 +61,16 @@ def send_trade_alert(ticker, direction, entry_price, stop_loss, take_profit, reg
     if not is_configured():
         print("Telegram not configured. Skipping trade alert.")
         return False
+
+    # Strictly LIVE trade notifications: Suppress paper tracking alerts
+    try:
+        import config_manager
+        cfg = config_manager.load_config()
+        if not cfg.get("telegram_paper_alerts", False):
+            print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [Telegram Live-Only] Suppressed paper alert for {ticker} ({timeframe})")
+            return False
+    except Exception:
+        pass
         
     styles = {
         "1m": "Micro Stalker Scalp",

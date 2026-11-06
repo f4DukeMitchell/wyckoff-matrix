@@ -17,7 +17,8 @@ DEFAULT_CONFIG = {
     "frank_mode": "ENFORCE",          # "ENFORCE" (Active Wall Street Trading Room Desk Analyst & Trade Manager)
     "min_ml_conf": 50.0,              # Calibrated ML confidence floor for high-conviction trades (default 50.0%)
     "allowed_timeframes": ["5m", "15m"], # Active automated day-trade timeframes
-    "alpha_rotation_enabled": True,   # Timeframe-aware alpha replacement when at max slots
+    "alpha_rotation_enabled": True,
+    "telegram_paper_alerts": False,   # Strictly live broker notifications only (no paper spam)
     "min_rotation_gap": 8.0           # Minimum ML Edge advantage required to swap (8.0% delta)
 }
 
