@@ -231,13 +231,26 @@ def run_guardian_cycle():
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
 
-    # Query all active positions (both algo user_active=1 and open alerts)
+    # Query all active positions (primary parent trade with tier history ordered first)
     c.execute("""
         SELECT * FROM alerts 
         WHERE outcome = 'OPEN' AND user_active = 1
-        ORDER BY id DESC
+        ORDER BY COALESCE(partial_tier_done, 0) DESC, id ASC
     """)
-    trades = [dict(r) for r in c.fetchall()]
+    raw_trades = [dict(r) for r in c.fetchall()]
+    trades = []
+    seen_guardian_syms = set()
+    for tr in raw_trades:
+        s_u = (tr.get('ticker') or '').upper()
+        if s_u in seen_guardian_syms:
+            try:
+                c.execute("UPDATE alerts SET user_active = 0 WHERE id = ?", (tr['id'],))
+                conn.commit()
+            except Exception:
+                pass
+            continue
+        seen_guardian_syms.add(s_u)
+        trades.append(tr)
     if not trades:
         conn.close()
         return

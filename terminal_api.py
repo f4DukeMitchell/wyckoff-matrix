@@ -119,12 +119,12 @@ def get_terminal_state():
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
     
-    # Active user trades (tracked by Wyckoff algo)
+    # Active user trades (tracked by Wyckoff algo - primary parent trade ordered first)
     c.execute("""
         SELECT id, ticker, direction, entry_price, stop_loss, take_profit, regime, timeframe, timestamp, user_active, outcome, pnl_r, breakeven_set, partial_exit_done, partial_tier_done, initial_shares, peak_high_r, trailing_stop_price, initial_stop_loss, ml_confidence
         FROM alerts
         WHERE outcome = 'OPEN' AND user_active = 1
-        ORDER BY id DESC
+        ORDER BY COALESCE(partial_tier_done, 0) DESC, id ASC
     """)
     raw_positions = [dict(r) for r in c.fetchall()]
     active_tickers = list(set([p['ticker'] for p in raw_positions if p.get('ticker')]))
@@ -140,7 +140,19 @@ def get_terminal_state():
 
     for pos in raw_positions:
         ticker = pos.get('ticker')
-        tracked_tickers.add(ticker.upper())
+        if not ticker:
+            continue
+        sym_u = ticker.upper()
+        if sym_u in tracked_tickers:
+            # Self-heal phantom duplicate active record so 1 broker holding = 1 active row
+            if pos.get('id'):
+                try:
+                    c.execute("UPDATE alerts SET user_active = 0 WHERE id = ?", (pos['id'],))
+                    conn.commit()
+                except Exception:
+                    pass
+            continue
+        tracked_tickers.add(sym_u)
         entry = float(pos.get('entry_price') or 0.0)
         sl = float(pos.get('stop_loss') or 0.0)
         init_sl = float(pos.get('initial_stop_loss') or sl or 0.0)

@@ -425,7 +425,7 @@ def check_auto_buy_eligibility(ticker, ml_conf, timeframe="5m"):
 
     # 5. Max Concurrent Active Positions (Up to 25 positions / 25% of portfolio)
     max_concurrent = int(cfg.get("max_concurrent", 3))
-    c.execute("SELECT COUNT(id) FROM alerts WHERE outcome = 'OPEN' AND user_active = 1")
+    c.execute("SELECT COUNT(DISTINCT UPPER(ticker)) FROM alerts WHERE outcome = 'OPEN' AND user_active = 1")
     active_count = (c.fetchone() or (0,))[0]
     if active_count >= max_concurrent:
         alpha_rotation_enabled = bool(cfg.get("alpha_rotation_enabled", True))
@@ -772,7 +772,7 @@ def execute_autonomous_spring_buy(trade_id, ticker, price, sl, tp, ml_conf, time
     # Pre-buy check: if at capacity, execute alpha rotation on stagnant candidate
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT COUNT(id) FROM alerts WHERE outcome = 'OPEN' AND user_active = 1")
+    c.execute("SELECT COUNT(DISTINCT UPPER(ticker)) FROM alerts WHERE outcome = 'OPEN' AND user_active = 1")
     curr_active = (c.fetchone() or (0,))[0]
     conn.close()
 

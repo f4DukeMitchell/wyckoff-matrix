@@ -805,13 +805,20 @@ def has_open_alerted_trade(ticker, timeframe=None):
 
 def has_open_trade(ticker, timeframe=None):
     """
-    Checks if any active OPEN record exists for this ticker and timeframe from TODAY'S session.
-    Prevents duplicate entries within the same day while guaranteeing past trades never block current execution.
+    Checks if any active OPEN record exists for this ticker and timeframe from TODAY'S session,
+    OR if a live broker position (user_active = 1) is already open for this ticker on ANY timeframe.
+    Prevents cross-timeframe phantom duplicate positions while routing valid retests to Second Spring.
     """
     try:
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         today_prefix = datetime.datetime.now().strftime("%Y-%m-%d")
+        # 1. Cross-timeframe live position lock: if ticker is actively held in broker (user_active=1), always return True
+        c.execute("SELECT COUNT(*) FROM alerts WHERE UPPER(ticker) = ? AND outcome = 'OPEN' AND user_active = 1", (ticker.upper(),))
+        if (c.fetchone() or (0,))[0] > 0:
+            conn.close()
+            return True
+        # 2. Same-timeframe paper alert check from today
         if timeframe:
             c.execute("SELECT COUNT(*) FROM alerts WHERE ticker = ? AND timeframe = ? AND outcome = 'OPEN' AND timestamp >= ?", (ticker, timeframe, today_prefix))
         else:
@@ -838,18 +845,39 @@ def mark_trade_alerted(trade_id):
 
 def sync_public_positions():
     """
-    Feature 3: Auto-Sync with Public.com Portfolio.
-    Automatically marks user_active = 1 for any OPEN alert currently held in Public account.
+    Feature 3: Single-Parent Position Synchronizer & Duplicate Sanitizer.
+    1. Enforces strictly 1 active parent row (user_active = 1) per ticker across all timeframes.
+    2. Never adopts sub-threshold (< min_ml_conf) or cross-timeframe duplicate alerts when a position is already tracked.
     """
-    api_key = os.getenv("PUBLIC_API_KEY")
-    if not api_key:
-        return []
-        
+    CORE_HOLDINGS = {'AMC', 'APE', 'NKE'}
     try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        
+        # Step 1: Self-heal any duplicate user_active=1 rows (keep primary parent with highest tier / earliest ID)
+        c.execute("""
+            SELECT id, UPPER(ticker) FROM alerts
+            WHERE outcome = 'OPEN' AND user_active = 1
+            ORDER BY COALESCE(partial_tier_done, 0) DESC, id ASC
+        """)
+        already_active_tickers = set()
+        for r_id, r_sym in c.fetchall():
+            if r_sym in already_active_tickers:
+                c.execute("UPDATE alerts SET user_active = 0 WHERE id = ?", (r_id,))
+            else:
+                already_active_tickers.add(r_sym)
+        conn.commit()
+
+        api_key = os.getenv("PUBLIC_API_KEY")
+        if not api_key:
+            conn.close()
+            return []
+
         from public_api_sdk import PublicApiClient, ApiKeyAuthConfig
         client = PublicApiClient(auth_config=ApiKeyAuthConfig(api_secret_key=api_key))
         accounts = client.get_accounts()
         if not accounts.accounts:
+            conn.close()
             return []
         account_id = accounts.accounts[0].account_id
         port = client.get_portfolio(account_id)
@@ -857,21 +885,32 @@ def sync_public_positions():
         held_symbols = set()
         for p in (port.positions or []):
             if hasattr(p, "instrument") and hasattr(p.instrument, "symbol"):
-                held_symbols.add(p.instrument.symbol.upper())
-                
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        
+                if float(getattr(p, "quantity", 0.0) or 0.0) > 0:
+                    held_symbols.add(p.instrument.symbol.upper())
+
+        try:
+            import config_manager
+            min_ml_floor = float(config_manager.load_config().get("min_ml_conf", 50.0))
+        except Exception:
+            min_ml_floor = 50.0
+
+        today_prefix = datetime.datetime.now().strftime("%Y-%m-%d")
         newly_active = []
-        c.execute("SELECT id, ticker FROM alerts WHERE outcome = 'OPEN' AND user_active = 0")
-        for row in c.fetchall():
-            t_id, sym = row[0], row[1].upper()
-            is_held = (sym in held_symbols) or any(
-                h.startswith(sym) and len(h) >= len(sym) + 7 and h[len(sym):len(sym)+6].isdigit()
-                for h in held_symbols
-            )
-            if is_held:
+        c.execute("""
+            SELECT id, UPPER(ticker), COALESCE(ml_confidence, 0.0)
+            FROM alerts
+            WHERE outcome = 'OPEN' AND (user_active = 0 OR user_active IS NULL)
+              AND timestamp >= ?
+            ORDER BY COALESCE(ml_confidence, 0.0) DESC, id DESC
+        """, (today_prefix,))
+        for t_id, sym, ml_c in c.fetchall():
+            if sym in CORE_HOLDINGS or sym in already_active_tickers:
+                continue
+            if float(ml_c or 0.0) < min_ml_floor:
+                continue
+            if sym in held_symbols:
                 c.execute("UPDATE alerts SET user_active = 1 WHERE id = ?", (t_id,))
+                already_active_tickers.add(sym)
                 newly_active.append((t_id, sym))
                 
         conn.commit()
