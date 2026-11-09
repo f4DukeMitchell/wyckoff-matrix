@@ -8129,7 +8129,7 @@ Position upgraded from Core Hold to Algo Active!`);
     function populatePNLDaySelector(dailySummary) {
       const daySelect = document.getElementById('pnl-day-select');
       if (!daySelect || !dailySummary) return;
-      const todayStr = '2026-10-26';
+      const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
       let html = '<option value="">📆 JUMP TO DAY...</option>';
       dailySummary.forEach(d => {
         const sign = d.net_dollar >= 0 ? '+' : '-';
@@ -8178,7 +8178,7 @@ Position upgraded from Core Hold to Algo Active!`);
       const searchVal = (document.getElementById('pnl-search-input')?.value || '').trim().toUpperCase();
       const listContainer = document.getElementById('pnl-trade-list-container');
       const ledgerCountEl = document.getElementById('pnl-ledger-count');
-      const todayStr = '2026-10-26';
+      const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
 
       // 1. Determine Scope Trades based on ERA or SPECIFIC DAY
       let scopeTrades = cachedPNLData.trades;

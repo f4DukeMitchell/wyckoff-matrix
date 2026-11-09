@@ -217,6 +217,12 @@ def fetch_pnl_station_data() -> Dict[str, Any]:
 
         raw_txs.sort(key=lambda x: x.timestamp)
 
+        try:
+            import zoneinfo
+            current_day_str = datetime.datetime.now(zoneinfo.ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+        except Exception:
+            current_day_str = datetime.date.today().strftime("%Y-%m-%d")
+
         # Core protected long-term investment symbols to exclude
         EXCLUDE_SYMBOLS = {'AMC', 'APE', 'NKE'}
 
@@ -279,7 +285,7 @@ def fetch_pnl_station_data() -> Dict[str, Any]:
                     era = 'HISTORICAL'
                     era_label = 'Historical Broker Record (Pre-V12)'
 
-                is_today = (exit_dt_str == '2026-10-26')
+                is_today = (exit_dt_str == current_day_str)
 
                 trade_obj = {
                     "id": f"broker_opt_{sym}_{int(first_t.timestamp())}",
@@ -372,7 +378,7 @@ def fetch_pnl_station_data() -> Dict[str, Any]:
                         era = 'HISTORICAL'
                         era_label = 'Historical Broker Record (Pre-V12)'
 
-                    is_today = (exit_dt_str == '2026-10-26')
+                    is_today = (exit_dt_str == current_day_str)
 
                     is_manual = sym in ['ACHR', 'DJT']
                     source = "MANUAL_BROKER" if is_manual else "AUTO_VM"
