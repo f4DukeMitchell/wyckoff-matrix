@@ -491,10 +491,14 @@ def train_and_upgrade_model(trigger_reason="Daily Post-Market Evolution"):
                 "key_failure_cause": ai_eval.get("key_failure_cause") or default_failure,
                 "key_winning_driver": ai_eval.get("key_winning_driver") or default_winner
             }
-            from frank_study_engine import conduct_daily_study_session
-            study_log = conduct_daily_study_session(force_refresh=True)
-            email_html = format_executive_briefing_html(pnl_summary, autopsy_summary, rules, study_log=study_log)
-            send_frank_email(f"Frank // Post-Market Briefing & Model Evolved ({version_str})", email_html)
+            # v2 Desk Review: deterministic per-trade forensics + edge tracker + pipeline audit.
+            # Never recycles a prior session; no daily Wyckoff homework section.
+            from frank_desk_report import send_desk_report
+            send_desk_report(today_str, model_meta={
+                "version": version_str, "timestamp": datetime.datetime.now().isoformat(),
+                "training_samples": total_closed, "win_rate_before": round(directional_win_rate, 1),
+                "model_accuracy": round(acc, 1), "feature_importances": importances,
+            })
         except Exception as mail_err:
             print(f"[ML Engine] Frank email dispatch notice: {mail_err}")
 

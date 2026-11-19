@@ -2062,6 +2062,45 @@ def get_radar_briefing_endpoint():
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+@app.get("/api/ai/desk_report")
+def get_desk_report_endpoint(date: str = None):
+    """Returns the v2 Post-Market Desk Review (grounded in broker actuals & 5m bar forensics)."""
+    try:
+        from frank_desk_report import build_desk_report
+        ctx = build_desk_report(date)
+        return {
+            "success": True,
+            "session_date": ctx.get("session_date"),
+            "headline": ctx.get("headline"),
+            "board": ctx.get("board"),
+            "cards_count": len(ctx.get("cards", [])),
+            "edges_count": len(ctx.get("edges", [])),
+            "health_checks": ctx.get("health", []),
+            "html": ctx.get("html")
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/ai/desk_report/view", response_class=HTMLResponse)
+def view_desk_report_endpoint(date: str = None):
+    """Renders the sleek, institutional v2 Desk Review directly in the browser."""
+    try:
+        from frank_desk_report import build_desk_report
+        ctx = build_desk_report(date)
+        return HTMLResponse(content=ctx.get("html", "<h1>Error building report</h1>"))
+    except Exception as e:
+        return HTMLResponse(content=f"<h1>Error: {e}</h1>", status_code=500)
+
+@app.post("/api/ai/desk_report/email")
+def email_desk_report_endpoint(date: str = None, recipient: str = None):
+    """Dispatches the v2 Desk Review to the fund manager via Gmail SMTP."""
+    try:
+        from frank_desk_report import send_desk_report
+        ok = send_desk_report(date, recipient=recipient)
+        return {"success": ok, "date": date, "recipient": recipient or "matt.smith@pga.com"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 @app.post("/api/ai/radar_briefing/email")
 def email_radar_briefing_endpoint():
     """Dispatches Frank Wyckoff's upcoming trades radar briefing directly to matt.smith@pga.com."""
