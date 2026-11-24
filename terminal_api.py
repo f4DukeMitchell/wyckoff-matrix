@@ -2716,6 +2716,16 @@ def get_ticker_news_endpoint(ticker: str):
 def health_check():
     return {"status": "ONLINE", "version": "2.2.0"}
 
+@app.get("/mobile")
+@app.get("/m")
+def serve_mobile():
+    mobile_file = os.path.join(BASE_DIR, "terminal_static", "mobile.html")
+    if os.path.exists(mobile_file):
+        response = FileResponse(mobile_file)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        return response
+    return {"status": "ERROR", "message": "mobile.html not found"}
+
 @app.get("/")
 def serve_index():
     index_file = os.path.join(BASE_DIR, "terminal_static", "index.html")
